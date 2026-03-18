@@ -1,0 +1,21 @@
+{
+  "name": "cpsc-recall-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CPSC Recall Violation Monitoring System - Team 6",
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "npm run dev:client & npm run dev:server",
+    "dev:client": "npm -w client run dev",
+    "dev:server": "npm -w server run dev",
+    "build": "npm -w client run build",
+    "lint": "npm -w client run lint & npm -w server run lint"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
