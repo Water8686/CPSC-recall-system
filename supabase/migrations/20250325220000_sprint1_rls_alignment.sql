@@ -53,7 +53,8 @@ set search_path = public
 as $$
 begin
   if tg_op = 'UPDATE' and new.user_type is distinct from old.user_type then
-    if auth.uid() is null or not public.is_profile_admin(auth.uid()) then
+    -- Allow when auth.uid() is null (SQL Editor / trusted session). Block non-admins with JWT.
+    if auth.uid() is not null and not public.is_profile_admin(auth.uid()) then
       raise exception 'Only admins may change user_type' using errcode = '42501';
     end if;
   end if;
