@@ -66,6 +66,12 @@ cpsc-recall-system/
    npm run dev:server    # Express on http://localhost:3001
    ```
 
+## Production (Railway)
+
+Deploy as a **single Railway service** from the repo root: Nixpacks runs `npm ci`, `npm run build`, then `npm start`. Express serves the built SPA from `client/dist` and the API under `/api/*` on the same URL (no separate frontend URL required).
+
+Configure **Supabase Auth** redirect URLs for your Railway domain and set `VITE_*` and `SUPABASE_*` variables so both the client bundle and the server can talk to Supabase. Full checklist: [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Sprint Roadmap
 
 | Sprint | Feature | Status |

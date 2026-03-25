@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -6,23 +7,32 @@ import {
   Grid,
   CircularProgress,
   Alert,
+  Link,
 } from '@mui/material';
 import { Chart } from 'react-google-charts';
+import { useAuth } from '../context/AuthContext';
+import { apiFetch, getApiErrorMessage } from '../lib/api';
 
 /**
  * Dashboard — landing page after login.
- * Sprint 1: Recall priority bar chart and pie chart.
+ * Sprint 1: priority charts; CPSC Managers also use Recalls → Analytics for the same view.
  */
 export default function DashboardPage() {
+  const { session, profile, user } = useAuth();
   const [prioritizations, setPrioritizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const role =
+    profile?.role ?? user?.user_metadata?.role ?? user?.app_metadata?.role ?? user?.role;
+
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch('/api/prioritizations');
-        if (!res.ok) throw new Error('Failed to fetch prioritizations');
+        const res = await apiFetch('/api/prioritizations', session);
+        if (!res.ok) {
+          throw new Error(await getApiErrorMessage(res, 'Failed to fetch prioritizations'));
+        }
         const data = await res.json();
         setPrioritizations(data);
       } catch (err) {
@@ -32,7 +42,7 @@ export default function DashboardPage() {
       }
     }
     fetchData();
-  }, []);
+  }, [session]);
 
   const counts = { High: 0, Medium: 0, Low: 0 };
   prioritizations.forEach((p) => {
@@ -81,6 +91,14 @@ export default function DashboardPage() {
           Dashboard
         </Typography>
         <Alert severity="error">{error}</Alert>
+        {role === 'manager' && (
+          <Typography variant="body2" sx={{ mt: 2 }}>
+            <Link component={RouterLink} to="/recalls">
+              Open Recalls
+            </Link>{' '}
+            for prioritization and analytics.
+          </Typography>
+        )}
       </Box>
     );
   }
@@ -91,8 +109,17 @@ export default function DashboardPage() {
         Dashboard
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        Recall priority overview — OKR 1.1 & 1.2
+        Recall priority overview — OKR 1.1 &amp; 1.2
       </Typography>
+      {role === 'manager' && (
+        <Typography variant="body2" sx={{ mb: 2 }}>
+          For the full manager workflow (prioritize, search, charts), open{' '}
+          <Link component={RouterLink} to="/recalls">
+            Recalls
+          </Link>
+          .
+        </Typography>
+      )}
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>

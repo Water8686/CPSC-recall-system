@@ -1,0 +1,9 @@
+# Railway / Nixpacks: monorepo root — install workspaces, build Vite client, run Express
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm start"

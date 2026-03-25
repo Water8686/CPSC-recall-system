@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
  * Optionally restricts access by user role (e.g., 'manager', 'investigator', 'seller').
  */
 export default function ProtectedRoute({ children, allowedRoles }) {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
 
   if (loading) {
     return (
@@ -23,7 +23,8 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   }
 
   if (allowedRoles && allowedRoles.length > 0) {
-    const role = user.user_metadata?.role ?? user.role;
+    const role =
+      profile?.role ?? user.user_metadata?.role ?? user.app_metadata?.role ?? user.role;
     if (!role || !allowedRoles.includes(role)) {
       return <Navigate to="/unauthorized" replace />;
     }

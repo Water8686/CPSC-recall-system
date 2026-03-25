@@ -4,8 +4,15 @@ import {
   getRecallById,
   getRecallByRecallId,
 } from '../data/mockData.js';
+import {
+  applyApiMockUser,
+  requireCpscManager,
+} from '../middleware/requireCpscManager.js';
 
 const router = Router();
+
+router.use(applyApiMockUser);
+router.use(requireCpscManager);
 
 router.get('/', (_req, res) => {
   const recalls = getAllRecalls();

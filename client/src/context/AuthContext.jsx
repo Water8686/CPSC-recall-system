@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase, isMockMode } from '../lib/supabase';
 
 const AuthContext = createContext(null);
@@ -9,18 +9,30 @@ const MOCK_USER = {
   user_metadata: { role: 'manager' },
 };
 
-const MOCK_SESSION = {
-  user: MOCK_USER,
-};
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const loadProfile = useCallback(async (userId) => {
+    if (!userId || isMockMode || !supabase) {
+      setProfile(null);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role, display_name')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) {
+      console.warn('profiles load error:', error.message);
+    }
+    setProfile(data ?? null);
+  }, []);
 
   useEffect(() => {
     if (isMockMode) {
-      // Check for stored mock session (persists across refresh)
       const stored = localStorage.getItem('cpsc-mock-session');
       if (stored) {
         try {
@@ -32,27 +44,46 @@ export function AuthProvider({ children }) {
           setUser(null);
         }
       }
+      setProfile(null);
       setLoading(false);
-      return;
+      return undefined;
     }
 
-    // Real Supabase auth
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    let cancelled = false;
+
+    async function init() {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      if (cancelled) return;
+      setSession(s);
+      setUser(s?.user ?? null);
+      if (s?.user) {
+        await loadProfile(s.user.id);
+      } else {
+        setProfile(null);
+      }
+      if (!cancelled) setLoading(false);
+    }
+
+    init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      async (_event, s) => {
+        setSession(s);
+        setUser(s?.user ?? null);
+        if (s?.user) {
+          await loadProfile(s.user.id);
+        } else {
+          setProfile(null);
+        }
         setLoading(false);
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [loadProfile]);
 
   const signIn = async (email, password) => {
     if (isMockMode) {
@@ -64,6 +95,7 @@ export function AuthProvider({ children }) {
       const mockSession = { user: mockUser };
       setSession(mockSession);
       setUser(mockUser);
+      setProfile(null);
       localStorage.setItem('cpsc-mock-session', JSON.stringify(mockSession));
       return { data: { session: mockSession, user: mockUser }, error: null };
     }
@@ -72,6 +104,9 @@ export function AuthProvider({ children }) {
       email,
       password,
     });
+    if (!error && data?.session?.user) {
+      await loadProfile(data.session.user.id);
+    }
     return { data, error };
   };
 
@@ -79,17 +114,20 @@ export function AuthProvider({ children }) {
     if (isMockMode) {
       setSession(null);
       setUser(null);
+      setProfile(null);
       localStorage.removeItem('cpsc-mock-session');
       return { error: null };
     }
 
     const { error } = await supabase.auth.signOut();
+    setProfile(null);
     return { error };
   };
 
   const value = {
     user,
     session,
+    profile,
     loading,
     signIn,
     signOut,

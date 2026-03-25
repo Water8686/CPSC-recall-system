@@ -3,17 +3,24 @@ import {
   getAllPrioritizations,
   createOrUpdatePrioritization,
 } from '../data/mockData.js';
+import {
+  applyApiMockUser,
+  requireRealAuth,
+  requireCpscManager,
+} from '../middleware/requireCpscManager.js';
 
 const router = Router();
 
 const VALID_PRIORITIES = ['High', 'Medium', 'Low'];
 
-router.get('/', (_req, res) => {
+router.use(applyApiMockUser);
+
+router.get('/', requireRealAuth, (_req, res) => {
   const prioritizations = getAllPrioritizations();
   res.json(prioritizations);
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireCpscManager, (req, res) => {
   const { recall_id, priority } = req.body;
   const userId = req.user?.id ?? 'mock-user-id';
 

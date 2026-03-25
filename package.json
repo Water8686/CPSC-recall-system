@@ -13,6 +13,7 @@
     "dev:client": "npm -w client run dev",
     "dev:server": "npm -w server run dev",
     "build": "npm -w client run build",
+    "start": "npm -w server run start",
     "lint": "npm -w client run lint & npm -w server run lint"
   },
   "engines": {

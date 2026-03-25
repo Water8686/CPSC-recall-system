@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getSupabaseUrl, getSupabaseAnonKey } from '../lib/serverEnv.js';
 
 /**
  * Express middleware that verifies the Supabase JWT from the Authorization header.
@@ -18,8 +19,8 @@ export function requireAuth(req, res, next) {
 
   // Create a per-request client authenticated with the user's token
   const supabase = createClient(
-    process.env.VITE_SUPABASE_URL,
-    process.env.VITE_SUPABASE_ANON_KEY,
+    getSupabaseUrl(),
+    getSupabaseAnonKey(),
     {
       global: { headers: { Authorization: `Bearer ${token}` } },
     }
