@@ -1,9 +1,12 @@
 # https://docs.railway.com/reference/config-as-code
+# Pins npm (this repo uses npm workspaces; do not add pnpm-workspace.yaml — Nixpacks would invoke pnpm without installing it).
 [build]
 builder = "nixpacks"
+buildCommand = "npm ci && npm run build"
 
 [deploy]
+startCommand = "npm start"
 healthcheckPath = "/api/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 60
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3

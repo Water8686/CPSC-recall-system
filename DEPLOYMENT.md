@@ -2,11 +2,22 @@
 
 Single service: **Express** serves the **Vite** production build from `client/dist` and the `/api/*` routes. Users sign in with **Supabase Auth** (email/password); set real URLs and keys in Railway (not mock mode).
 
-## 1. Create the Railway service
+## 1. Create the Railway service (one service only)
+
+This app is designed as **one** web service: Express serves `client/dist` and `/api/*` on the same port.
 
 1. New project → **Deploy from GitHub** (this repo).
-2. Railway detects `nixpacks.toml`: `npm ci` → `npm run build` → `npm start`.
-3. Generate a **public URL** (Settings → Networking → Generate domain).
+2. Use **one** service connected to the repo root. [`railway.toml`](railway.toml) sets **`npm ci && npm run build`** and **`npm start`** so Nixpacks does not try to use `pnpm` (which was breaking builds when `pnpm-workspace.yaml` existed).
+3. If you previously added separate **client** and **server** services from the same repo, **remove or disable the client service** and keep a single service with the commands above. Clear any per-service **Custom Build Command** / **Custom Start Command** that still reference `pnpm`.
+4. Generate a **public URL** (Settings → Networking → Generate domain).
+
+### If the build failed with `pnpm: command not found`
+
+That came from Nixpacks auto-detecting a pnpm workspace. This repository uses **npm** (`package-lock.json` + `workspaces` in root `package.json`). Do not reintroduce `pnpm-workspace.yaml` unless you also configure Railway to install pnpm.
+
+### If the build succeeded but the health check failed
+
+The container must run **`npm start`** (Express on `PORT`) so **`GET /api/health`** responds. Check deploy logs for crashes (e.g. wrong start command, missing env vars).
 
 ## 2. Required variables (Railway → Variables)
 
