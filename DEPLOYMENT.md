@@ -7,7 +7,7 @@ Single service: **Express** serves the **Vite** production build from `client/di
 This app is designed as **one** web service: Express serves `client/dist` and `/api/*` on the same port.
 
 1. New project → **Deploy from GitHub** (this repo).
-2. Use **one** service connected to the repo root. [`railway.toml`](railway.toml) sets **`npm ci && npm run build`** and **`npm start`** so Nixpacks does not try to use `pnpm` (which was breaking builds when `pnpm-workspace.yaml` existed).
+2. Use **one** service connected to the repo root. [`railway.toml`](railway.toml) sets **`buildCommand`** to **`npm run build`** (Nixpacks already runs **`npm ci`** in the install phase; repeating `npm ci` in the build step can fail with **`EBUSY` on `node_modules/.cache`**). **Start** is **`npm start`**.
 3. If you previously added separate **client** and **server** services from the same repo, **remove or disable the client service** and keep a single service with the commands above. Clear any per-service **Custom Build Command** / **Custom Start Command** that still reference `pnpm`.
 4. Generate a **public URL** (Settings → Networking → Generate domain).
 

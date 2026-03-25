@@ -2,7 +2,8 @@
 # Pins npm (this repo uses npm workspaces; do not add pnpm-workspace.yaml — Nixpacks would invoke pnpm without installing it).
 [build]
 builder = "nixpacks"
-buildCommand = "npm ci && npm run build"
+# Install phase already runs `npm ci`; do not run it again here — a second `npm ci` hits EBUSY on Nixpacks’ node_modules/.cache mount.
+buildCommand = "npm run build"
 
 [deploy]
 startCommand = "npm start"
