@@ -9,12 +9,16 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  ListSubheader,
+  Menu,
+  MenuItem,
   Toolbar,
   Typography,
   Divider,
   Button,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
+import SettingsIcon from '@mui/icons-material/Settings';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
@@ -23,7 +27,7 @@ import ReplyIcon from '@mui/icons-material/Reply';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PeopleIcon from '@mui/icons-material/People';
 import { useAuth } from '../context/AuthContext';
-import { canViewRecallsPage, normalizeAppRole, USER_ROLES } from 'shared';
+import { canViewRecallsPage, normalizeAppRole } from 'shared';
 
 const DRAWER_WIDTH = 240;
 
@@ -44,11 +48,14 @@ const NAV_ITEMS = [
   { label: 'Adjudications', path: '/adjudications', icon: <GavelIcon />, sprint: 3 },
 ];
 
-const ADMIN_NAV_ITEM = {
-  label: 'Users & roles',
-  path: '/admin/users',
-  icon: <PeopleIcon />,
-};
+/** Shown under Settings for everyone; /admin/users is still admin-only (ProtectedRoute). */
+const SETTINGS_NAV_ITEMS = [
+  {
+    label: 'Users & roles',
+    path: '/admin/users',
+    icon: <PeopleIcon />,
+  },
+];
 
 function resolvedRole(profile, user) {
   return normalizeAppRole(profile, user?.user_metadata?.role ?? user?.app_metadata?.role);
@@ -56,16 +63,13 @@ function resolvedRole(profile, user) {
 
 export default function Layout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [settingsAnchor, setSettingsAnchor] = useState(null);
   const { signOut, user, profile } = useAuth();
   const role = resolvedRole(profile, user);
-  const navItems = [
-    ...NAV_ITEMS.filter(
-      (item) =>
-        !item.requiresManagerAccess ||
-        canViewRecallsPage(role),
-    ),
-    ...(role === USER_ROLES.ADMIN ? [ADMIN_NAV_ITEM] : []),
-  ];
+  const navItems = NAV_ITEMS.filter(
+    (item) =>
+      !item.requiresManagerAccess || canViewRecallsPage(role),
+  );
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -98,6 +102,20 @@ export default function Layout() {
             <ListItemText primary={item.label} />
           </ListItemButton>
         ))}
+        <Divider sx={{ my: 1 }} />
+        <ListSubheader component="div" disableSticky sx={{ lineHeight: 2, fontWeight: 700 }}>
+          Settings
+        </ListSubheader>
+        {SETTINGS_NAV_ITEMS.map((item) => (
+          <ListItemButton
+            key={item.path}
+            selected={location.pathname === item.path}
+            onClick={() => handleNav(item.path)}
+          >
+            <ListItemIcon>{item.icon}</ListItemIcon>
+            <ListItemText primary={item.label} secondary="Admin only" />
+          </ListItemButton>
+        ))}
       </List>
     </Box>
   );
@@ -119,13 +137,39 @@ export default function Layout() {
             CPSC Recall Violation Monitoring System
           </Typography>
           {user && (
-            <Button
-              color="inherit"
-              startIcon={<LogoutIcon />}
-              onClick={handleSignOut}
-            >
-              Sign Out
-            </Button>
+            <>
+              <IconButton
+                color="inherit"
+                aria-label="Settings"
+                onClick={(e) => setSettingsAnchor(e.currentTarget)}
+                sx={{ mr: 0.5 }}
+              >
+                <SettingsIcon />
+              </IconButton>
+              <Menu
+                anchorEl={settingsAnchor}
+                open={Boolean(settingsAnchor)}
+                onClose={() => setSettingsAnchor(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              >
+                <MenuItem
+                  onClick={() => {
+                    setSettingsAnchor(null);
+                    navigate('/admin/users');
+                  }}
+                >
+                  Users &amp; roles (admin)
+                </MenuItem>
+              </Menu>
+              <Button
+                color="inherit"
+                startIcon={<LogoutIcon />}
+                onClick={handleSignOut}
+              >
+                Sign Out
+              </Button>
+            </>
           )}
         </Toolbar>
       </AppBar>
