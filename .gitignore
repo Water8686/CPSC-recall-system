@@ -35,3 +35,6 @@ _tmp_*/
 
 # Supabase CLI (linked project metadata; do not commit)
 supabase/.temp/
+
+# Migrations applied / maintained in Supabase project; keep local only
+supabase/migrations/

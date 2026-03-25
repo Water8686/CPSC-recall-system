@@ -128,6 +128,14 @@ export async function dbUpsertPrioritization(supabase, recallNumber, priorityLab
 
   const recallPk = recallRow.recall_id;
 
+  if (appUserId == null) {
+    return {
+      success: false,
+      error:
+        'No application user linked to this login. Add a row in public.user with username equal to your sign-in email.',
+    };
+  }
+
   const { data: existing, error: exErr } = await supabase
     .from('prioritization')
     .select('prioritization_id')
@@ -164,14 +172,6 @@ export async function dbUpsertPrioritization(supabase, recallNumber, priorityLab
     return {
       success: true,
       data: mapPrioritizationRow(updated, recallNumberById),
-    };
-  }
-
-  if (appUserId == null) {
-    return {
-      success: false,
-      error:
-        'No application user linked to this login. Add a row in public.user with username equal to your sign-in email.',
     };
   }
 
