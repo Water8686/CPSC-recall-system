@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase, isMockMode } from '../lib/supabase';
+import { normalizeAppRole } from 'shared';
 
 const AuthContext = createContext(null);
 
@@ -15,20 +16,29 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProfile = useCallback(async (userId) => {
+  const loadProfile = useCallback(async (userId, jwtRoleHint) => {
     if (!userId || isMockMode || !supabase) {
       setProfile(null);
       return;
     }
     const { data, error } = await supabase
       .from('profiles')
-      .select('role, display_name')
+      .select('user_type, full_name, username, updated_at')
       .eq('id', userId)
       .maybeSingle();
     if (error) {
       console.warn('profiles load error:', error.message);
     }
-    setProfile(data ?? null);
+    if (!data) {
+      setProfile(null);
+      return;
+    }
+    const role = normalizeAppRole(data, jwtRoleHint);
+    setProfile({
+      ...data,
+      role,
+      display_name: data.full_name ?? null,
+    });
   }, []);
 
   useEffect(() => {
@@ -57,7 +67,7 @@ export function AuthProvider({ children }) {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        await loadProfile(s.user.id);
+        await loadProfile(s.user.id, s.user.user_metadata?.role);
       } else {
         setProfile(null);
       }
@@ -71,7 +81,7 @@ export function AuthProvider({ children }) {
         setSession(s);
         setUser(s?.user ?? null);
         if (s?.user) {
-          await loadProfile(s.user.id);
+          await loadProfile(s.user.id, s.user.user_metadata?.role);
         } else {
           setProfile(null);
         }
@@ -105,10 +115,18 @@ export function AuthProvider({ children }) {
       password,
     });
     if (!error && data?.session?.user) {
-      await loadProfile(data.session.user.id);
+      await loadProfile(
+        data.session.user.id,
+        data.session.user.user_metadata?.role,
+      );
     }
     return { data, error };
   };
+
+  const refreshProfile = useCallback(async () => {
+    if (isMockMode || !supabase || !user?.id) return;
+    await loadProfile(user.id, user?.user_metadata?.role);
+  }, [loadProfile, user?.id, user?.user_metadata?.role]);
 
   const signOut = async () => {
     if (isMockMode) {
@@ -131,6 +149,7 @@ export function AuthProvider({ children }) {
     loading,
     signIn,
     signOut,
+    refreshProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { CircularProgress, Box } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
+import { normalizeAppRole } from 'shared';
 
 /**
  * Wraps routes that require authentication.
@@ -23,8 +24,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   }
 
   if (allowedRoles && allowedRoles.length > 0) {
-    const role =
-      profile?.role ?? user.user_metadata?.role ?? user.app_metadata?.role ?? user.role;
+    const role = normalizeAppRole(profile, user.user_metadata?.role ?? user.app_metadata?.role);
     if (!role || !allowedRoles.includes(role)) {
       return <Navigate to="/unauthorized" replace />;
     }

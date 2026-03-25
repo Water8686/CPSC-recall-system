@@ -32,3 +32,6 @@ coverage/
 # Misc
 .cache/
 _tmp_*/
+
+# Supabase CLI (linked project metadata; do not commit)
+supabase/.temp/

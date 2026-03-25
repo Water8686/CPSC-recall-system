@@ -21,14 +21,22 @@ import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import GavelIcon from '@mui/icons-material/Gavel';
 import ReplyIcon from '@mui/icons-material/Reply';
 import LogoutIcon from '@mui/icons-material/Logout';
+import PeopleIcon from '@mui/icons-material/People';
 import { useAuth } from '../context/AuthContext';
+import { canViewRecallsPage, normalizeAppRole, USER_ROLES } from 'shared';
 
 const DRAWER_WIDTH = 240;
 
 // Navigation items organized by sprint for easy expansion
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon />, sprint: 1 },
-  { label: 'Recalls', path: '/recalls', icon: <PriorityHighIcon />, sprint: 1 },
+  {
+    label: 'Recalls',
+    path: '/recalls',
+    icon: <PriorityHighIcon />,
+    sprint: 1,
+    requiresManagerAccess: true,
+  },
   // Sprint 2
   { label: 'Violations', path: '/violations', icon: <ReportProblemIcon />, sprint: 2 },
   // Sprint 3
@@ -36,9 +44,28 @@ const NAV_ITEMS = [
   { label: 'Adjudications', path: '/adjudications', icon: <GavelIcon />, sprint: 3 },
 ];
 
+const ADMIN_NAV_ITEM = {
+  label: 'Users & roles',
+  path: '/admin/users',
+  icon: <PeopleIcon />,
+};
+
+function resolvedRole(profile, user) {
+  return normalizeAppRole(profile, user?.user_metadata?.role ?? user?.app_metadata?.role);
+}
+
 export default function Layout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { signOut, user } = useAuth();
+  const { signOut, user, profile } = useAuth();
+  const role = resolvedRole(profile, user);
+  const navItems = [
+    ...NAV_ITEMS.filter(
+      (item) =>
+        !item.requiresManagerAccess ||
+        canViewRecallsPage(role),
+    ),
+    ...(role === USER_ROLES.ADMIN ? [ADMIN_NAV_ITEM] : []),
+  ];
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -61,7 +88,7 @@ export default function Layout() {
       </Toolbar>
       <Divider />
       <List>
-        {NAV_ITEMS.map((item) => (
+        {navItems.map((item) => (
           <ListItemButton
             key={item.path}
             selected={location.pathname === item.path}

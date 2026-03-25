@@ -20,8 +20,7 @@ if (!supabaseUrl || !serviceRoleKey) {
 
 /**
  * Service role client — bypasses Row Level Security.
- * Use ONLY on the server for admin operations (e.g., Zapier automations,
- * batch operations, or anything that shouldn't be tied to a user session).
+ * Optional: keep in production secrets only for server-side jobs (e.g. Zapier), not for this SPA.
  */
 export const supabaseAdmin = supabaseUrl && serviceRoleKey
   ? createClient(supabaseUrl, serviceRoleKey, {

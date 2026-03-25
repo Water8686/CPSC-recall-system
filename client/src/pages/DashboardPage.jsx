@@ -12,6 +12,7 @@ import {
 import { Chart } from 'react-google-charts';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
+import { canAccessManagerFeatures, normalizeAppRole } from 'shared';
 
 /**
  * Dashboard — landing page after login.
@@ -23,8 +24,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const role =
-    profile?.role ?? user?.user_metadata?.role ?? user?.app_metadata?.role ?? user?.role;
+  const role = normalizeAppRole(
+    profile,
+    user?.user_metadata?.role ?? user?.app_metadata?.role,
+  );
+  const managerUi = canAccessManagerFeatures(role);
 
   useEffect(() => {
     async function fetchData() {
@@ -91,7 +95,7 @@ export default function DashboardPage() {
           Dashboard
         </Typography>
         <Alert severity="error">{error}</Alert>
-        {role === 'manager' && (
+        {managerUi && (
           <Typography variant="body2" sx={{ mt: 2 }}>
             <Link component={RouterLink} to="/recalls">
               Open Recalls
@@ -111,7 +115,7 @@ export default function DashboardPage() {
       <Typography color="text.secondary" sx={{ mb: 3 }}>
         Recall priority overview — OKR 1.1 &amp; 1.2
       </Typography>
-      {role === 'manager' && (
+      {managerUi && (
         <Typography variant="body2" sx={{ mb: 2 }}>
           For the full manager workflow (prioritize, search, charts), open{' '}
           <Link component={RouterLink} to="/recalls">

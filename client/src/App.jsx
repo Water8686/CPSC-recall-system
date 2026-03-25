@@ -11,6 +11,8 @@ import ViolationsPage from './pages/ViolationsPage';
 import ResponsesPage from './pages/ResponsesPage';
 import AdjudicationsPage from './pages/AdjudicationsPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
+import AdminUsersPage from './pages/AdminUsersPage';
+import { RECALL_PAGE_ROLES, USER_ROLES } from 'shared';
 
 export default function App() {
   return (
@@ -36,8 +38,16 @@ export default function App() {
               <Route
                 path="/recalls"
                 element={
-                  <ProtectedRoute allowedRoles={['manager']}>
+                  <ProtectedRoute allowedRoles={RECALL_PAGE_ROLES}>
                     <RecallsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+                    <AdminUsersPage />
                   </ProtectedRoute>
                 }
               />

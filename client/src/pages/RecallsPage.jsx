@@ -29,6 +29,7 @@ import {
 import { Chart } from 'react-google-charts';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
+import { canAccessManagerFeatures, normalizeAppRole } from 'shared';
 
 const PRIORITY_LEVELS = ['High', 'Medium', 'Low'];
 
@@ -97,7 +98,12 @@ function PriorityCharts({ prioritizations }) {
  * Recalls page — Sprint 1: prioritize recalls, analytics, manager-only API for writes.
  */
 export default function RecallsPage() {
-  const { session } = useAuth();
+  const { session, profile, user } = useAuth();
+  const role = normalizeAppRole(
+    profile,
+    user?.user_metadata?.role ?? user?.app_metadata?.role,
+  );
+  const canPrioritize = canAccessManagerFeatures(role);
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState(() =>
     searchParams.get('tab') === 'analytics' ? 1 : 0
@@ -251,7 +257,9 @@ export default function RecallsPage() {
         Recalls
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 2 }}>
-        Prioritize recalls and review priority analytics (Sprint 1)
+        {canPrioritize
+          ? 'Prioritize recalls and review priority analytics (Sprint 1).'
+          : 'View recalls and priority assignments. Only CPSC Managers and Admins can change priority.'}
       </Typography>
 
       <Tabs value={tab} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
@@ -261,48 +269,50 @@ export default function RecallsPage() {
 
       {tab === 0 && (
         <Box sx={{ pt: 3 }}>
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Prioritize Recall
-            </Typography>
-            <Box
-              component="form"
-              onSubmit={handlePrioritize}
-              display="flex"
-              flexDirection="column"
-              gap={2}
-              maxWidth={400}
-            >
-              <Autocomplete
-                options={recalls}
-                getOptionLabel={(r) => `${r.recall_id} — ${r.title}`}
-                value={recalls.find((r) => r.recall_id === selectedRecallId) ?? null}
-                onChange={(_, value) => setSelectedRecallId(value?.recall_id ?? '')}
-                renderInput={(params) => (
-                  <TextField {...params} label="Recall ID" placeholder="Select a recall" required />
-                )}
-              />
-              <FormControl fullWidth required>
-                <InputLabel>Priority Level</InputLabel>
-                <Select
-                  value={selectedPriority}
-                  label="Priority Level"
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                >
-                  {PRIORITY_LEVELS.map((p) => (
-                    <MenuItem key={p} value={p}>
-                      {p}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <Button type="submit" variant="contained" disabled={submitLoading}>
-                {submitLoading ? <CircularProgress size={24} /> : 'Assign Priority'}
-              </Button>
-              {submitSuccess && <Alert severity="success">{submitSuccess}</Alert>}
-              {submitError && <Alert severity="error">{submitError}</Alert>}
-            </Box>
-          </Paper>
+          {canPrioritize && (
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Prioritize Recall
+              </Typography>
+              <Box
+                component="form"
+                onSubmit={handlePrioritize}
+                display="flex"
+                flexDirection="column"
+                gap={2}
+                maxWidth={400}
+              >
+                <Autocomplete
+                  options={recalls}
+                  getOptionLabel={(r) => `${r.recall_id} — ${r.title}`}
+                  value={recalls.find((r) => r.recall_id === selectedRecallId) ?? null}
+                  onChange={(_, value) => setSelectedRecallId(value?.recall_id ?? '')}
+                  renderInput={(params) => (
+                    <TextField {...params} label="Recall ID" placeholder="Select a recall" required />
+                  )}
+                />
+                <FormControl fullWidth required>
+                  <InputLabel>Priority Level</InputLabel>
+                  <Select
+                    value={selectedPriority}
+                    label="Priority Level"
+                    onChange={(e) => setSelectedPriority(e.target.value)}
+                  >
+                    {PRIORITY_LEVELS.map((p) => (
+                      <MenuItem key={p} value={p}>
+                        {p}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Button type="submit" variant="contained" disabled={submitLoading}>
+                  {submitLoading ? <CircularProgress size={24} /> : 'Assign Priority'}
+                </Button>
+                {submitSuccess && <Alert severity="success">{submitSuccess}</Alert>}
+                {submitError && <Alert severity="error">{submitError}</Alert>}
+              </Box>
+            </Paper>
+          )}
 
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom>

@@ -1,11 +1,14 @@
 import { requireAuth } from './auth.js';
-
-const MANAGER_ROLE = 'manager';
+import {
+  USER_ROLES,
+  canAccessManagerFeatures,
+  normalizeAppRole,
+} from '../lib/roles.js';
 
 const MOCK_USER = {
   id: 'mock-user-id',
   email: 'manager@cpsc.demo',
-  user_metadata: { role: MANAGER_ROLE },
+  user_metadata: { role: USER_ROLES.MANAGER },
 };
 
 /**
@@ -43,26 +46,26 @@ function verifyManagerRole(req, res, next) {
   const metaRole = jwtFallbackRole(req.user);
 
   if (!req.supabase) {
-    return metaRole === MANAGER_ROLE
+    return canAccessManagerFeatures(metaRole)
       ? next()
       : res.status(403).json({
-          error: 'Unauthorized user. CPSC Manager role required.',
+          error: 'Unauthorized user. CPSC Manager or Admin role required.',
         });
   }
 
   req.supabase
     .from('profiles')
-    .select('role')
+    .select('user_type')
     .eq('id', req.user.id)
     .maybeSingle()
     .then(({ data, error }) => {
       if (error) {
         console.warn('profiles select error:', error.message);
       }
-      const role = data?.role ?? metaRole;
-      if (role !== MANAGER_ROLE) {
+      const role = normalizeAppRole(data, metaRole);
+      if (!canAccessManagerFeatures(role)) {
         return res.status(403).json({
-          error: 'Unauthorized user. CPSC Manager role required.',
+          error: 'Unauthorized user. CPSC Manager or Admin role required.',
         });
       }
       next();
@@ -70,7 +73,7 @@ function verifyManagerRole(req, res, next) {
     .catch((err) => {
       console.error(err);
       res.status(403).json({
-        error: 'Unauthorized user. CPSC Manager role required.',
+        error: 'Unauthorized user. CPSC Manager or Admin role required.',
       });
     });
 }
