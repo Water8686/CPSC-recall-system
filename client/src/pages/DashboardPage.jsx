@@ -13,6 +13,7 @@ import { Chart } from 'react-google-charts';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
 import { canAccessManagerFeatures, normalizeAppRole } from 'shared';
+import PageTitle from '../components/PageTitle';
 
 /**
  * Dashboard — landing page after login.
@@ -109,6 +110,7 @@ export default function DashboardPage() {
 
   return (
     <Box>
+      <PageTitle title="Dashboard" />
       <Typography variant="h4" fontWeight={700} gutterBottom>
         Dashboard
       </Typography>

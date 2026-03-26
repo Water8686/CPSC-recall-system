@@ -34,8 +34,8 @@ Optional:
 | Variable | Notes |
 |----------|--------|
 | `API_MOCK_MODE` | `false` or omit in production (requires real JWT for manager API routes) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Only if you use server-side admin Supabase features |
-| `CLIENT_ORIGIN` | Comma-separated allowed origins for strict CORS (omit to allow any origin with Bearer auth) |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Required** for production RBAC: violations, responses, admin profile list, recall writes, and CSV import use the service-role client after JWT verification. Never expose this key to the client. |
+| `CLIENT_ORIGIN` | Comma-separated allowed origins for strict CORS (omit to allow any origin with Bearer auth). **Set this to your public app URL** when you use a custom domain (see §7). |
 
 `PORT` is set automatically by Railway.
 
@@ -49,8 +49,22 @@ In Supabase → **Authentication** → **URL configuration**:
 
 - **Site URL**: your Railway URL, e.g. `https://your-app.up.railway.app`
 - **Redirect URLs**: add the same URL and a wildcard if you use client-side routing, e.g. `https://your-app.up.railway.app/**`
+- **Password recovery**: add `https://your-app.up.railway.app/reset-password` (and the same path on any custom domain) so the reset link lands on the SPA route that calls `supabase.auth.exchangeCodeForSession` / session recovery.
 
 Create users under **Authentication → Users**, or enable email sign-up. Set **App metadata** (or **User metadata**) `role` to `manager` for CPSC Manager access, or rely on your existing `profiles` / metadata setup.
+
+After you change the public URL (including custom domain), update **Site URL** and **Redirect URLs** again so they match exactly (scheme + host + path patterns).
+
+## 7. Custom domain (production checklist)
+
+Use this when moving off the default `*.up.railway.app` host (Tech Tut rubric “custom domain”).
+
+1. **DNS** — In your DNS provider, add the record Railway shows for **Custom Domain** (usually a **CNAME** to the Railway target, or **A/AAAA** if instructed). Wait for propagation (often minutes; TTL can delay longer).
+2. **Railway** — **Settings → Networking → Custom Domain**: add the hostname, complete verification, and ensure **HTTPS** is issued (Let’s Encrypt).
+3. **Environment** — Set `CLIENT_ORIGIN` to the new origin (e.g. `https://recalls.example.gov`). If you list multiple origins (comma-separated), include both Railway and custom domain during migration.
+4. **Supabase** — **Authentication → URL configuration**: set **Site URL** to the custom origin and add **Redirect URLs** for `https://your-domain/**` and `https://your-domain/reset-password`.
+5. **Vite build** — Rebuild/redeploy after changing `VITE_*` vars if the client bundle must embed the new API base; same-origin SPA usually needs no code change if API is same host.
+6. **Smoke test** — Log in, open password reset from the custom domain, and confirm API calls succeed (no CORS errors in the browser network tab).
 
 ## 5. Health check
 

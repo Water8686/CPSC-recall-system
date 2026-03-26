@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -11,6 +11,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
+import PageTitle from '../components/PageTitle';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -43,6 +44,7 @@ export default function LoginPage() {
       minHeight="100vh"
       bgcolor="grey.100"
     >
+      <PageTitle title="Sign in" />
       <Card sx={{ maxWidth: 420, width: '100%', mx: 2 }}>
         <CardContent sx={{ p: 4 }}>
           <Typography variant="h5" fontWeight={700} gutterBottom>
@@ -88,6 +90,11 @@ export default function LoginPage() {
             >
               {loading ? <CircularProgress size={24} /> : 'Sign In'}
             </Button>
+            <Typography variant="body2" sx={{ mt: 2 }} textAlign="center">
+              <RouterLink to="/forgot-password">Forgot password?</RouterLink>
+              {' · '}
+              <RouterLink to="/signup">Create an account</RouterLink>
+            </Typography>
           </Box>
         </CardContent>
       </Card>

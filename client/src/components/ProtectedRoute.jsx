@@ -1,15 +1,15 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { CircularProgress, Box } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 import { normalizeAppRole } from 'shared';
 
 /**
- * Wraps routes that require authentication.
- * Redirects to /login if user is not signed in.
- * Optionally restricts access by user role (e.g., 'manager', 'investigator', 'seller').
+ * @param {object} props
+ * @param {boolean} [props.allowPending] — when true, pending (unapproved) users may view this route; approved users on /pending-approval are redirected to dashboard.
  */
-export default function ProtectedRoute({ children, allowedRoles }) {
+export default function ProtectedRoute({ children, allowedRoles, allowPending }) {
   const { user, profile, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -20,7 +20,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   if (allowedRoles && allowedRoles.length > 0) {
@@ -28,6 +28,19 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     if (!role || !allowedRoles.includes(role)) {
       return <Navigate to="/unauthorized" replace />;
     }
+  }
+
+  const pending =
+    profile &&
+    Object.prototype.hasOwnProperty.call(profile, 'approved') &&
+    profile.approved === false;
+
+  if (allowPending && location.pathname === '/pending-approval' && profile && !pending) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (!allowPending && pending) {
+    return <Navigate to="/pending-approval" replace />;
   }
 
   return children;

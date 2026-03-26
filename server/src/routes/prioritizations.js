@@ -13,14 +13,21 @@ import {
   dbUpsertPrioritization,
   dbResolveAppUserId,
 } from '../lib/supabaseRecallData.js';
+import {
+  attachProfileAndRole,
+  requireApprovedProfile,
+} from '../middleware/rbac.js';
 
 const router = Router();
 
 const VALID_PRIORITIES = ['High', 'Medium', 'Low'];
 
 router.use(applyApiMockUser);
+router.use(requireRealAuth);
+router.use(attachProfileAndRole);
+router.use(requireApprovedProfile);
 
-router.get('/', requireRealAuth, async (req, res) => {
+router.get('/', async (req, res) => {
   if (req.isApiMockMode) {
     return res.json(getAllPrioritizations());
   }

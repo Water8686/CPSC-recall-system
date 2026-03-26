@@ -23,7 +23,9 @@ export function AuthProvider({ children }) {
     }
     const { data, error } = await supabase
       .from('profiles')
-      .select('user_type, full_name, username, email, updated_at')
+      .select(
+        'user_type, full_name, username, email, updated_at, approved, avatar_url, requested_role',
+      )
       .eq('id', userId)
       .maybeSingle();
     if (error) {
@@ -128,6 +130,41 @@ export function AuthProvider({ children }) {
     await loadProfile(user.id, user?.user_metadata?.role);
   }, [loadProfile, user?.id, user?.user_metadata?.role]);
 
+  const signUp = async ({ email, password, fullName, requestedRole }) => {
+    if (isMockMode) {
+      return { data: null, error: { message: 'Sign up is disabled in mock mode' } };
+    }
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { role: requestedRole },
+        emailRedirectTo: `${window.location.origin}/reset-password`,
+      },
+    });
+    if (error) return { data, error };
+    if (data.user) {
+      const { error: pErr } = await supabase.from('profiles').upsert(
+        {
+          id: data.user.id,
+          full_name: fullName || null,
+          requested_role: requestedRole,
+          user_type: requestedRole || 'seller',
+          approved: false,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' },
+      );
+      if (pErr) {
+        console.warn('profiles upsert after signup:', pErr.message);
+      }
+      if (data.session?.user) {
+        await loadProfile(data.session.user.id, requestedRole);
+      }
+    }
+    return { data, error };
+  };
+
   const signOut = async () => {
     if (isMockMode) {
       setSession(null);
@@ -148,6 +185,7 @@ export function AuthProvider({ children }) {
     profile,
     loading,
     signIn,
+    signUp,
     signOut,
     refreshProfile,
   };

@@ -81,3 +81,27 @@ export const ADJUDICATION_STATUS = {
   REJECTED: 'Rejected',
   ESCALATED: 'Escalated',
 };
+
+/** Rubric dropdowns */
+export const RECALL_STATUSES = ['Active', 'Resolved', 'Monitoring'];
+export const VIOLATION_PLATFORMS = [
+  'Amazon',
+  'eBay',
+  'Facebook Marketplace',
+  'Walmart',
+  'Other',
+];
+export const VIOLATION_STATUSES = ['Open', 'Investigating', 'Closed'];
+export const VIOLATION_SEVERITIES = ['High', 'Medium', 'Low'];
+export const RESPONSE_TYPES = ['Compliance', 'Dispute', 'Partial Compliance'];
+export const RESPONSE_ROW_STATUSES = ['Submitted', 'Under Review', 'Accepted'];
+
+/** Can create violations / adjudicate */
+export const VIOLATION_STAFF_ROLES = [
+  USER_ROLES.ADMIN,
+  USER_ROLES.MANAGER,
+  USER_ROLES.INVESTIGATOR,
+];
+
+/** Can approve user signups */
+export const USER_APPROVAL_ROLES = [USER_ROLES.ADMIN, USER_ROLES.MANAGER];

@@ -16,6 +16,7 @@ import {
   Typography,
   Divider,
   Button,
+  Avatar,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -26,50 +27,58 @@ import GavelIcon from '@mui/icons-material/Gavel';
 import ReplyIcon from '@mui/icons-material/Reply';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PeopleIcon from '@mui/icons-material/People';
+import PersonIcon from '@mui/icons-material/Person';
 import { useAuth } from '../context/AuthContext';
-import { canViewRecallsPage, normalizeAppRole } from 'shared';
+import {
+  canViewRecallsPage,
+  normalizeAppRole,
+  VIOLATION_STAFF_ROLES,
+  USER_APPROVAL_ROLES,
+} from 'shared';
 
-const DRAWER_WIDTH = 240;
-
-// Navigation items organized by sprint for easy expansion
-const NAV_ITEMS = [
-  { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon />, sprint: 1 },
-  {
-    label: 'Recalls',
-    path: '/recalls',
-    icon: <PriorityHighIcon />,
-    sprint: 1,
-    requiresManagerAccess: true,
-  },
-  // Sprint 2
-  { label: 'Violations', path: '/violations', icon: <ReportProblemIcon />, sprint: 2 },
-  // Sprint 3
-  { label: 'Responses', path: '/responses', icon: <ReplyIcon />, sprint: 3 },
-  { label: 'Adjudications', path: '/adjudications', icon: <GavelIcon />, sprint: 3 },
-];
-
-/** Shown under Settings for everyone; /admin/users is still admin-only (ProtectedRoute). */
-const SETTINGS_NAV_ITEMS = [
-  {
-    label: 'Users & roles',
-    path: '/admin/users',
-    icon: <PeopleIcon />,
-  },
-];
+const DRAWER_WIDTH = 260;
 
 function resolvedRole(profile, user) {
   return normalizeAppRole(profile, user?.user_metadata?.role ?? user?.app_metadata?.role);
 }
+
+function navAllowed(path, role) {
+  if (path === '/dashboard') return true;
+  if (path === '/profile') return true;
+  if (path === '/recalls' || path === '/recalls/new' || path.startsWith('/recalls/')) {
+    return canViewRecallsPage(role);
+  }
+  if (path === '/violations' || path === '/violations/new') {
+    return true;
+  }
+  if (path === '/responses' || path === '/responses/new') {
+    return true;
+  }
+  if (path === '/adjudications') {
+    return VIOLATION_STAFF_ROLES.includes(role);
+  }
+  if (path === '/admin/users') {
+    return USER_APPROVAL_ROLES.includes(role);
+  }
+  return true;
+}
+
+const ALL_NAV = [
+  { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
+  { label: 'Recalls', path: '/recalls', icon: <PriorityHighIcon /> },
+  { label: 'Violations', path: '/violations', icon: <ReportProblemIcon /> },
+  { label: 'Responses', path: '/responses', icon: <ReplyIcon /> },
+  { label: 'Adjudications', path: '/adjudications', icon: <GavelIcon /> },
+  { label: 'My profile', path: '/profile', icon: <PersonIcon /> },
+];
 
 export default function Layout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [settingsAnchor, setSettingsAnchor] = useState(null);
   const { signOut, user, profile } = useAuth();
   const role = resolvedRole(profile, user);
-  const navItems = NAV_ITEMS.filter(
-    (item) =>
-      !item.requiresManagerAccess || canViewRecallsPage(role),
-  );
+  const navItems = ALL_NAV.filter((item) => navAllowed(item.path, role));
+  const showAdminUsers = USER_APPROVAL_ROLES.includes(role);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -83,11 +92,20 @@ export default function Layout() {
     navigate('/login');
   };
 
+  const displayName = profile?.display_name || profile?.full_name || user?.email || 'User';
+  const avatarSrc = profile?.avatar_url || undefined;
+
   const drawer = (
     <Box>
-      <Toolbar>
+      <Toolbar sx={{ gap: 1 }}>
+        <Box
+          component="img"
+          src="/cpsc-logo.svg"
+          alt="CPSC"
+          sx={{ height: 32, width: 'auto' }}
+        />
         <Typography variant="subtitle1" fontWeight={700} noWrap>
-          CPSC Monitor
+          Recall Monitor
         </Typography>
       </Toolbar>
       <Divider />
@@ -106,23 +124,23 @@ export default function Layout() {
         <ListSubheader component="div" disableSticky sx={{ lineHeight: 2, fontWeight: 700 }}>
           Settings
         </ListSubheader>
-        {SETTINGS_NAV_ITEMS.map((item) => (
+        {showAdminUsers && (
           <ListItemButton
-            key={item.path}
-            selected={location.pathname === item.path}
-            onClick={() => handleNav(item.path)}
+            selected={location.pathname === '/admin/users'}
+            onClick={() => handleNav('/admin/users')}
           >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.label} secondary="Admin only" />
+            <ListItemIcon>
+              <PeopleIcon />
+            </ListItemIcon>
+            <ListItemText primary="Users & roles" secondary="Managers & admins" />
           </ListItemButton>
-        ))}
+        )}
       </List>
     </Box>
   );
 
   return (
     <Box sx={{ display: 'flex' }}>
-      {/* Top app bar */}
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
           <IconButton
@@ -130,14 +148,33 @@ export default function Layout() {
             edge="start"
             onClick={() => setDrawerOpen(!drawerOpen)}
             sx={{ mr: 2, display: { md: 'none' } }}
+            aria-label="menu"
           >
             <MenuIcon />
           </IconButton>
+          <Box
+            component="img"
+            src="/cpsc-logo.svg"
+            alt=""
+            sx={{ height: 28, mr: 1, display: { xs: 'none', sm: 'block' } }}
+          />
           <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
             CPSC Recall Violation Monitoring System
           </Typography>
           {user && (
             <>
+              <Avatar
+                src={avatarSrc}
+                alt=""
+                sx={{ width: 32, height: 32, mr: 1 }}
+                onClick={() => navigate('/profile')}
+                style={{ cursor: 'pointer' }}
+              >
+                {displayName.charAt(0).toUpperCase()}
+              </Avatar>
+              <Typography variant="body2" noWrap sx={{ mr: 1, maxWidth: 160, display: { xs: 'none', sm: 'block' } }}>
+                {displayName}
+              </Typography>
               <IconButton
                 color="inherit"
                 aria-label="Settings"
@@ -156,17 +193,23 @@ export default function Layout() {
                 <MenuItem
                   onClick={() => {
                     setSettingsAnchor(null);
-                    navigate('/admin/users');
+                    navigate('/profile');
                   }}
                 >
-                  Users &amp; roles (admin)
+                  Profile
                 </MenuItem>
+                {showAdminUsers && (
+                  <MenuItem
+                    onClick={() => {
+                      setSettingsAnchor(null);
+                      navigate('/admin/users');
+                    }}
+                  >
+                    Users &amp; roles
+                  </MenuItem>
+                )}
               </Menu>
-              <Button
-                color="inherit"
-                startIcon={<LogoutIcon />}
-                onClick={handleSignOut}
-              >
+              <Button color="inherit" startIcon={<LogoutIcon />} onClick={handleSignOut}>
                 Sign Out
               </Button>
             </>
@@ -174,9 +217,7 @@ export default function Layout() {
         </Toolbar>
       </AppBar>
 
-      {/* Sidebar — permanent on desktop, toggle on mobile */}
       <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: 0 }}>
-        {/* Mobile drawer */}
         <Drawer
           variant="temporary"
           open={drawerOpen}
@@ -188,7 +229,6 @@ export default function Layout() {
         >
           {drawer}
         </Drawer>
-        {/* Desktop drawer */}
         <Drawer
           variant="permanent"
           sx={{
@@ -201,16 +241,15 @@ export default function Layout() {
         </Drawer>
       </Box>
 
-      {/* Main content area */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
+          p: { xs: 2, sm: 3 },
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
         }}
       >
-        <Toolbar /> {/* Spacer for fixed AppBar */}
+        <Toolbar />
         <Outlet />
       </Box>
     </Box>

@@ -1,0 +1,3 @@
+recall_number,recall_title,product_name,hazard,recall_date,status
+SAMPLE-001,Sample imported recall,Widget Pro,Fire risk,2025-01-15,Active
+SAMPLE-002,Another sample,Gadget,Choking,2025-02-01,Active

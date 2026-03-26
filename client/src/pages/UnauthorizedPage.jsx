@@ -1,5 +1,6 @@
 import { Box, Typography, Button } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import PageTitle from '../components/PageTitle';
 
 export default function UnauthorizedPage() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function UnauthorizedPage() {
       minHeight="60vh"
       gap={2}
     >
+      <PageTitle title="Access denied" />
       <Typography variant="h5" fontWeight={700}>
         Access Denied
       </Typography>

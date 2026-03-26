@@ -1,28 +1,31 @@
 import { createTheme } from '@mui/material/styles';
 
 /**
- * MUI theme for CPSC Recall Monitoring System.
- * Uses a professional blue palette that fits a government/regulatory context.
+ * CPSC-oriented palette: navy primary, white surfaces, red for danger/alerts.
  */
 export const theme = createTheme({
   palette: {
     primary: {
-      main: '#1565C0', // Strong blue — authority, trust
-      light: '#42A5F5',
-      dark: '#0D47A1',
+      main: '#003366',
+      light: '#335c85',
+      dark: '#001a33',
+      contrastText: '#ffffff',
     },
     secondary: {
-      main: '#FF8F00', // Amber accent — for warnings/priority indicators
-      light: '#FFB300',
-      dark: '#E65100',
+      main: '#b71c1c',
+      light: '#f05545',
+      dark: '#7f0000',
+    },
+    error: {
+      main: '#c62828',
     },
     background: {
-      default: '#F5F5F5',
-      paper: '#FFFFFF',
+      default: '#f0f4f8',
+      paper: '#ffffff',
     },
   },
   typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Source Sans 3", "Roboto", "Helvetica", "Arial", sans-serif',
     h4: {
       fontWeight: 700,
     },
@@ -32,5 +35,14 @@ export const theme = createTheme({
   },
   shape: {
     borderRadius: 8,
+  },
+  components: {
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#003366',
+        },
+      },
+    },
   },
 });

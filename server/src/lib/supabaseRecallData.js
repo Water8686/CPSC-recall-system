@@ -34,8 +34,13 @@ export function mapRecallRow(row) {
     recall_id: recallNumber,
     title: row.recall_title ?? row.product_name ?? 'Recall',
     product: row.product_name ?? row.product_type ?? '',
+    product_type: row.product_type ?? '',
     hazard: row.hazard ?? '',
     created_at: row.recall_date ?? row.last_publish_date ?? null,
+    description: row.description ?? '',
+    remedy: row.remedy ?? '',
+    status: row.status ?? 'Active',
+    image_url: row.image_url ?? null,
   };
 }
 
@@ -58,12 +63,64 @@ export async function dbFetchRecalls(supabase) {
   const { data, error } = await supabase
     .from('recall')
     .select(
-      'recall_id, recall_number, recall_title, product_name, product_type, hazard, recall_date, last_publish_date',
+      'recall_id, recall_number, recall_title, product_name, product_type, hazard, recall_date, last_publish_date, description, remedy, status, image_url',
     )
     .order('recall_number', { ascending: true });
 
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapRecallRow);
+}
+
+export async function dbInsertRecall(admin, payload) {
+  const recallNumber = String(payload.recall_number ?? '').trim();
+  if (!recallNumber) {
+    return { success: false, error: 'recall_number is required' };
+  }
+  const row = {
+    recall_number: recallNumber,
+    recall_title: payload.recall_title ?? payload.title ?? 'Untitled recall',
+    product_name: payload.product_name ?? payload.product ?? '',
+    product_type: payload.product_type ?? '',
+    hazard: payload.hazard ?? '',
+    recall_date: payload.recall_date ?? null,
+    last_publish_date: payload.last_publish_date ?? new Date().toISOString().slice(0, 10),
+    description: payload.description ?? null,
+    remedy: payload.remedy ?? null,
+    status: payload.status ?? 'Active',
+    image_url: payload.image_url ?? null,
+  };
+  const { data, error } = await admin.from('recall').insert(row).select(
+    'recall_id, recall_number, recall_title, product_name, product_type, hazard, recall_date, last_publish_date, description, remedy, status, image_url',
+  ).single();
+  if (error) return { success: false, error: error.message };
+  return { success: true, data: mapRecallRow(data) };
+}
+
+export async function dbUpdateRecall(admin, recallPk, payload) {
+  const updates = {};
+  if (payload.recall_number != null) updates.recall_number = String(payload.recall_number).trim();
+  if (payload.recall_title != null) updates.recall_title = payload.recall_title;
+  if (payload.product_name != null) updates.product_name = payload.product_name;
+  if (payload.product_type !== undefined) updates.product_type = payload.product_type;
+  if (payload.hazard != null) updates.hazard = payload.hazard;
+  if (payload.recall_date !== undefined) updates.recall_date = payload.recall_date;
+  if (payload.last_publish_date !== undefined) updates.last_publish_date = payload.last_publish_date;
+  if (payload.description !== undefined) updates.description = payload.description;
+  if (payload.remedy !== undefined) updates.remedy = payload.remedy;
+  if (payload.status != null) updates.status = payload.status;
+  if (payload.image_url !== undefined) updates.image_url = payload.image_url;
+
+  const { data, error } = await admin
+    .from('recall')
+    .update(updates)
+    .eq('recall_id', recallPk)
+    .select(
+      'recall_id, recall_number, recall_title, product_name, product_type, hazard, recall_date, last_publish_date, description, remedy, status, image_url',
+    )
+    .maybeSingle();
+  if (error) return { success: false, error: error.message };
+  if (!data) return { success: false, error: 'Recall not found' };
+  return { success: true, data: mapRecallRow(data) };
 }
 
 export async function dbFetchPrioritizations(supabase) {

@@ -16,3 +16,8 @@ export function getSupabaseAnonKey() {
     ''
   );
 }
+
+/** Service role — server only; never expose to the client. */
+export function getSupabaseServiceRoleKey() {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+}

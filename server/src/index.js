@@ -7,6 +7,10 @@ import { fileURLToPath } from 'url';
 import healthRoutes from './routes/health.js';
 import recallRoutes from './routes/recalls.js';
 import prioritizationRoutes from './routes/prioritizations.js';
+import profileRoutes from './routes/profile.js';
+import adminProfilesRoutes from './routes/adminProfiles.js';
+import violationsRoutes from './routes/violations.js';
+import violationResponsesRoutes from './routes/violationResponses.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -26,6 +30,10 @@ if (process.env.CLIENT_ORIGIN) {
 app.use(express.json());
 
 app.use('/api', healthRoutes);
+app.use('/api/profile', profileRoutes);
+app.use('/api/admin/profiles', adminProfilesRoutes);
+app.use('/api/violations', violationsRoutes);
+app.use('/api/violation-responses', violationResponsesRoutes);
 app.use('/api/recalls', recallRoutes);
 app.use('/api/prioritizations', prioritizationRoutes);
 

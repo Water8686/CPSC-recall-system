@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link as RouterLink } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -25,11 +25,14 @@ import {
   Grid,
   FormControlLabel,
   Switch,
+  TableSortLabel,
 } from '@mui/material';
 import { Chart } from 'react-google-charts';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
-import { canAccessManagerFeatures, normalizeAppRole } from 'shared';
+import { canAccessManagerFeatures, normalizeAppRole, RECALL_STATUSES } from 'shared';
+import PageTitle from '../components/PageTitle';
+import ImageWithFallback from '../components/ImageWithFallback';
 
 const PRIORITY_LEVELS = ['High', 'Medium', 'Low'];
 
@@ -121,6 +124,9 @@ export default function RecallsPage() {
   const [submitError, setSubmitError] = useState(null);
   const [recallIdFilter, setRecallIdFilter] = useState('');
   const [prioritizedOnly, setPrioritizedOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [sortKey, setSortKey] = useState('recall_id');
+  const [sortDir, setSortDir] = useState('asc');
 
   useEffect(() => {
     const t = searchParams.get('tab') === 'analytics' ? 1 : 0;
@@ -229,8 +235,46 @@ export default function RecallsPage() {
     if (prioritizedOnly) {
       list = list.filter((r) => prioritizations[r.recall_id]);
     }
-    return list;
-  }, [recalls, recallIdFilter, prioritizedOnly, prioritizations]);
+    if (statusFilter) {
+      list = list.filter((r) => (r.status || 'Active') === statusFilter);
+    }
+    const mul = sortDir === 'asc' ? 1 : -1;
+    const sorted = [...list].sort((a, b) => {
+      let va;
+      let vb;
+      if (sortKey === 'title') {
+        va = a.title ?? '';
+        vb = b.title ?? '';
+      } else if (sortKey === 'created_at') {
+        va = a.created_at ?? '';
+        vb = b.created_at ?? '';
+      } else {
+        va = a.recall_id ?? '';
+        vb = b.recall_id ?? '';
+      }
+      if (va < vb) return -1 * mul;
+      if (va > vb) return 1 * mul;
+      return 0;
+    });
+    return sorted;
+  }, [
+    recalls,
+    recallIdFilter,
+    prioritizedOnly,
+    prioritizations,
+    statusFilter,
+    sortKey,
+    sortDir,
+  ]);
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   if (loading) {
     return (
@@ -253,9 +297,29 @@ export default function RecallsPage() {
 
   return (
     <Box>
-      <Typography variant="h4" fontWeight={700} gutterBottom>
-        Recalls
-      </Typography>
+      <PageTitle title="Recalls" />
+      <Box
+        display="flex"
+        flexWrap="wrap"
+        justifyContent="space-between"
+        alignItems="center"
+        gap={2}
+        mb={2}
+      >
+        <Typography variant="h4" fontWeight={700}>
+          Recalls
+        </Typography>
+        {canPrioritize && (
+          <Box display="flex" gap={1} flexWrap="wrap">
+            <Button variant="contained" component={RouterLink} to="/recalls/new">
+              New recall
+            </Button>
+            <Button variant="outlined" component={RouterLink} to="/recalls/import">
+              Import CSV
+            </Button>
+          </Box>
+        )}
+      </Box>
       <Typography color="text.secondary" sx={{ mb: 2 }}>
         {canPrioritize
           ? 'Prioritize recalls and review priority analytics (Sprint 1).'
@@ -327,6 +391,22 @@ export default function RecallsPage() {
                 onChange={(e) => setRecallIdFilter(e.target.value)}
                 sx={{ minWidth: 220 }}
               />
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel id="stf">Status</InputLabel>
+                <Select
+                  labelId="stf"
+                  label="Status"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {RECALL_STATUSES.map((s) => (
+                    <MenuItem key={s} value={s}>
+                      {s}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               <FormControlLabel
                 control={
                   <Switch
@@ -341,11 +421,24 @@ export default function RecallsPage() {
               <Table>
                 <TableHead>
                   <TableRow>
+                    <TableCell width={56}>Image</TableCell>
                     <TableCell>
-                      <strong>Recall ID</strong>
+                      <TableSortLabel
+                        active={sortKey === 'recall_id'}
+                        direction={sortKey === 'recall_id' ? sortDir : 'asc'}
+                        onClick={() => handleSort('recall_id')}
+                      >
+                        Recall ID
+                      </TableSortLabel>
                     </TableCell>
                     <TableCell>
-                      <strong>Title</strong>
+                      <TableSortLabel
+                        active={sortKey === 'title'}
+                        direction={sortKey === 'title' ? sortDir : 'asc'}
+                        onClick={() => handleSort('title')}
+                      >
+                        Title
+                      </TableSortLabel>
                     </TableCell>
                     <TableCell>
                       <strong>Product</strong>
@@ -354,11 +447,25 @@ export default function RecallsPage() {
                       <strong>Hazard</strong>
                     </TableCell>
                     <TableCell>
+                      <strong>Status</strong>
+                    </TableCell>
+                    <TableCell>
                       <strong>Priority</strong>
                     </TableCell>
                     <TableCell>
-                      <strong>Prioritized At</strong>
+                      <TableSortLabel
+                        active={sortKey === 'created_at'}
+                        direction={sortKey === 'created_at' ? sortDir : 'asc'}
+                        onClick={() => handleSort('created_at')}
+                      >
+                        Prioritized At
+                      </TableSortLabel>
                     </TableCell>
+                    {canPrioritize && (
+                      <TableCell align="right">
+                        <strong>Actions</strong>
+                      </TableCell>
+                    )}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -366,10 +473,14 @@ export default function RecallsPage() {
                     const prior = prioritizations[recall.recall_id];
                     return (
                       <TableRow key={recall.id}>
+                        <TableCell>
+                          <ImageWithFallback src={recall.image_url} alt="" width={40} height={40} />
+                        </TableCell>
                         <TableCell>{recall.recall_id}</TableCell>
                         <TableCell>{recall.title}</TableCell>
                         <TableCell>{recall.product}</TableCell>
                         <TableCell>{recall.hazard}</TableCell>
+                        <TableCell>{recall.status ?? 'Active'}</TableCell>
                         <TableCell>
                           {prior ? (
                             <Chip
@@ -388,6 +499,17 @@ export default function RecallsPage() {
                             ? new Date(prior.prioritized_at).toLocaleString()
                             : '—'}
                         </TableCell>
+                        {canPrioritize && (
+                          <TableCell align="right">
+                            <Button
+                              size="small"
+                              component={RouterLink}
+                              to={`/recalls/${recall.id}/edit`}
+                            >
+                              Edit
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
