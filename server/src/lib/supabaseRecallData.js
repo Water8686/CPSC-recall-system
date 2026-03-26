@@ -67,23 +67,19 @@ export async function dbFetchRecalls(supabase) {
 }
 
 export async function dbFetchPrioritizations(supabase) {
-  const { data: recalls, error: rErr } = await supabase
-    .from('recall')
-    .select('recall_id, recall_number');
-  if (rErr) throw new Error(rErr.message);
-
-  const recallNumberById = new Map(
-    (recalls ?? []).map((r) => [r.recall_id, r.recall_number]),
-  );
-
+  // Single query: join recall to get recall_number without a second round-trip.
   const { data, error } = await supabase
     .from('prioritization')
     .select(
-      'prioritization_id, recall_id, priority_rank, prioritized_at, effective_start_at, user_id',
+      'prioritization_id, recall_id, priority_rank, prioritized_at, effective_start_at, user_id, recall(recall_number)',
     )
     .order('prioritized_at', { ascending: false });
 
   if (error) throw new Error(error.message);
+
+  const recallNumberById = new Map(
+    (data ?? []).map((row) => [row.recall_id, row.recall?.recall_number ?? String(row.recall_id)]),
+  );
 
   const byRecall = new Map();
   for (const row of data ?? []) {
@@ -163,12 +159,7 @@ export async function dbUpsertPrioritization(supabase, recallNumber, priorityLab
       .single();
 
     if (upErr) return { success: false, error: upErr.message };
-    const { data: recalls } = await supabase
-      .from('recall')
-      .select('recall_id, recall_number');
-    const recallNumberById = new Map(
-      (recalls ?? []).map((r) => [r.recall_id, r.recall_number]),
-    );
+    const recallNumberById = new Map([[recallPk, recallNumber.trim()]]);
     return {
       success: true,
       data: mapPrioritizationRow(updated, recallNumberById),
@@ -190,12 +181,7 @@ export async function dbUpsertPrioritization(supabase, recallNumber, priorityLab
 
   if (insErr) return { success: false, error: insErr.message };
 
-  const { data: recalls } = await supabase
-    .from('recall')
-    .select('recall_id, recall_number');
-  const recallNumberById = new Map(
-    (recalls ?? []).map((r) => [r.recall_id, r.recall_number]),
-  );
+  const recallNumberById = new Map([[recallPk, recallNumber.trim()]]);
   return {
     success: true,
     data: mapPrioritizationRow(inserted, recallNumberById),

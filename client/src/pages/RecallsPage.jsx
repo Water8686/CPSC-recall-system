@@ -10,6 +10,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   TextField,
   Button,
   FormControl,
@@ -121,6 +122,8 @@ export default function RecallsPage() {
   const [submitError, setSubmitError] = useState(null);
   const [recallIdFilter, setRecallIdFilter] = useState('');
   const [prioritizedOnly, setPrioritizedOnly] = useState(false);
+  const [sortField, setSortField] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
 
   useEffect(() => {
     const t = searchParams.get('tab') === 'analytics' ? 1 : 0;
@@ -220,17 +223,54 @@ export default function RecallsPage() {
     }
   };
 
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const PRIORITY_ORDER = { High: 0, Medium: 1, Low: 2 };
+
   const filteredRecalls = useMemo(() => {
     let list = recalls;
     const q = recallIdFilter.trim().toLowerCase();
     if (q) {
-      list = list.filter((r) => r.recall_id.toLowerCase().includes(q));
+      list = list.filter(
+        (r) =>
+          r.recall_id.toLowerCase().includes(q) ||
+          (r.title ?? '').toLowerCase().includes(q) ||
+          (r.product ?? '').toLowerCase().includes(q) ||
+          (r.hazard ?? '').toLowerCase().includes(q),
+      );
     }
     if (prioritizedOnly) {
       list = list.filter((r) => prioritizations[r.recall_id]);
     }
+    if (sortField) {
+      list = [...list].sort((a, b) => {
+        let aVal, bVal;
+        if (sortField === 'priority') {
+          const ap = prioritizations[a.recall_id]?.priority;
+          const bp = prioritizations[b.recall_id]?.priority;
+          aVal = ap != null ? (PRIORITY_ORDER[ap] ?? 3) : 4;
+          bVal = bp != null ? (PRIORITY_ORDER[bp] ?? 3) : 4;
+        } else if (sortField === 'prioritized_at') {
+          aVal = prioritizations[a.recall_id]?.prioritized_at ?? '';
+          bVal = prioritizations[b.recall_id]?.prioritized_at ?? '';
+        } else {
+          aVal = (a[sortField] ?? '').toLowerCase();
+          bVal = (b[sortField] ?? '').toLowerCase();
+        }
+        if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
     return list;
-  }, [recalls, recallIdFilter, prioritizedOnly, prioritizations]);
+  }, [recalls, recallIdFilter, prioritizedOnly, prioritizations, sortField, sortDir]);
 
   if (loading) {
     return (
@@ -321,11 +361,11 @@ export default function RecallsPage() {
             <Box display="flex" flexWrap="wrap" gap={2} alignItems="center" sx={{ mb: 2 }}>
               <TextField
                 size="small"
-                label="Search by Recall ID"
-                placeholder="e.g. 24-001"
+                label="Search"
+                placeholder="ID, title, product, or hazard"
                 value={recallIdFilter}
                 onChange={(e) => setRecallIdFilter(e.target.value)}
-                sx={{ minWidth: 220 }}
+                sx={{ minWidth: 280 }}
               />
               <FormControlLabel
                 control={
@@ -341,24 +381,24 @@ export default function RecallsPage() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>
-                      <strong>Recall ID</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Title</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Product</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Hazard</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Priority</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Prioritized At</strong>
-                    </TableCell>
+                    {[
+                      { id: 'recall_id', label: 'Recall ID' },
+                      { id: 'title', label: 'Title' },
+                      { id: 'product', label: 'Product' },
+                      { id: 'hazard', label: 'Hazard' },
+                      { id: 'priority', label: 'Priority' },
+                      { id: 'prioritized_at', label: 'Prioritized At' },
+                    ].map((col) => (
+                      <TableCell key={col.id} sortDirection={sortField === col.id ? sortDir : false}>
+                        <TableSortLabel
+                          active={sortField === col.id}
+                          direction={sortField === col.id ? sortDir : 'asc'}
+                          onClick={() => handleSort(col.id)}
+                        >
+                          <strong>{col.label}</strong>
+                        </TableSortLabel>
+                      </TableCell>
+                    ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>

@@ -208,10 +208,30 @@ export default function Layout() {
           flexGrow: 1,
           p: 3,
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh',
         }}
       >
         <Toolbar /> {/* Spacer for fixed AppBar */}
-        <Outlet />
+        <Box sx={{ flexGrow: 1 }}>
+          <Outlet />
+        </Box>
+        <Box
+          component="footer"
+          sx={{
+            mt: 4,
+            py: 1.5,
+            px: 2,
+            borderTop: '1px solid',
+            borderColor: 'divider',
+            textAlign: 'center',
+          }}
+        >
+          <Typography variant="caption" color="text.secondary">
+            Student prototype — not endorsed by or affiliated with the U.S. Consumer Product Safety Commission (CPSC)
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );
