@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase, isMockMode } from '../lib/supabase';
 import { normalizeAppRole } from 'shared';
 
 const AuthContext = createContext(null);
+
+const TOKEN_KEY = 'cpsc-app-jwt';
 
 const MOCK_USER = {
   id: 'mock-user-id',
@@ -10,35 +11,64 @@ const MOCK_USER = {
   user_metadata: { role: 'manager' },
 };
 
+const isMockMode = import.meta.env.VITE_MOCK_MODE === 'true';
+
+async function authFetch(path, options = {}) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers = new Headers(options.headers);
+  if (
+    options.body &&
+    typeof options.body === 'string' &&
+    !headers.has('Content-Type')
+  ) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return fetch(path, { ...options, headers });
+}
+
+function mapMeToProfile(data) {
+  if (!data?.profile) return null;
+  const p = data.profile;
+  return {
+    ...p,
+    role: p.role ?? normalizeAppRole({ user_type: p.user_type }, null),
+    display_name: p.full_name ?? null,
+  };
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProfile = useCallback(async (userId, jwtRoleHint) => {
-    if (!userId || isMockMode || !supabase) {
+  const loadProfile = useCallback(async () => {
+    const res = await authFetch('/api/auth/me');
+    if (!res.ok) {
+      localStorage.removeItem(TOKEN_KEY);
+      setUser(null);
+      setSession(null);
       setProfile(null);
       return;
     }
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('user_type, full_name, username, email, updated_at')
-      .eq('id', userId)
-      .maybeSingle();
-    if (error) {
-      console.warn('profiles load error:', error.message);
+    const data = await res.json();
+    const prof = mapMeToProfile(data);
+    setProfile(prof);
+    if (prof) {
+      const u = {
+        id: prof.id,
+        email: prof.email,
+        user_metadata: { role: prof.role },
+      };
+      setUser(u);
+      setSession({
+        access_token: localStorage.getItem(TOKEN_KEY),
+        user: u,
+      });
     }
-    if (!data) {
-      setProfile(null);
-      return;
-    }
-    const role = normalizeAppRole(data, jwtRoleHint);
-    setProfile({
-      ...data,
-      role,
-      display_name: data.full_name ?? null,
-    });
   }, []);
 
   useEffect(() => {
@@ -61,37 +91,18 @@ export function AuthProvider({ children }) {
 
     let cancelled = false;
 
-    async function init() {
-      const { data: { session: s } } = await supabase.auth.getSession();
-      if (cancelled) return;
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
-        await loadProfile(s.user.id, s.user.user_metadata?.role);
-      } else {
-        setProfile(null);
+    (async () => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!token) {
+        if (!cancelled) setLoading(false);
+        return;
       }
+      await loadProfile();
       if (!cancelled) setLoading(false);
-    }
-
-    init();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, s) => {
-        setSession(s);
-        setUser(s?.user ?? null);
-        if (s?.user) {
-          await loadProfile(s.user.id, s.user.user_metadata?.role);
-        } else {
-          setProfile(null);
-        }
-        setLoading(false);
-      }
-    );
+    })();
 
     return () => {
       cancelled = true;
-      subscription.unsubscribe();
     };
   }, [loadProfile]);
 
@@ -102,7 +113,7 @@ export function AuthProvider({ children }) {
         email: email || 'manager@cpsc.demo',
         user_metadata: { role: 'manager' },
       };
-      const mockSession = { user: mockUser };
+      const mockSession = { user: mockUser, access_token: 'mock' };
       setSession(mockSession);
       setUser(mockUser);
       setProfile(null);
@@ -110,23 +121,35 @@ export function AuthProvider({ children }) {
       return { data: { session: mockSession, user: mockUser }, error: null };
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
     });
-    if (!error && data?.session?.user) {
-      await loadProfile(
-        data.session.user.id,
-        data.session.user.user_metadata?.role,
-      );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        data: null,
+        error: { message: data.error || 'Sign in failed' },
+      };
     }
-    return { data, error };
-  };
 
-  const refreshProfile = useCallback(async () => {
-    if (isMockMode || !supabase || !user?.id) return;
-    await loadProfile(user.id, user?.user_metadata?.role);
-  }, [loadProfile, user?.id, user?.user_metadata?.role]);
+    localStorage.setItem(TOKEN_KEY, data.access_token);
+    const prof = mapMeToProfile({ profile: data.profile });
+    const u = {
+      id: data.user.id,
+      email: data.user.email,
+      user_metadata: { role: prof?.role ?? normalizeAppRole({ user_type: data.profile?.user_type }, null) },
+    };
+    setSession({
+      access_token: data.access_token,
+      user: u,
+    });
+    setUser(u);
+    setProfile(prof);
+
+    return { data: { session: data, user: data.user }, error: null };
+  };
 
   const signOut = async () => {
     if (isMockMode) {
@@ -136,10 +159,11 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('cpsc-mock-session');
       return { error: null };
     }
-
-    const { error } = await supabase.auth.signOut();
+    localStorage.removeItem(TOKEN_KEY);
+    setSession(null);
+    setUser(null);
     setProfile(null);
-    return { error };
+    return { error: null };
   };
 
   const value = {
@@ -149,7 +173,8 @@ export function AuthProvider({ children }) {
     loading,
     signIn,
     signOut,
-    refreshProfile,
+    refreshProfile: loadProfile,
+    isMockMode,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

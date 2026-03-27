@@ -93,7 +93,15 @@ export async function dbFetchPrioritizations(supabase) {
   );
 }
 
-export async function dbResolveAppUserId(supabase, email) {
+export async function dbResolveAppUserId(supabase, email, appUserId) {
+  if (appUserId) {
+    const { data, error } = await supabase
+      .from('user')
+      .select('user_id')
+      .eq('user_id', appUserId)
+      .maybeSingle();
+    if (!error && data?.user_id != null) return data.user_id;
+  }
   if (!email) return null;
   const { data, error } = await supabase
     .from('user')

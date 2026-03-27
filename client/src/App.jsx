@@ -5,6 +5,10 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import ProfilePage from './pages/ProfilePage';
 import DashboardPage from './pages/DashboardPage';
 import RecallsPage from './pages/RecallsPage';
 import ViolationsPage from './pages/ViolationsPage';
@@ -12,7 +16,11 @@ import ResponsesPage from './pages/ResponsesPage';
 import AdjudicationsPage from './pages/AdjudicationsPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import AdminUsersPage from './pages/AdminUsersPage';
-import { RECALL_PAGE_ROLES, USER_ROLES } from 'shared';
+import {
+  RECALL_PAGE_ROLES,
+  USER_ROLES,
+  OPERATIONAL_ROLES,
+} from 'shared';
 
 export default function App() {
   return (
@@ -21,8 +29,11 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* Public route */}
+            {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* Protected routes — wrapped in Layout (sidebar + topbar) */}
             <Route
@@ -33,6 +44,7 @@ export default function App() {
               }
             >
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
               <Route path="/unauthorized" element={<UnauthorizedPage />} />
               {/* Sprint 1 — manager only */}
               <Route
@@ -51,11 +63,32 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              {/* Sprint 2 */}
-              <Route path="/violations" element={<ViolationsPage />} />
+              {/* Sprint 2 — investigators+ (sellers use Dashboard only for these placeholders) */}
+              <Route
+                path="/violations"
+                element={
+                  <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
+                    <ViolationsPage />
+                  </ProtectedRoute>
+                }
+              />
               {/* Sprint 3 */}
-              <Route path="/responses" element={<ResponsesPage />} />
-              <Route path="/adjudications" element={<AdjudicationsPage />} />
+              <Route
+                path="/responses"
+                element={
+                  <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
+                    <ResponsesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/adjudications"
+                element={
+                  <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
+                    <AdjudicationsPage />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
 
             {/* Default redirect */}

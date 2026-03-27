@@ -5,6 +5,8 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import healthRoutes from './routes/health.js';
+import authRoutes from './routes/auth.js';
+import adminUsersRoutes from './routes/adminUsers.js';
 import recallRoutes from './routes/recalls.js';
 import prioritizationRoutes from './routes/prioritizations.js';
 
@@ -28,6 +30,8 @@ export function createApp() {
   app.use(express.json());
 
   app.use('/api', healthRoutes);
+  app.use('/api/auth', authRoutes);
+  app.use('/api/admin', adminUsersRoutes);
   app.use('/api/recalls', recallRoutes);
   app.use('/api/prioritizations', prioritizationRoutes);
 

@@ -67,7 +67,7 @@ router.post('/', requireCpscManager, async (req, res) => {
   }
 
   const email = req.user?.email ?? '';
-  const appUserId = await dbResolveAppUserId(req.supabase, email);
+  const appUserId = await dbResolveAppUserId(req.supabase, email, req.user?.id);
 
   const result = await dbUpsertPrioritization(
     req.supabase,

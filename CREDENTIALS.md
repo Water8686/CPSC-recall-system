@@ -12,20 +12,23 @@ https://YOUR-APP.up.railway.app
 
 ---
 
-## Test Accounts
+## Test Accounts (after `supabase/init_benscpsc.sql`)
 
 | Role | Email | Password |
 |------|-------|----------|
-| Manager | manager@cpsc.demo | (password here) |
-| Investigator | investigator@cpsc.demo | (password here) |
-| Seller | seller@cpsc.demo | (password here) |
+| CPSC Manager | manager@cpsc.demo | demo1234 |
+| Investigator | investigator@cpsc.demo | demo1234 |
+| Seller | seller@cpsc.demo | demo1234 |
+| Admin | admin@cpsc.demo | demo1234 |
 
 ---
 
 ## Notes
 
-- All accounts use Supabase email/password authentication.
+- Sign-in uses **app auth** (`/api/auth/login`) with `public.app_users` — not Supabase Auth.
+- Apply the BENSCPSC seed: Supabase Dashboard → **SQL Editor** → paste and run [`supabase/init_benscpsc.sql`](supabase/init_benscpsc.sql).
+- Point `.env` at the **BENSCPSC** project URL and keys; set `SUPABASE_SERVICE_ROLE_KEY` and `APP_JWT_SECRET` for the API.
 - The Manager account can access the Recalls page and submit priority assignments.
 - The Investigator account can view recalls and prioritizations (read-only).
-- The Seller account logs in and sees the Dashboard.
-- Admin access (Users & roles page): use the Manager account or a separate admin account if configured.
+- The Seller account logs in and sees the Dashboard (Recalls hidden in nav).
+- **Users & roles** requires the **admin** account (`admin@cpsc.demo`).

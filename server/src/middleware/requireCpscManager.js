@@ -1,4 +1,5 @@
 import { requireAuth } from './auth.js';
+import { supabaseAdmin } from '../lib/supabase.js';
 import {
   USER_ROLES,
   canAccessManagerFeatures,
@@ -44,8 +45,9 @@ function jwtFallbackRole(user) {
 
 function verifyManagerRole(req, res, next) {
   const metaRole = jwtFallbackRole(req.user);
+  const client = supabaseAdmin || req.supabase;
 
-  if (!req.supabase) {
+  if (!client) {
     return canAccessManagerFeatures(metaRole)
       ? next()
       : res.status(403).json({
@@ -53,14 +55,14 @@ function verifyManagerRole(req, res, next) {
         });
   }
 
-  req.supabase
-    .from('profiles')
+  client
+    .from('app_users')
     .select('user_type')
     .eq('id', req.user.id)
     .maybeSingle()
     .then(({ data, error }) => {
       if (error) {
-        console.warn('profiles select error:', error.message);
+        console.warn('app_users select error:', error.message);
       }
       const role = normalizeAppRole(data, metaRole);
       if (!canAccessManagerFeatures(role)) {

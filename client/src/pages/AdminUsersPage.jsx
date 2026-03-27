@@ -15,9 +15,11 @@ import {
   Alert,
   CircularProgress,
   TextField,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
-import { supabase, isMockMode } from '../lib/supabase';
+import { apiFetch, getApiErrorMessage } from '../lib/api';
 import { ALL_PROFILE_ROLES, normalizeAppRole } from 'shared';
 
 const ROLE_LABELS = {
@@ -27,12 +29,9 @@ const ROLE_LABELS = {
   seller: 'Seller',
 };
 
-/** Prefer auth email; fall back to legacy username. */
 function accountLoginLabel(row) {
   const email = row.email?.trim();
   if (email) return email;
-  const u = row.username?.trim();
-  if (u) return u;
   return null;
 }
 
@@ -41,70 +40,67 @@ function canonicalRoleFromRow(row) {
 }
 
 export default function AdminUsersPage() {
-  const { refreshProfile, user } = useAuth();
+  const { session, refreshProfile, user, isMockMode } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [savingId, setSavingId] = useState(null);
   const [localTypes, setLocalTypes] = useState({});
   const [localNames, setLocalNames] = useState({});
+  const [localApproved, setLocalApproved] = useState({});
 
   const load = useCallback(async () => {
-    if (isMockMode || !supabase) {
+    if (isMockMode) {
       setRows([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
-    const { data, error: qErr } = await supabase
-      .from('profiles')
-      .select('id, user_type, full_name, username, email, updated_at')
-      .order('email', { ascending: true, nullsFirst: false })
-      .order('id', { ascending: true });
-
-    if (qErr) {
-      setError(qErr.message);
+    const res = await apiFetch('/api/admin/users', session);
+    if (!res.ok) {
+      setError(await getApiErrorMessage(res, 'Failed to load users'));
       setLoading(false);
       return;
     }
-
-    const list = data ?? [];
+    const list = await res.json();
     setRows(list);
     const t = {};
     const n = {};
+    const a = {};
     list.forEach((r) => {
       t[r.id] = canonicalRoleFromRow(r);
       n[r.id] = r.full_name ?? '';
+      a[r.id] = Boolean(r.approved);
     });
     setLocalTypes(t);
     setLocalNames(n);
+    setLocalApproved(a);
     setLoading(false);
-  }, []);
+  }, [session, isMockMode]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const dirty = (r) =>
     (localTypes[r.id] ?? '') !== canonicalRoleFromRow(r) ||
-    (localNames[r.id] ?? '') !== (r.full_name ?? '');
+    (localNames[r.id] ?? '') !== (r.full_name ?? '') ||
+    (localApproved[r.id] ?? false) !== Boolean(r.approved);
 
   const handleSave = async (id) => {
-    if (!supabase) return;
     setSavingId(id);
     setError(null);
-    const { error: upErr } = await supabase
-      .from('profiles')
-      .update({
+    const res = await apiFetch(`/api/admin/users/${id}`, session, {
+      method: 'PATCH',
+      body: JSON.stringify({
         user_type: localTypes[id],
         full_name: localNames[id] === '' ? null : localNames[id],
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-
-    if (upErr) {
-      setError(upErr.message);
+        approved: localApproved[id],
+      }),
+    });
+    if (!res.ok) {
+      setError(await getApiErrorMessage(res, 'Save failed'));
       setSavingId(null);
       return;
     }
@@ -116,15 +112,14 @@ export default function AdminUsersPage() {
     }
   };
 
-  if (isMockMode || !supabase) {
+  if (isMockMode) {
     return (
       <Box>
         <Typography variant="h4" fontWeight={700} gutterBottom>
           Users &amp; roles
         </Typography>
         <Alert severity="info">
-          User management uses your Supabase project. Turn off mock mode and sign in with a real
-          account to manage profiles here.
+          User management uses the API. Turn off mock mode and sign in with a real account.
         </Alert>
       </Box>
     );
@@ -144,12 +139,9 @@ export default function AdminUsersPage() {
         Users &amp; roles
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 2, maxWidth: 720 }}>
-        Each row is a Supabase Auth account linked by <code>profiles.id</code>. The{' '}
-        <strong>sign-in email</strong> comes from <code>profiles.email</code> (filled on signup after
-        the latest DB migration, or synced from Auth). Use <strong>App role</strong> for permissions
-        (stored values: admin, manager, investigator, seller — labels in the menu are for display
-        only). Only admins can change roles. If no admin exists yet, promote one in the Supabase SQL
-        editor once.
+        Each row is an <code>app_users</code> record (database auth, class project). Use{' '}
+        <strong>Approved</strong> before a user can sign in (except bootstrap admins). App role
+        values: admin, manager, investigator, seller.
       </Typography>
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -160,17 +152,18 @@ export default function AdminUsersPage() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Sign-in email</TableCell>
+              <TableCell>Email</TableCell>
               <TableCell>Display name</TableCell>
               <TableCell>App role</TableCell>
+              <TableCell>Approved</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4}>
-                  <Typography color="text.secondary">No profiles yet. Sign up a user or check RLS.</Typography>
+                <TableCell colSpan={5}>
+                  <Typography color="text.secondary">No users yet. Register the first account (becomes admin).</Typography>
                 </TableCell>
               </TableRow>
             ) : null}
@@ -178,7 +171,7 @@ export default function AdminUsersPage() {
               <TableRow key={r.id}>
                 <TableCell sx={{ minWidth: 220 }}>
                   <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                    {accountLoginLabel(r) ?? 'No email stored'}
+                    {accountLoginLabel(r) ?? 'No email'}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
                     id {r.id}
@@ -210,6 +203,19 @@ export default function AdminUsersPage() {
                       ))}
                     </Select>
                   </FormControl>
+                </TableCell>
+                <TableCell>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={localApproved[r.id] ?? false}
+                        onChange={(e) =>
+                          setLocalApproved((prev) => ({ ...prev, [r.id]: e.target.checked }))
+                        }
+                      />
+                    }
+                    label=""
+                  />
                 </TableCell>
                 <TableCell align="right">
                   <Button

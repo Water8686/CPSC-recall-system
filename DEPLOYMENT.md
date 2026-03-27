@@ -1,6 +1,6 @@
 # Deploying to Railway
 
-Single service: **Express** serves the **Vite** production build from `client/dist` and the `/api/*` routes. Users sign in with **Supabase Auth** (email/password); set real URLs and keys in Railway (not mock mode).
+Single service: **Express** serves the **Vite** production build from `client/dist` and the `/api/*` routes. Sign-in uses **app-managed auth** (`/api/auth/*`) with users in `public.app_users` and JWTs signed by the server (`APP_JWT_SECRET`). Supabase is still used as the database (with the **service role** key on the server only).
 
 ## 1. Create the Railway service (one service only)
 
@@ -25,6 +25,8 @@ The container must run **`npm start`** (Express on `PORT`) so **`GET /api/health
 |----------|--------|
 | `SUPABASE_URL` | Same as Supabase project URL (`https://xxxxx.supabase.co`) |
 | `SUPABASE_ANON_KEY` | Project **anon** key (Settings → API) |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Required** — server uses this for DB access and auth tables. Never expose to browsers. |
+| `APP_JWT_SECRET` | Long random string; signs login tokens. **Required** in production. |
 | `VITE_SUPABASE_URL` | **Same URL** (needed at **build** time for the client bundle) |
 | `VITE_SUPABASE_ANON_KEY` | **Same anon key** (build time) |
 | `VITE_MOCK_MODE` | `false` (or omit) in production |
@@ -34,23 +36,32 @@ Optional:
 | Variable | Notes |
 |----------|--------|
 | `API_MOCK_MODE` | `false` or omit in production (requires real JWT for manager API routes) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Only if you use server-side admin Supabase features |
+| `ADMIN_BOOTSTRAP_EMAILS` | Comma-separated emails that register as approved admins |
 | `CLIENT_ORIGIN` | Comma-separated allowed origins for strict CORS (omit to allow any origin with Bearer auth) |
 
 `PORT` is set automatically by Railway.
+
+### Switching to a new Supabase project (e.g. BENSCPSC)
+
+Update **all** of these in Railway to the new project’s values from **Supabase → Project Settings → API**:
+
+- `SUPABASE_URL` and `VITE_SUPABASE_URL` — same new project URL  
+- `SUPABASE_ANON_KEY` and `VITE_SUPABASE_ANON_KEY` — new **anon** / publishable key  
+- `SUPABASE_SERVICE_ROLE_KEY` — new **service_role** key (server only)
+
+Then **redeploy** (or trigger a new deploy). Vite bakes `VITE_*` in at **build** time, so if Railway runs a fresh build after you save variables, the client bundle will point at the new project. If the build step does not see updated `VITE_*` variables, clear the build cache or redeploy with “rebuild” so the client picks them up.
+
+Run [`supabase/init_benscpsc.sql`](supabase/init_benscpsc.sql) (and optional [`seed_recalls_to_100.sql`](supabase/seed_recalls_to_100.sql)) in the **new** project’s SQL editor so tables and demo users exist.
 
 ## 3. Build-time vs runtime (important)
 
 Vite inlines `VITE_*` at **build**. In Railway, mark **`VITE_SUPABASE_URL`** and **`VITE_SUPABASE_ANON_KEY`** (and `VITE_MOCK_MODE`) as available to the **build** phase if your platform separates build from deploy variables. If variables are shared across the service, the default is usually fine.
 
-## 4. Supabase Auth (so login works in production)
+## 4. Supabase SQL (users and login)
 
-In Supabase → **Authentication** → **URL configuration**:
+Apply migrations in the Supabase SQL editor (or CLI) so `app_users` exists and `password_plain` is available. The first person to **Register** becomes an approved **admin**; others are **sellers** pending approval until an admin checks **Approved** on **Users & roles**.
 
-- **Site URL**: your Railway URL, e.g. `https://your-app.up.railway.app`
-- **Redirect URLs**: add the same URL and a wildcard if you use client-side routing, e.g. `https://your-app.up.railway.app/**`
-
-Create users under **Authentication → Users**, or enable email sign-up. Set **App metadata** (or **User metadata**) `role` to `manager` for CPSC Manager access, or rely on your existing `profiles` / metadata setup.
+You do **not** need Supabase **Authentication → Users** for this app’s login flow.
 
 ## 5. Health check
 
@@ -61,7 +72,10 @@ Create users under **Authentication → Users**, or enable email sign-up. Set **
 ```bash
 npm ci
 npm run build
-VITE_MOCK_MODE=false SUPABASE_URL=... SUPABASE_ANON_KEY=... npm start
+VITE_MOCK_MODE=false \
+  SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROLE_KEY=... \
+  APP_JWT_SECRET=your-local-secret \
+  npm start
 ```
 
 Open `http://localhost:3001` — the SPA and `/api/*` should be served from one port.

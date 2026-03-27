@@ -37,6 +37,17 @@ export function canViewRecallsPage(role) {
   return RECALL_PAGE_ROLES.includes(role);
 }
 
+/** Admin, manager, investigator — not sellers (Sprint 2+ placeholder pages). */
+export const OPERATIONAL_ROLES = [
+  USER_ROLES.ADMIN,
+  USER_ROLES.MANAGER,
+  USER_ROLES.INVESTIGATOR,
+];
+
+export function canViewOperationalSprintPages(role) {
+  return OPERATIONAL_ROLES.includes(role);
+}
+
 /**
  * Map profiles.user_type (ERD) or legacy profiles.role + JWT metadata to canonical USER_ROLES.*.
  */

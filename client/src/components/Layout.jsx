@@ -16,6 +16,7 @@ import {
   Typography,
   Divider,
   Button,
+  Chip,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -26,10 +27,31 @@ import GavelIcon from '@mui/icons-material/Gavel';
 import ReplyIcon from '@mui/icons-material/Reply';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PeopleIcon from '@mui/icons-material/People';
+import PersonIcon from '@mui/icons-material/Person';
+import Avatar from '@mui/material/Avatar';
 import { useAuth } from '../context/AuthContext';
-import { canViewRecallsPage, normalizeAppRole } from 'shared';
+import {
+  canViewRecallsPage,
+  canViewOperationalSprintPages,
+  normalizeAppRole,
+  USER_ROLES,
+} from 'shared';
 
 const DRAWER_WIDTH = 240;
+
+const ROLE_LABELS = {
+  [USER_ROLES.ADMIN]: 'Admin',
+  [USER_ROLES.MANAGER]: 'CPSC Manager',
+  [USER_ROLES.INVESTIGATOR]: 'Investigator',
+  [USER_ROLES.SELLER]: 'Seller',
+};
+
+function roleChipColor(role) {
+  if (role === USER_ROLES.ADMIN) return 'error';
+  if (role === USER_ROLES.MANAGER) return 'primary';
+  if (role === USER_ROLES.INVESTIGATOR) return 'info';
+  return 'default';
+}
 
 // Navigation items organized by sprint for easy expansion
 const NAV_ITEMS = [
@@ -41,19 +63,42 @@ const NAV_ITEMS = [
     sprint: 1,
     requiresManagerAccess: true,
   },
-  // Sprint 2
-  { label: 'Violations', path: '/violations', icon: <ReportProblemIcon />, sprint: 2 },
-  // Sprint 3
-  { label: 'Responses', path: '/responses', icon: <ReplyIcon />, sprint: 3 },
-  { label: 'Adjudications', path: '/adjudications', icon: <GavelIcon />, sprint: 3 },
+  // Sprint 2+ — hidden for sellers (operational roles only)
+  {
+    label: 'Violations',
+    path: '/violations',
+    icon: <ReportProblemIcon />,
+    sprint: 2,
+    requiresOperationalRole: true,
+  },
+  {
+    label: 'Responses',
+    path: '/responses',
+    icon: <ReplyIcon />,
+    sprint: 3,
+    requiresOperationalRole: true,
+  },
+  {
+    label: 'Adjudications',
+    path: '/adjudications',
+    icon: <GavelIcon />,
+    sprint: 3,
+    requiresOperationalRole: true,
+  },
 ];
 
-/** Shown under Settings for everyone; /admin/users is still admin-only (ProtectedRoute). */
+/** Settings: Users & roles is admin-only (ProtectedRoute still enforces). */
 const SETTINGS_NAV_ITEMS = [
+  {
+    label: 'Profile',
+    path: '/profile',
+    icon: <PersonIcon />,
+  },
   {
     label: 'Users & roles',
     path: '/admin/users',
     icon: <PeopleIcon />,
+    adminOnly: true,
   },
 ];
 
@@ -65,10 +110,17 @@ export default function Layout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [settingsAnchor, setSettingsAnchor] = useState(null);
   const { signOut, user, profile } = useAuth();
+  const avatarSrc = profile?.avatar_url?.trim() || null;
+  const avatarLetter = (user?.email || '?')[0].toUpperCase();
   const role = resolvedRole(profile, user);
-  const navItems = NAV_ITEMS.filter(
-    (item) =>
-      !item.requiresManagerAccess || canViewRecallsPage(role),
+  const navItems = NAV_ITEMS.filter((item) => {
+    if (item.requiresManagerAccess && !canViewRecallsPage(role)) return false;
+    if (item.requiresOperationalRole && !canViewOperationalSprintPages(role)) return false;
+    return true;
+  });
+
+  const settingsNavItems = SETTINGS_NAV_ITEMS.filter(
+    (item) => !item.adminOnly || role === USER_ROLES.ADMIN,
   );
   const navigate = useNavigate();
   const location = useLocation();
@@ -106,14 +158,17 @@ export default function Layout() {
         <ListSubheader component="div" disableSticky sx={{ lineHeight: 2, fontWeight: 700 }}>
           Settings
         </ListSubheader>
-        {SETTINGS_NAV_ITEMS.map((item) => (
+        {settingsNavItems.map((item) => (
           <ListItemButton
             key={item.path}
             selected={location.pathname === item.path}
             onClick={() => handleNav(item.path)}
           >
             <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.label} secondary="Admin only" />
+            <ListItemText
+              primary={item.label}
+              secondary={item.adminOnly ? 'Admin only' : undefined}
+            />
           </ListItemButton>
         ))}
       </List>
@@ -133,11 +188,31 @@ export default function Layout() {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" noWrap sx={{ flexGrow: 1, minWidth: 0, mr: 1 }}>
             CPSC Recall Violation Monitoring System
           </Typography>
           {user && (
             <>
+              <Chip
+                label={ROLE_LABELS[role] ?? role}
+                size="small"
+                color={roleChipColor(role)}
+                sx={{ mr: 1, flexShrink: 0, fontWeight: 600, maxWidth: { xs: 140, sm: 'none' } }}
+              />
+              <IconButton
+                color="inherit"
+                aria-label="Profile"
+                onClick={() => navigate('/profile')}
+                sx={{ mr: 0.5 }}
+              >
+                <Avatar
+                  src={avatarSrc || undefined}
+                  alt=""
+                  sx={{ width: 32, height: 32, bgcolor: 'secondary.dark' }}
+                >
+                  {!avatarSrc ? avatarLetter : null}
+                </Avatar>
+              </IconButton>
               <IconButton
                 color="inherit"
                 aria-label="Settings"
@@ -156,11 +231,21 @@ export default function Layout() {
                 <MenuItem
                   onClick={() => {
                     setSettingsAnchor(null);
-                    navigate('/admin/users');
+                    navigate('/profile');
                   }}
                 >
-                  Users &amp; roles (admin)
+                  Profile
                 </MenuItem>
+                {role === USER_ROLES.ADMIN && (
+                  <MenuItem
+                    onClick={() => {
+                      setSettingsAnchor(null);
+                      navigate('/admin/users');
+                    }}
+                  >
+                    Users &amp; roles
+                  </MenuItem>
+                )}
               </Menu>
               <Button
                 color="inherit"
