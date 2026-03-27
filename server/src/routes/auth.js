@@ -115,7 +115,16 @@ router.post('/register', async (req, res) => {
   }
 
   const role = normalizeAppRole({ user_type: inserted.user_type }, null);
-  const access_token = await signAppToken(inserted.id, inserted.email, role);
+  let access_token;
+  try {
+    access_token = await signAppToken(inserted.id, inserted.email, role);
+  } catch (e) {
+    console.error('register JWT sign:', e);
+    return res.status(503).json({
+      error:
+        'Server misconfiguration: set APP_JWT_SECRET (min 8 characters) in Railway variables.',
+    });
+  }
 
   return res.status(201).json({
     access_token,
@@ -171,7 +180,16 @@ router.post('/login', async (req, res) => {
   }
 
   const role = normalizeAppRole({ user_type: row.user_type }, null);
-  const access_token = await signAppToken(row.id, row.email, role);
+  let access_token;
+  try {
+    access_token = await signAppToken(row.id, row.email, role);
+  } catch (e) {
+    console.error('login JWT sign:', e);
+    return res.status(503).json({
+      error:
+        'Server misconfiguration: set APP_JWT_SECRET (min 8 characters) in Railway variables.',
+    });
+  }
 
   return res.json({
     access_token,

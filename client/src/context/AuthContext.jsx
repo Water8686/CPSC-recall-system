@@ -128,9 +128,19 @@ export function AuthProvider({ children }) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
+      let message = data.error;
+      if (!message && res.status >= 502) {
+        message =
+          'Server error (' +
+          res.status +
+          '). Check Railway logs and set APP_JWT_SECRET plus Supabase keys (SUPABASE_SERVICE_ROLE_KEY, URL, anon).';
+      }
+      if (!message) {
+        message = 'Sign in failed';
+      }
       return {
         data: null,
-        error: { message: data.error || 'Sign in failed' },
+        error: { message },
       };
     }
 

@@ -26,7 +26,7 @@ The container must run **`npm start`** (Express on `PORT`) so **`GET /api/health
 | `SUPABASE_URL` | Same as Supabase project URL (`https://xxxxx.supabase.co`) |
 | `SUPABASE_ANON_KEY` | Project **anon** key (Settings → API) |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Required** — server uses this for DB access and auth tables. Never expose to browsers. |
-| `APP_JWT_SECRET` | Long random string; signs login tokens. **Required** in production. |
+| `APP_JWT_SECRET` | Long random string; signs login tokens. **Required** whenever `NODE_ENV=production` (including Railway). Without it, login can crash the process (**502**) or return 503. |
 | `VITE_SUPABASE_URL` | **Same URL** (needed at **build** time for the client bundle) |
 | `VITE_SUPABASE_ANON_KEY` | **Same anon key** (build time) |
 | `VITE_MOCK_MODE` | `false` (or omit) in production |
