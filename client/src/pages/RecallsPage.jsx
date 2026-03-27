@@ -170,15 +170,20 @@ export default function RecallsPage() {
     e.preventDefault();
     setSubmitError(null);
     setSubmitSuccess(null);
-    if (!selectedRecallId || !selectedPriority) {
-      setSubmitError('Please select a recall and priority.');
+    const recallId = String(selectedRecallId ?? '').trim();
+    if (!recallId) {
+      setSubmitError('Recall ID is required');
+      return;
+    }
+    if (!selectedPriority) {
+      setSubmitError('Priority level is required');
       return;
     }
     setSubmitLoading(true);
     try {
       const res = await apiFetch('/api/prioritizations', session, {
         method: 'POST',
-        body: JSON.stringify({ recall_id: selectedRecallId, priority: selectedPriority }),
+        body: JSON.stringify({ recall_id: recallId, priority: selectedPriority }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

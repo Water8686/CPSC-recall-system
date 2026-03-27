@@ -37,11 +37,16 @@ router.get('/', requireRealAuth, async (req, res) => {
 });
 
 router.post('/', requireCpscManager, async (req, res) => {
-  const { recall_id, priority } = req.body;
+  const rawRecallId = req.body?.recall_id;
+  const { priority } = req.body;
   const userId = req.user?.id ?? 'mock-user-id';
 
-  if (!recall_id || typeof recall_id !== 'string') {
-    return res.status(400).json({ error: 'recall_id is required' });
+  if (rawRecallId != null && typeof rawRecallId !== 'string') {
+    return res.status(400).json({ error: 'Recall ID is required' });
+  }
+  const recall_id = typeof rawRecallId === 'string' ? rawRecallId.trim() : '';
+  if (!recall_id) {
+    return res.status(400).json({ error: 'Recall ID is required' });
   }
   if (!priority || !VALID_PRIORITIES.includes(priority)) {
     return res.status(400).json({
@@ -50,7 +55,7 @@ router.post('/', requireCpscManager, async (req, res) => {
   }
 
   if (req.isApiMockMode) {
-    const result = createOrUpdatePrioritization(recall_id.trim(), priority, userId);
+    const result = createOrUpdatePrioritization(recall_id, priority, userId);
     if (!result.success) {
       return res.status(404).json({ error: result.error });
     }
@@ -66,7 +71,7 @@ router.post('/', requireCpscManager, async (req, res) => {
 
   const result = await dbUpsertPrioritization(
     req.supabase,
-    recall_id.trim(),
+    recall_id,
     priority,
     appUserId,
   );
