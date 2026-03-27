@@ -120,6 +120,9 @@ export default function RecallsPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(null);
   const [submitError, setSubmitError] = useState(null);
+  /** Per-row priority dropdown overrides (recall_number string key). */
+  const [rowPriorityDraft, setRowPriorityDraft] = useState({});
+  const [rowSavingRecallId, setRowSavingRecallId] = useState(null);
   const [recallIdFilter, setRecallIdFilter] = useState('');
   const [prioritizedOnly, setPrioritizedOnly] = useState(false);
   const [sortField, setSortField] = useState(null);
@@ -166,24 +169,24 @@ export default function RecallsPage() {
     setSearchParams(newValue === 1 ? { tab: 'analytics' } : {});
   };
 
-  const handlePrioritize = async (e) => {
-    e.preventDefault();
-    setSubmitError(null);
-    setSubmitSuccess(null);
-    const recallId = String(selectedRecallId ?? '').trim();
-    if (!recallId) {
+  const savePrioritization = async (recallId, priority, { fromForm = false } = {}) => {
+    const rid = String(recallId ?? '').trim();
+    if (!rid) {
       setSubmitError('Recall ID is required');
       return;
     }
-    if (!selectedPriority) {
+    if (!priority) {
       setSubmitError('Priority level is required');
       return;
     }
-    setSubmitLoading(true);
+    setSubmitError(null);
+    setSubmitSuccess(null);
+    if (fromForm) setSubmitLoading(true);
+    else setRowSavingRecallId(rid);
     try {
       const res = await apiFetch('/api/prioritizations', session, {
         method: 'POST',
-        body: JSON.stringify({ recall_id: recallId, priority: selectedPriority }),
+        body: JSON.stringify({ recall_id: rid, priority }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -206,13 +209,26 @@ export default function RecallsPage() {
         return [...prev, data];
       });
       setSubmitSuccess(`Recall ${data.recall_id} set to ${data.priority} priority.`);
-      setSelectedRecallId('');
-      setSelectedPriority('');
+      setRowPriorityDraft((prev) => {
+        const next = { ...prev };
+        delete next[data.recall_id];
+        return next;
+      });
+      if (fromForm) {
+        setSelectedRecallId('');
+        setSelectedPriority('');
+      }
     } catch (err) {
       setSubmitError(err.message || 'Failed to save prioritization');
     } finally {
-      setSubmitLoading(false);
+      if (fromForm) setSubmitLoading(false);
+      else setRowSavingRecallId(null);
     }
+  };
+
+  const handlePrioritize = (e) => {
+    e.preventDefault();
+    void savePrioritization(selectedRecallId, selectedPriority, { fromForm: true });
   };
 
   const getPriorityColor = (priority) => {
@@ -329,6 +345,7 @@ export default function RecallsPage() {
               >
                 <Autocomplete
                   options={recalls}
+                  disabled={rowSavingRecallId != null}
                   getOptionLabel={(r) => `${r.recall_id} — ${r.title}`}
                   value={recalls.find((r) => r.recall_id === selectedRecallId) ?? null}
                   onChange={(_, value) => setSelectedRecallId(value?.recall_id ?? '')}
@@ -336,7 +353,7 @@ export default function RecallsPage() {
                     <TextField {...params} label="Recall ID" placeholder="Select a recall" required />
                   )}
                 />
-                <FormControl fullWidth required>
+                <FormControl fullWidth required disabled={rowSavingRecallId != null}>
                   <InputLabel>Priority Level</InputLabel>
                   <Select
                     value={selectedPriority}
@@ -350,7 +367,11 @@ export default function RecallsPage() {
                     ))}
                   </Select>
                 </FormControl>
-                <Button type="submit" variant="contained" disabled={submitLoading}>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={submitLoading || rowSavingRecallId != null}
+                >
                   {submitLoading ? <CircularProgress size={24} /> : 'Assign Priority'}
                 </Button>
                 {submitSuccess && <Alert severity="success">{submitSuccess}</Alert>}
@@ -409,14 +430,66 @@ export default function RecallsPage() {
                 <TableBody>
                   {filteredRecalls.map((recall) => {
                     const prior = prioritizations[recall.recall_id];
+                    const rowPriority =
+                      rowPriorityDraft[recall.recall_id] ?? prior?.priority ?? '';
+                    const rowSaving = rowSavingRecallId === recall.recall_id;
                     return (
                       <TableRow key={recall.id}>
                         <TableCell>{recall.recall_id}</TableCell>
                         <TableCell>{recall.title}</TableCell>
                         <TableCell>{recall.product}</TableCell>
                         <TableCell>{recall.hazard}</TableCell>
-                        <TableCell>
-                          {prior ? (
+                        <TableCell sx={{ minWidth: canPrioritize ? 260 : undefined, verticalAlign: 'middle' }}>
+                          {canPrioritize ? (
+                            <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                              <FormControl size="small" sx={{ minWidth: 130 }}>
+                                <InputLabel id={`priority-label-${recall.id}`}>Priority</InputLabel>
+                                <Select
+                                  labelId={`priority-label-${recall.id}`}
+                                  label="Priority"
+                                  value={rowPriority}
+                                  displayEmpty
+                                  disabled={rowSaving}
+                                  renderValue={(v) =>
+                                    v === '' ? (
+                                      <Typography component="span" color="text.secondary" variant="body2">
+                                        Select priority
+                                      </Typography>
+                                    ) : (
+                                      v
+                                    )
+                                  }
+                                  onChange={(e) =>
+                                    setRowPriorityDraft((prev) => ({
+                                      ...prev,
+                                      [recall.recall_id]: e.target.value,
+                                    }))
+                                  }
+                                >
+                                  <MenuItem value="">
+                                    <em>Select priority</em>
+                                  </MenuItem>
+                                  {PRIORITY_LEVELS.map((p) => (
+                                    <MenuItem key={p} value={p}>
+                                      {p}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                disabled={rowSaving || !rowPriority || submitLoading}
+                                onClick={() =>
+                                  void savePrioritization(recall.recall_id, rowPriority, {
+                                    fromForm: false,
+                                  })
+                                }
+                              >
+                                {rowSaving ? <CircularProgress size={18} color="inherit" /> : 'Save'}
+                              </Button>
+                            </Box>
+                          ) : prior ? (
                             <Chip
                               label={prior.priority}
                               color={getPriorityColor(prior.priority)}
