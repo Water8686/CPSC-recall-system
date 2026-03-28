@@ -490,15 +490,6 @@ export default function RecallsPage() {
                                   value={rowPriority}
                                   displayEmpty
                                   disabled={rowSaving}
-                                  renderValue={(v) =>
-                                    v === '' ? (
-                                      <Typography component="span" color="text.secondary" variant="body2">
-                                        Select priority
-                                      </Typography>
-                                    ) : (
-                                      v
-                                    )
-                                  }
                                   onChange={(e) =>
                                     setRowPriorityDraft((prev) => ({
                                       ...prev,
@@ -506,7 +497,7 @@ export default function RecallsPage() {
                                     }))
                                   }
                                 >
-                                  <MenuItem value="">
+                                  <MenuItem value="" sx={{ color: 'text.secondary' }}>
                                     <em>Select priority</em>
                                   </MenuItem>
                                   {PRIORITY_LEVELS.map((p) => (
