@@ -536,13 +536,12 @@ export default function RecallsPage() {
                               sx={{ maxWidth: '100%' }}
                             >
                               <FormControl size="small" sx={{ minWidth: 120, flex: '1 1 auto' }}>
-                                <InputLabel id={`priority-label-${recall.id}`}>Priority</InputLabel>
                                 <Select
-                                  labelId={`priority-label-${recall.id}`}
-                                  label="Priority"
+                                  id={`priority-select-${recall.id}`}
                                   value={rowPriority}
                                   displayEmpty
                                   disabled={rowSaving}
+                                  inputProps={{ 'aria-label': 'Priority' }}
                                   onChange={(e) =>
                                     setRowPriorityDraft((prev) => ({
                                       ...prev,
