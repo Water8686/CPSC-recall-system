@@ -36,6 +36,40 @@ import { canAccessManagerFeatures, normalizeAppRole } from 'shared';
 
 const PRIORITY_LEVELS = ['High', 'Medium', 'Low'];
 
+/**
+ * Stable column widths for the recall table. Default `table-layout: auto` lets the
+ * browser shrink text columns when another cell has a large min-width (e.g. priority
+ * controls), which produces extremely tall wrapped cells and misaligned headers.
+ */
+function recallTableColumnSx(canPrioritize) {
+  const text = {
+    wordBreak: 'break-word',
+    overflowWrap: 'anywhere',
+    verticalAlign: 'top',
+  };
+  return {
+    image: { width: 56, minWidth: 56, maxWidth: 64, verticalAlign: 'middle', boxSizing: 'border-box' },
+    recall_id: { width: 92, minWidth: 92, maxWidth: 110, ...text, boxSizing: 'border-box' },
+    title: { width: '24%', minWidth: 160, ...text },
+    product: { width: '15%', minWidth: 120, ...text },
+    hazard: { width: '28%', minWidth: 180, ...text },
+    priority: {
+      width: canPrioritize ? 228 : 108,
+      minWidth: canPrioritize ? 228 : 108,
+      maxWidth: canPrioritize ? 228 : 108,
+      verticalAlign: 'middle',
+      boxSizing: 'border-box',
+    },
+    prioritized_at: {
+      width: 128,
+      minWidth: 128,
+      whiteSpace: 'nowrap',
+      verticalAlign: 'top',
+      boxSizing: 'border-box',
+    },
+  };
+}
+
 /** Product/recall thumbnail — live URL from DB with lazy load and fallback icon. */
 function RecallThumb({ url, title }) {
   const [broken, setBroken] = useState(false);
@@ -127,6 +161,7 @@ export default function RecallsPage() {
     user?.user_metadata?.role ?? user?.app_metadata?.role,
   );
   const canPrioritize = canAccessManagerFeatures(role);
+  const recallColSx = recallTableColumnSx(canPrioritize);
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState(() =>
     searchParams.get('tab') === 'analytics' ? 1 : 0
@@ -436,12 +471,20 @@ export default function RecallsPage() {
                 overflowX: 'auto',
                 WebkitOverflowScrolling: 'touch',
                 maxWidth: '100%',
+                scrollbarGutter: 'stable',
               }}
             >
-              <Table size="small" sx={{ minWidth: { xs: 720, md: 960 } }}>
+              <Table
+                size="small"
+                sx={{
+                  tableLayout: 'fixed',
+                  width: '100%',
+                  minWidth: { xs: 720, md: 960 },
+                }}
+              >
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ width: 64 }}>
+                    <TableCell sx={recallColSx.image}>
                       <strong>Image</strong>
                     </TableCell>
                     {[
@@ -452,7 +495,11 @@ export default function RecallsPage() {
                       { id: 'priority', label: 'Priority' },
                       { id: 'prioritized_at', label: 'Prioritized At' },
                     ].map((col) => (
-                      <TableCell key={col.id} sortDirection={sortField === col.id ? sortDir : false}>
+                      <TableCell
+                        key={col.id}
+                        sortDirection={sortField === col.id ? sortDir : false}
+                        sx={recallColSx[col.id]}
+                      >
                         <TableSortLabel
                           active={sortField === col.id}
                           direction={sortField === col.id ? sortDir : 'asc'}
@@ -472,17 +519,23 @@ export default function RecallsPage() {
                     const rowSaving = rowSavingRecallId === recall.recall_id;
                     return (
                       <TableRow key={recall.id}>
-                        <TableCell sx={{ verticalAlign: 'middle' }}>
+                        <TableCell sx={recallColSx.image}>
                           <RecallThumb url={recall.image_url} title={recall.title} />
                         </TableCell>
-                        <TableCell>{recall.recall_id}</TableCell>
-                        <TableCell>{recall.title}</TableCell>
-                        <TableCell>{recall.product}</TableCell>
-                        <TableCell>{recall.hazard}</TableCell>
-                        <TableCell sx={{ minWidth: canPrioritize ? 260 : undefined, verticalAlign: 'middle' }}>
+                        <TableCell sx={recallColSx.recall_id}>{recall.recall_id}</TableCell>
+                        <TableCell sx={recallColSx.title}>{recall.title}</TableCell>
+                        <TableCell sx={recallColSx.product}>{recall.product}</TableCell>
+                        <TableCell sx={recallColSx.hazard}>{recall.hazard}</TableCell>
+                        <TableCell sx={recallColSx.priority}>
                           {canPrioritize ? (
-                            <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-                              <FormControl size="small" sx={{ minWidth: 130 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              gap={1}
+                              flexWrap="wrap"
+                              sx={{ maxWidth: '100%' }}
+                            >
+                              <FormControl size="small" sx={{ minWidth: 120, flex: '1 1 auto' }}>
                                 <InputLabel id={`priority-label-${recall.id}`}>Priority</InputLabel>
                                 <Select
                                   labelId={`priority-label-${recall.id}`}
@@ -532,7 +585,7 @@ export default function RecallsPage() {
                             </Typography>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={recallColSx.prioritized_at}>
                           {prior?.prioritized_at
                             ? new Date(prior.prioritized_at).toLocaleString()
                             : '—'}
