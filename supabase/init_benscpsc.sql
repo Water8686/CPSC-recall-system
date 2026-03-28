@@ -25,7 +25,8 @@ CREATE TABLE public.recall (
   product_type TEXT,
   hazard TEXT,
   recall_date TIMESTAMPTZ,
-  last_publish_date TIMESTAMPTZ
+  last_publish_date TIMESTAMPTZ,
+  image_url TEXT
 );
 
 -- -----------------------------------------------------------------------------
@@ -181,6 +182,11 @@ INSERT INTO public.recall (recall_number, recall_title, product_name, product_ty
   ('24-023', 'Lamp Electrical Shock', 'Table Lamps', 'Table Lamps', 'Shock', '2024-04-08T15:30:00Z'::timestamptz, NULL),
   ('24-024', 'Bike Helmet Impact Failure', 'Bicycle Helmets', 'Bicycle Helmets', 'Head Injury', '2024-04-12T09:15:00Z'::timestamptz, NULL),
   ('24-025', 'Pet Crate Latch Failure', 'Pet Crates', 'Pet Crates', 'Entrapment', '2024-04-15T11:45:00Z'::timestamptz, NULL);
+
+-- Sample product-style images (placeholder URLs; optional for demos)
+UPDATE public.recall SET image_url = 'https://picsum.photos/seed/cpsc24001/96/96' WHERE recall_number = '24-001';
+UPDATE public.recall SET image_url = 'https://picsum.photos/seed/cpsc24002/96/96' WHERE recall_number = '24-002';
+UPDATE public.recall SET image_url = 'https://picsum.photos/seed/cpsc24003/96/96' WHERE recall_number = '24-003';
 
 -- =============================================================================
 -- Seed: prioritizations (manager user_id; matches mockData.js)

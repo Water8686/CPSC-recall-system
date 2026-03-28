@@ -85,6 +85,12 @@ Configure **Supabase Auth** redirect URLs for your Railway domain and set `VITE_
 The Express server runs on port 3001. During development, Vite proxies `/api/*` requests to it automatically.
 
 - `GET /api/health` — Health check
+- **Admin (JWT, `user_type` admin)** — batch recall import:
+  - `POST /api/admin/recalls/import-csv` — multipart field `file` (CSV)
+  - `POST /api/admin/recalls/import-csv-url` — JSON `{ "csvUrl" }`
+  - `POST /api/admin/recalls/import-cpsc` — JSON `{ "recallNumber" }` and/or `{ "recallDateStart", "recallDateEnd" }` (official [CPSC Recall JSON API](https://www.saferproducts.gov/RestWebServices/Recall?format=json); see [CPSC API information](https://www.cpsc.gov/Recalls/CPSC-Recalls-Application-Program-Interface-API-Information))
+
+UI: **Settings → Batch import** (`/admin/import`).
 
 ## Team
 

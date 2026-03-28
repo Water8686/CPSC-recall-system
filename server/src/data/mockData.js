@@ -4,9 +4,33 @@
  */
 
 const recalls = [
-  { id: '1', recall_id: '24-001', title: 'Infant Crib Recall', product: 'Baby Cribs', hazard: 'Fall', created_at: '2024-01-15T10:00:00Z' },
-  { id: '2', recall_id: '24-002', title: 'Children\'s Toy Choking Hazard', product: 'Plastic Toys', hazard: 'Choking', created_at: '2024-01-18T14:30:00Z' },
-  { id: '3', recall_id: '24-003', title: 'Hair Dryer Fire Risk', product: 'Hair Dryers', hazard: 'Fire', created_at: '2024-01-22T09:15:00Z' },
+  {
+    id: '1',
+    recall_id: '24-001',
+    title: 'Infant Crib Recall',
+    product: 'Baby Cribs',
+    hazard: 'Fall',
+    created_at: '2024-01-15T10:00:00Z',
+    image_url: 'https://picsum.photos/seed/cpsc24001/96/96',
+  },
+  {
+    id: '2',
+    recall_id: '24-002',
+    title: 'Children\'s Toy Choking Hazard',
+    product: 'Plastic Toys',
+    hazard: 'Choking',
+    created_at: '2024-01-18T14:30:00Z',
+    image_url: 'https://picsum.photos/seed/cpsc24002/96/96',
+  },
+  {
+    id: '3',
+    recall_id: '24-003',
+    title: 'Hair Dryer Fire Risk',
+    product: 'Hair Dryers',
+    hazard: 'Fire',
+    created_at: '2024-01-22T09:15:00Z',
+    image_url: 'https://picsum.photos/seed/cpsc24003/96/96',
+  },
   { id: '4', recall_id: '24-004', title: 'Power Strip Overheating', product: 'Power Strips', hazard: 'Fire', created_at: '2024-01-25T11:00:00Z' },
   { id: '5', recall_id: '24-005', title: 'Blinds Strangulation Risk', product: 'Window Blinds', hazard: 'Strangulation', created_at: '2024-02-01T08:45:00Z' },
   { id: '6', recall_id: '24-006', title: 'High Chair Tip-Over', product: 'High Chairs', hazard: 'Fall', created_at: '2024-02-05T13:20:00Z' },

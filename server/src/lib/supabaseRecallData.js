@@ -36,6 +36,7 @@ export function mapRecallRow(row) {
     product: row.product_name ?? row.product_type ?? '',
     hazard: row.hazard ?? '',
     created_at: row.recall_date ?? row.last_publish_date ?? null,
+    image_url: row.image_url?.trim() || null,
   };
 }
 
@@ -58,7 +59,7 @@ export async function dbFetchRecalls(supabase) {
   const { data, error } = await supabase
     .from('recall')
     .select(
-      'recall_id, recall_number, recall_title, product_name, product_type, hazard, recall_date, last_publish_date',
+      'recall_id, recall_number, recall_title, product_name, product_type, hazard, recall_date, last_publish_date, image_url',
     )
     .order('recall_number', { ascending: true });
 

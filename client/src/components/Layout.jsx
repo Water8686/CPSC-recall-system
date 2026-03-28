@@ -27,6 +27,7 @@ import GavelIcon from '@mui/icons-material/Gavel';
 import ReplyIcon from '@mui/icons-material/Reply';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PeopleIcon from '@mui/icons-material/People';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import PersonIcon from '@mui/icons-material/Person';
 import Avatar from '@mui/material/Avatar';
 import { useAuth } from '../context/AuthContext';
@@ -98,6 +99,12 @@ const SETTINGS_NAV_ITEMS = [
     label: 'Users & roles',
     path: '/admin/users',
     icon: <PeopleIcon />,
+    adminOnly: true,
+  },
+  {
+    label: 'Batch import',
+    path: '/admin/import',
+    icon: <UploadFileIcon />,
     adminOnly: true,
   },
 ];
@@ -244,6 +251,16 @@ export default function Layout() {
                     }}
                   >
                     Users &amp; roles
+                  </MenuItem>
+                )}
+                {role === USER_ROLES.ADMIN && (
+                  <MenuItem
+                    onClick={() => {
+                      setSettingsAnchor(null);
+                      navigate('/admin/import');
+                    }}
+                  >
+                    Batch import
                   </MenuItem>
                 )}
               </Menu>

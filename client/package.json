@@ -10,7 +10,6 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "shared": "*",
     "@emotion/react": "^11.13.0",
     "@emotion/styled": "^11.13.0",
     "@mui/icons-material": "^6.4.0",
@@ -19,7 +18,9 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-google-charts": "^5.2.1",
-    "react-router-dom": "^7.1.0"
+    "react-helmet-async": "^3.0.0",
+    "react-router-dom": "^7.1.0",
+    "shared": "*"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

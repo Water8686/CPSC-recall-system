@@ -26,13 +26,35 @@ import {
   Grid,
   FormControlLabel,
   Switch,
+  Avatar,
 } from '@mui/material';
+import Inventory2Icon from '@mui/icons-material/Inventory2';
 import { Chart } from 'react-google-charts';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
 import { canAccessManagerFeatures, normalizeAppRole } from 'shared';
 
 const PRIORITY_LEVELS = ['High', 'Medium', 'Low'];
+
+/** Product/recall thumbnail — live URL from DB with lazy load and fallback icon. */
+function RecallThumb({ url, title }) {
+  const [broken, setBroken] = useState(false);
+  const src = url?.trim() && !broken ? url.trim() : undefined;
+  return (
+    <Avatar
+      variant="rounded"
+      src={src}
+      alt={title ? `${title} — product image` : 'Product image'}
+      sx={{ width: 48, height: 48, bgcolor: 'action.hover' }}
+      imgProps={{
+        loading: 'lazy',
+        onError: () => setBroken(true),
+      }}
+    >
+      <Inventory2Icon fontSize="small" sx={{ color: 'text.secondary' }} aria-hidden />
+    </Avatar>
+  );
+}
 
 function PriorityCharts({ prioritizations }) {
   const counts = { High: 0, Medium: 0, Low: 0 };
@@ -341,7 +363,7 @@ export default function RecallsPage() {
                 display="flex"
                 flexDirection="column"
                 gap={2}
-                maxWidth={400}
+                maxWidth={{ xs: '100%', sm: 400 }}
               >
                 <Autocomplete
                   options={recalls}
@@ -384,14 +406,20 @@ export default function RecallsPage() {
             <Typography variant="h6" gutterBottom>
               Recall List
             </Typography>
-            <Box display="flex" flexWrap="wrap" gap={2} alignItems="center" sx={{ mb: 2 }}>
+            <Box
+              display="flex"
+              flexWrap="wrap"
+              gap={2}
+              alignItems="center"
+              sx={{ mb: 2 }}
+            >
               <TextField
                 size="small"
                 label="Search"
                 placeholder="ID, title, product, or hazard"
                 value={recallIdFilter}
                 onChange={(e) => setRecallIdFilter(e.target.value)}
-                sx={{ minWidth: 280 }}
+                sx={{ flex: { xs: '1 1 100%', sm: '0 1 auto' }, minWidth: { xs: '100%', sm: 280 } }}
               />
               <FormControlLabel
                 control={
@@ -403,10 +431,19 @@ export default function RecallsPage() {
                 label="Show prioritized only"
               />
             </Box>
-            <TableContainer>
-              <Table>
+            <TableContainer
+              sx={{
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                maxWidth: '100%',
+              }}
+            >
+              <Table size="small" sx={{ minWidth: { xs: 720, md: 960 } }}>
                 <TableHead>
                   <TableRow>
+                    <TableCell sx={{ width: 64 }}>
+                      <strong>Image</strong>
+                    </TableCell>
                     {[
                       { id: 'recall_id', label: 'Recall ID' },
                       { id: 'title', label: 'Title' },
@@ -435,6 +472,9 @@ export default function RecallsPage() {
                     const rowSaving = rowSavingRecallId === recall.recall_id;
                     return (
                       <TableRow key={recall.id}>
+                        <TableCell sx={{ verticalAlign: 'middle' }}>
+                          <RecallThumb url={recall.image_url} title={recall.title} />
+                        </TableCell>
                         <TableCell>{recall.recall_id}</TableCell>
                         <TableCell>{recall.title}</TableCell>
                         <TableCell>{recall.product}</TableCell>

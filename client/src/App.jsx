@@ -3,6 +3,7 @@ import { ThemeProvider, CssBaseline } from '@mui/material';
 import { theme } from './theme';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import DocumentTitle from './components/DocumentTitle';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -16,6 +17,7 @@ import ResponsesPage from './pages/ResponsesPage';
 import AdjudicationsPage from './pages/AdjudicationsPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import AdminUsersPage from './pages/AdminUsersPage';
+import AdminImportPage from './pages/AdminImportPage';
 import {
   RECALL_PAGE_ROLES,
   USER_ROLES,
@@ -28,6 +30,7 @@ export default function App() {
       <CssBaseline />
       <AuthProvider>
         <BrowserRouter>
+          <DocumentTitle />
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
@@ -60,6 +63,14 @@ export default function App() {
                 element={
                   <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
                     <AdminUsersPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/import"
+                element={
+                  <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
+                    <AdminImportPage />
                   </ProtectedRoute>
                 }
               />
