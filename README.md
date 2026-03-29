@@ -1,4 +1,4 @@
-# CPSC Recall Violation Monitoring System
+# CPSC Class Project Recall Violation Monitoring System
 
 Team 6 — CPSC project for recall enforcement, violation monitoring, and adjudication.
 
@@ -7,7 +7,7 @@ Team 6 — CPSC project for recall enforcement, violation monitoring, and adjudi
 - **Frontend:** React 19 + Vite + Material UI 6
 - **Backend:** Node.js + Express (thin API layer)
 - **Database:** PostgreSQL via Supabase
-- **Auth:** Supabase Auth (email/password)
+
 
 ## Project Structure
 
