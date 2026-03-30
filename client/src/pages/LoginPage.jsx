@@ -13,6 +13,7 @@ import {
   Link,
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
+import AuthShell from '../components/AuthShell';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -38,20 +39,14 @@ export default function LoginPage() {
   };
 
   return (
-    <Box
-      display="flex"
-      justifyContent="center"
-      alignItems="center"
-      minHeight="100vh"
-      bgcolor="grey.100"
-    >
-      <Card sx={{ maxWidth: 420, width: '100%', mx: 2 }}>
+    <AuthShell subtitle="Sign in to access the system">
+      <Card sx={{ maxWidth: 420, width: '100%', mx: 'auto' }}>
         <CardContent sx={{ p: 4 }}>
           <Typography variant="h5" fontWeight={700} gutterBottom>
-            CPSC Recall Monitor
+            Sign in
           </Typography>
           <Typography variant="body2" color="text.secondary" mb={3}>
-            Sign in to access the system
+            Use your registered email and password.
           </Typography>
 
           {error && (
@@ -106,6 +101,6 @@ export default function LoginPage() {
           </Typography>
         </CardContent>
       </Card>
-    </Box>
+    </AuthShell>
   );
 }

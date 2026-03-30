@@ -11,6 +11,7 @@ import {
   CircularProgress,
   Link,
 } from '@mui/material';
+import AuthShell from '../components/AuthShell';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -56,14 +57,8 @@ export default function RegisterPage() {
   };
 
   return (
-    <Box
-      display="flex"
-      justifyContent="center"
-      alignItems="center"
-      minHeight="100vh"
-      bgcolor="grey.100"
-    >
-      <Card sx={{ maxWidth: 420, width: '100%', mx: 2 }}>
+    <AuthShell subtitle="Create an account — administrator approval may be required before sign-in.">
+      <Card sx={{ maxWidth: 420, width: '100%', mx: 'auto' }}>
         <CardContent sx={{ p: 4 }}>
           <Typography variant="h5" fontWeight={700} gutterBottom>
             Create account
@@ -132,6 +127,6 @@ export default function RegisterPage() {
           </Typography>
         </CardContent>
       </Card>
-    </Box>
+    </AuthShell>
   );
 }

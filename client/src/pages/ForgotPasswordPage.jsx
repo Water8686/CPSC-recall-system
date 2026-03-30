@@ -11,6 +11,7 @@ import {
   CircularProgress,
   Link,
 } from '@mui/material';
+import AuthShell from '../components/AuthShell';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -47,14 +48,8 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <Box
-      display="flex"
-      justifyContent="center"
-      alignItems="center"
-      minHeight="100vh"
-      bgcolor="grey.100"
-    >
-      <Card sx={{ maxWidth: 440, width: '100%', mx: 2 }}>
+    <AuthShell subtitle="Reset your password — demo flow may show a link instead of email.">
+      <Card sx={{ maxWidth: 440, width: '100%', mx: 'auto' }}>
         <CardContent sx={{ p: 4 }}>
           <Typography variant="h5" fontWeight={700} gutterBottom>
             Forgot password
@@ -116,6 +111,6 @@ export default function ForgotPasswordPage() {
           </Typography>
         </CardContent>
       </Card>
-    </Box>
+    </AuthShell>
   );
 }

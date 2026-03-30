@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, CssBaseline } from '@mui/material';
+import { ThemeProvider } from '@mui/material';
 import { theme } from './theme';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -27,7 +27,6 @@ import {
 export default function App() {
   return (
     <ThemeProvider theme={theme}>
-      <CssBaseline />
       <AuthProvider>
         <BrowserRouter>
           <DocumentTitle />

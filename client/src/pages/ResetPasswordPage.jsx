@@ -11,6 +11,7 @@ import {
   CircularProgress,
   Link,
 } from '@mui/material';
+import AuthShell from '../components/AuthShell';
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -46,14 +47,8 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <Box
-      display="flex"
-      justifyContent="center"
-      alignItems="center"
-      minHeight="100vh"
-      bgcolor="grey.100"
-    >
-      <Card sx={{ maxWidth: 440, width: '100%', mx: 2 }}>
+    <AuthShell subtitle="Choose a new password for your account.">
+      <Card sx={{ maxWidth: 440, width: '100%', mx: 'auto' }}>
         <CardContent sx={{ p: 4 }}>
           <Typography variant="h5" fontWeight={700} gutterBottom>
             Set new password
@@ -110,6 +105,6 @@ export default function ResetPasswordPage() {
           </Typography>
         </CardContent>
       </Card>
-    </Box>
+    </AuthShell>
   );
 }
