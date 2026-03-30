@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { normalizeAppRole } from '../lib/roles.js';
+import { dbUserTypeFromCanonical, mapAppUserRowToApi } from '../lib/appUsers.js';
 
 const router = Router();
 
@@ -13,17 +14,20 @@ router.get('/users', requireAdmin, async (req, res) => {
 
   const { data, error } = await supabaseAdmin
     .from('app_users')
-    .select('id, email, user_type, full_name, approved, avatar_url, updated_at, created_at')
+    .select('user_id, email, user_type, full_name, approved, avatar_url, updated_at, created_at')
     .order('email', { ascending: true });
 
   if (error) {
     return res.status(500).json({ error: error.message });
   }
 
-  const rows = (data ?? []).map((row) => ({
-    ...row,
-    role: normalizeAppRole({ user_type: row.user_type }, null),
-  }));
+  const rows = (data ?? []).map((row) => {
+    const api = mapAppUserRowToApi(row);
+    return {
+      ...api,
+      role: normalizeAppRole({ user_type: row.user_type }, null),
+    };
+  });
 
   return res.json(rows);
 });
@@ -34,11 +38,15 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
     return res.status(503).json({ error: 'Database not configured' });
   }
 
-  const { id } = req.params;
+  const userId = Number.parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(userId)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
   const patch = { updated_at: new Date().toISOString() };
 
   if (req.body?.user_type !== undefined) {
-    patch.user_type = String(req.body.user_type).trim().toLowerCase();
+    patch.user_type = dbUserTypeFromCanonical(req.body.user_type);
   }
   if (req.body?.approved !== undefined) {
     patch.approved = Boolean(req.body.approved);
@@ -54,7 +62,7 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from('app_users')
     .update(patch)
-    .eq('id', id)
+    .eq('user_id', userId)
     .select()
     .single();
 
@@ -62,8 +70,9 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 
+  const api = mapAppUserRowToApi(data);
   return res.json({
-    ...data,
+    ...api,
     role: normalizeAppRole({ user_type: data.user_type }, null),
   });
 });

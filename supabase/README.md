@@ -1,6 +1,8 @@
 # Supabase (BENSCPSC / fresh project)
 
-This repo uses **one** SQL file for a clean database instead of a chain of migrations.
+For the **shared / main** Supabase database (bigint `app_users`, `recall_image`, no `public.user`), apply [`migrations/20260330130000_main_db_schema_alignment.sql`](migrations/20260330130000_main_db_schema_alignment.sql) once if you need `ADMIN` in `user_type` and `password_reset_tokens` with `bigint` `user_id`.
+
+This repo also ships **`init_benscpsc.sql`** for a clean class-project database instead of a full migration chain.
 
 ## Apply schema + mock data
 

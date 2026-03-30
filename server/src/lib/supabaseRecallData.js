@@ -4,6 +4,7 @@
  */
 
 import { PRIORITY_LEVELS } from 'shared';
+import { jwtSubToUserId } from './appUsers.js';
 
 const RANK_TO_LABEL = {
   1: PRIORITY_LEVELS.HIGH,
@@ -26,6 +27,19 @@ function rankFromPriorityLabel(label) {
   return LABEL_TO_RANK[label] ?? null;
 }
 
+function firstImageUrlFromRow(row) {
+  const nested = row.recall_image;
+  if (Array.isArray(nested)) {
+    const u = nested[0]?.image_url;
+    return u?.trim() || null;
+  }
+  if (nested && typeof nested === 'object' && 'image_url' in nested) {
+    const u = nested.image_url;
+    return u?.trim() || null;
+  }
+  return row.image_url?.trim() || null;
+}
+
 export function mapRecallRow(row) {
   if (!row) return null;
   const recallNumber = row.recall_number ?? '';
@@ -36,7 +50,7 @@ export function mapRecallRow(row) {
     product: row.product_name ?? row.product_type ?? '',
     hazard: row.hazard ?? '',
     created_at: row.recall_date ?? row.last_publish_date ?? null,
-    image_url: row.image_url?.trim() || null,
+    image_url: firstImageUrlFromRow(row),
   };
 }
 
@@ -59,7 +73,17 @@ export async function dbFetchRecalls(supabase) {
   const { data, error } = await supabase
     .from('recall')
     .select(
-      'recall_id, recall_number, recall_title, product_name, product_type, hazard, recall_date, last_publish_date, image_url',
+      `
+      recall_id,
+      recall_number,
+      recall_title,
+      product_name,
+      product_type,
+      hazard,
+      recall_date,
+      last_publish_date,
+      recall_image ( image_url )
+    `,
     )
     .order('recall_number', { ascending: true });
 
@@ -68,7 +92,6 @@ export async function dbFetchRecalls(supabase) {
 }
 
 export async function dbFetchPrioritizations(supabase) {
-  // Single query: join recall to get recall_number without a second round-trip.
   const { data, error } = await supabase
     .from('prioritization')
     .select(
@@ -94,20 +117,21 @@ export async function dbFetchPrioritizations(supabase) {
   );
 }
 
-export async function dbResolveAppUserId(supabase, email, appUserId) {
-  if (appUserId) {
+export async function dbResolveAppUserId(supabase, email, jwtSub) {
+  const fromJwt = jwtSubToUserId(typeof jwtSub === 'string' ? jwtSub : String(jwtSub ?? ''));
+  if (fromJwt != null) {
     const { data, error } = await supabase
-      .from('user')
+      .from('app_users')
       .select('user_id')
-      .eq('user_id', appUserId)
+      .eq('user_id', fromJwt)
       .maybeSingle();
     if (!error && data?.user_id != null) return data.user_id;
   }
   if (!email) return null;
   const { data, error } = await supabase
-    .from('user')
+    .from('app_users')
     .select('user_id')
-    .eq('username', email)
+    .eq('email', email)
     .maybeSingle();
   if (error) {
     console.warn('dbResolveAppUserId:', error.message);
@@ -137,7 +161,7 @@ export async function dbUpsertPrioritization(supabase, recallNumber, priorityLab
     return {
       success: false,
       error:
-        'No application user linked to this login. Add a row in public.user with username equal to your sign-in email.',
+        'No application user linked to this login. Ensure app_users has a row for your email.',
     };
   }
 

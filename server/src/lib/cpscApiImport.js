@@ -56,6 +56,7 @@ export function mapCpscJsonItemToRecallRecord(item) {
     hazard: hazardText || null,
     recall_date: parseIsoDate(item.RecallDate),
     last_publish_date: parseIsoDate(item.LastPublishDate),
+    /** Synced to public.recall_image after recall upsert (not a recall column on main DB). */
     image_url: img?.URL != null && String(img.URL).trim() ? String(img.URL).trim() : null,
   };
 }

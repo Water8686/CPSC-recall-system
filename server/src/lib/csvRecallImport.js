@@ -1,7 +1,9 @@
 /**
  * Parse CSV text into recall rows for public.recall upsert (batch import — metric 14).
+ * Images are stored in public.recall_image (see recallImages.js).
  */
 import { parse } from 'csv-parse/sync';
+import { syncRecallImagesAfterUpsert } from './recallImages.js';
 
 const MAX_ROWS = 5000;
 
@@ -116,6 +118,11 @@ export function parseRecallCsv(csvText) {
   return { records, rowErrors };
 }
 
+function recallRowForUpsert(record) {
+  const { image_url: _img, ...rest } = record;
+  return rest;
+}
+
 /**
  * Upsert recall records in batches.
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -126,7 +133,8 @@ export async function upsertRecallRecords(supabase, records) {
   const chunkSize = 100;
 
   for (let i = 0; i < records.length; i += chunkSize) {
-    const chunk = records.slice(i, i + chunkSize);
+    const slice = records.slice(i, i + chunkSize);
+    const chunk = slice.map(recallRowForUpsert);
     const { error } = await supabase.from('recall').upsert(chunk, {
       onConflict: 'recall_number',
     });
@@ -136,6 +144,7 @@ export async function upsertRecallRecords(supabase, records) {
       }
     } else {
       upserted += chunk.length;
+      await syncRecallImagesAfterUpsert(supabase, slice);
     }
   }
 

@@ -7,7 +7,7 @@ Team 6 — CPSC project for recall enforcement, violation monitoring, and adjudi
 - **Frontend:** React 19 + Vite + Material UI 6
 - **Backend:** Node.js + Express (thin API layer)
 - **Database:** PostgreSQL via Supabase
-
+- **Auth:** App-issued JWT + `public.app_users` (service role on the server — not Supabase Auth)
 
 ## Project Structure
 
@@ -70,7 +70,7 @@ cpsc-recall-system/
 
 Deploy as a **single Railway service** from the repo root: Nixpacks runs `npm ci`, `npm run build`, then `npm start`. Express serves the built SPA from `client/dist` and the API under `/api/*` on the same URL (no separate frontend URL required).
 
-Configure **Supabase Auth** redirect URLs for your Railway domain and set `VITE_*` and `SUPABASE_*` variables so both the client bundle and the server can talk to Supabase. Full checklist: [DEPLOYMENT.md](DEPLOYMENT.md).
+Set `VITE_*` and `SUPABASE_*` plus `APP_JWT_SECRET` so the client bundle and the server can talk to your Supabase project. Full checklist: [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Sprint Roadmap
 

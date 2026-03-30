@@ -5,6 +5,7 @@ import {
   canAccessManagerFeatures,
   normalizeAppRole,
 } from '../lib/roles.js';
+import { jwtSubToUserId } from '../lib/appUsers.js';
 
 const MOCK_USER = {
   id: 'mock-user-id',
@@ -55,10 +56,16 @@ function verifyManagerRole(req, res, next) {
         });
   }
 
+  const uid = jwtSubToUserId(req.user.id);
+  if (uid == null) {
+    return res.status(403).json({
+      error: 'Unauthorized user. CPSC Manager or Admin role required.',
+    });
+  }
   client
     .from('app_users')
     .select('user_type')
-    .eq('id', req.user.id)
+    .eq('user_id', uid)
     .maybeSingle()
     .then(({ data, error }) => {
       if (error) {

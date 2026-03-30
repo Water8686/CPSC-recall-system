@@ -69,7 +69,7 @@ export function normalizeAppRole(profile, jwtRoleFallback) {
   if (t === 'manager' || t === 'cpsc manager' || t === 'cpsc_manager') {
     return USER_ROLES.MANAGER;
   }
-  if (t === 'seller') return USER_ROLES.SELLER;
+  if (t === 'seller' || t === 'retailer') return USER_ROLES.SELLER;
   if (t === 'investigator') return USER_ROLES.INVESTIGATOR;
 
   if (t.includes('admin')) return USER_ROLES.ADMIN;

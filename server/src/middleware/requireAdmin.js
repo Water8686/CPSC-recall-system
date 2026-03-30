@@ -1,6 +1,7 @@
 import { requireAuth } from './auth.js';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { USER_ROLES, normalizeAppRole } from '../lib/roles.js';
+import { jwtSubToUserId } from '../lib/appUsers.js';
 
 function jwtFallbackRole(user) {
   return user?.user_metadata?.role ?? user?.app_metadata?.role;
@@ -16,10 +17,14 @@ export function requireAdmin(req, res, next) {
     if (!client) {
       return res.status(503).json({ error: 'Database not configured' });
     }
+    const uid = jwtSubToUserId(req.user.id);
+    if (uid == null) {
+      return res.status(403).json({ error: 'Administrator access required' });
+    }
     client
       .from('app_users')
       .select('user_type')
-      .eq('id', req.user.id)
+      .eq('user_id', uid)
       .maybeSingle()
       .then(({ data, error }) => {
         if (error) {

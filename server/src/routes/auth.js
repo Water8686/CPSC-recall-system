@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { randomUUID, randomBytes } from 'crypto';
+import { randomBytes } from 'crypto';
 import { supabaseAdmin } from '../lib/supabase.js';
 import { signAppToken } from '../lib/appJwt.js';
 import { requireAuth } from '../middleware/auth.js';
 import { normalizeAppRole } from '../lib/roles.js';
+import { jwtSubToUserId, mapAppUserRowToApi } from '../lib/appUsers.js';
 
 const router = Router();
 
@@ -29,9 +30,10 @@ async function countAppUsers() {
 
 function mapRowToProfile(row) {
   if (!row) return null;
+  const api = mapAppUserRowToApi(row);
   const role = normalizeAppRole({ user_type: row.user_type }, null);
   return {
-    id: row.id,
+    id: api.id,
     email: row.email,
     user_type: row.user_type,
     full_name: row.full_name ?? null,
@@ -74,22 +76,23 @@ router.post('/register', async (req, res) => {
   }
 
   const bootstrapAdmin = firstUser || isBootstrapAdminEmail(email);
-  const user_type = bootstrapAdmin ? 'admin' : 'seller';
+  const user_type = bootstrapAdmin ? 'ADMIN' : 'RETAILER';
   const approved = bootstrapAdmin;
 
-  const id = randomUUID();
+  const now = new Date().toISOString();
 
   const { data: inserted, error: insErr } = await supabaseAdmin
     .from('app_users')
     .insert({
-      id,
+      username: email,
       email,
-      password_plain: password,
-      password_hash: null,
+      password,
       user_type,
       approved,
       full_name,
       requested_role: requested_role || null,
+      created_at: now,
+      updated_at: now,
     })
     .select()
     .single();
@@ -102,10 +105,6 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ error: insErr.message || 'Registration failed' });
   }
 
-  if (inserted.approved) {
-    await syncPublicUserRow(id, email);
-  }
-
   if (!inserted.approved) {
     return res.status(201).json({
       pending: true,
@@ -115,9 +114,10 @@ router.post('/register', async (req, res) => {
   }
 
   const role = normalizeAppRole({ user_type: inserted.user_type }, null);
+  const uidStr = String(inserted.user_id);
   let access_token;
   try {
-    access_token = await signAppToken(inserted.id, inserted.email, role);
+    access_token = await signAppToken(uidStr, inserted.email, role);
   } catch (e) {
     console.error('register JWT sign:', e);
     return res.status(503).json({
@@ -129,7 +129,7 @@ router.post('/register', async (req, res) => {
   return res.status(201).json({
     access_token,
     user: {
-      id: inserted.id,
+      id: uidStr,
       email: inserted.email,
       user_metadata: { role },
     },
@@ -167,7 +167,7 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  const stored = row.password_plain ?? row.password_hash;
+  const stored = row.password;
   if (stored !== password) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
@@ -180,9 +180,10 @@ router.post('/login', async (req, res) => {
   }
 
   const role = normalizeAppRole({ user_type: row.user_type }, null);
+  const uidStr = String(row.user_id);
   let access_token;
   try {
-    access_token = await signAppToken(row.id, row.email, role);
+    access_token = await signAppToken(uidStr, row.email, role);
   } catch (e) {
     console.error('login JWT sign:', e);
     return res.status(503).json({
@@ -194,7 +195,7 @@ router.post('/login', async (req, res) => {
   return res.json({
     access_token,
     user: {
-      id: row.id,
+      id: uidStr,
       email: row.email,
       user_metadata: { role },
     },
@@ -208,10 +209,15 @@ router.get('/me', requireAuth, async (req, res) => {
     return res.status(503).json({ error: 'Database not configured' });
   }
 
+  const userId = jwtSubToUserId(req.user.id);
+  if (userId == null) {
+    return res.status(400).json({ error: 'Invalid session user id' });
+  }
+
   const { data: row, error } = await supabaseAdmin
     .from('app_users')
     .select('*')
-    .eq('id', req.user.id)
+    .eq('user_id', userId)
     .maybeSingle();
 
   if (error) {
@@ -228,6 +234,11 @@ router.get('/me', requireAuth, async (req, res) => {
 router.patch('/me', requireAuth, async (req, res) => {
   if (!supabaseAdmin) {
     return res.status(503).json({ error: 'Database not configured' });
+  }
+
+  const userId = jwtSubToUserId(req.user.id);
+  if (userId == null) {
+    return res.status(400).json({ error: 'Invalid session user id' });
   }
 
   const full_name = req.body?.full_name !== undefined
@@ -248,7 +259,7 @@ router.patch('/me', requireAuth, async (req, res) => {
   const { data: row, error } = await supabaseAdmin
     .from('app_users')
     .update(patch)
-    .eq('id', req.user.id)
+    .eq('user_id', userId)
     .select()
     .single();
 
@@ -265,6 +276,11 @@ router.post('/change-password', requireAuth, async (req, res) => {
     return res.status(503).json({ error: 'Database not configured' });
   }
 
+  const userId = jwtSubToUserId(req.user.id);
+  if (userId == null) {
+    return res.status(400).json({ error: 'Invalid session user id' });
+  }
+
   const current = String(req.body?.current_password ?? '');
   const nextPwd = String(req.body?.new_password ?? '');
 
@@ -277,27 +293,25 @@ router.post('/change-password', requireAuth, async (req, res) => {
 
   const { data: row, error: fetchErr } = await supabaseAdmin
     .from('app_users')
-    .select('password_plain, password_hash')
-    .eq('id', req.user.id)
+    .select('password')
+    .eq('user_id', userId)
     .single();
 
   if (fetchErr || !row) {
     return res.status(500).json({ error: 'Could not load user' });
   }
 
-  const stored = row.password_plain ?? row.password_hash;
-  if (stored !== current) {
+  if (row.password !== current) {
     return res.status(401).json({ error: 'Current password is incorrect' });
   }
 
   const { error: upErr } = await supabaseAdmin
     .from('app_users')
     .update({
-      password_plain: nextPwd,
-      password_hash: null,
+      password: nextPwd,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', req.user.id);
+    .eq('user_id', userId);
 
   if (upErr) {
     return res.status(400).json({ error: upErr.message });
@@ -329,7 +343,7 @@ router.post('/forgot-password', async (req, res) => {
 
   const { data: user, error: findErr } = await supabaseAdmin
     .from('app_users')
-    .select('id')
+    .select('user_id')
     .eq('email', email)
     .maybeSingle();
 
@@ -337,17 +351,17 @@ router.post('/forgot-password', async (req, res) => {
     console.error('forgot-password find:', findErr);
   }
 
-  if (!user) {
+  if (!user?.user_id) {
     return res.json(generic);
   }
 
   const token = randomBytes(32).toString('hex');
   const expires_at = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-  await supabaseAdmin.from('password_reset_tokens').delete().eq('user_id', user.id);
+  await supabaseAdmin.from('password_reset_tokens').delete().eq('user_id', user.user_id);
 
   const { error: insErr } = await supabaseAdmin.from('password_reset_tokens').insert({
-    user_id: user.id,
+    user_id: user.user_id,
     token,
     expires_at,
   });
@@ -356,7 +370,7 @@ router.post('/forgot-password', async (req, res) => {
     console.error('forgot-password insert:', insErr);
     return res.status(503).json({
       error:
-        'Password reset table missing. Run supabase/add_password_reset_tokens.sql in the SQL editor.',
+        'Password reset table missing or mismatched. Run supabase/migrations SQL for password_reset_tokens (bigint user_id).',
     });
   }
 
@@ -409,11 +423,10 @@ router.post('/reset-password', async (req, res) => {
   const { error: upErr } = await supabaseAdmin
     .from('app_users')
     .update({
-      password_plain: new_password,
-      password_hash: null,
+      password: new_password,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', row.user_id);
+    .eq('user_id', row.user_id);
 
   if (upErr) {
     return res.status(400).json({ error: upErr.message });
@@ -425,20 +438,3 @@ router.post('/reset-password', async (req, res) => {
 });
 
 export default router;
-
-/**
- * Links prioritization user_id to app user when public.user exists.
- */
-async function syncPublicUserRow(id, email) {
-  if (!supabaseAdmin) return;
-  const { error } = await supabaseAdmin.from('user').upsert(
-    { user_id: id, username: email },
-    { onConflict: 'user_id' },
-  );
-  if (error) {
-    console.warn(
-      'Could not sync public.user (add a row manually if prioritization needs it):',
-      error.message,
-    );
-  }
-}
