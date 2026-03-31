@@ -11,6 +11,7 @@ import adminRecallImportRoutes from './routes/adminRecallImport.js';
 import recallRoutes from './routes/recalls.js';
 import prioritizationRoutes from './routes/prioritizations.js';
 import assignmentRoutes from './routes/assignments.js';
+import investigatorRoutes from './routes/investigators.js';
 import usersRoutes from './routes/users.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -39,6 +40,7 @@ export function createApp() {
   app.use('/api/recalls', recallRoutes);
   app.use('/api/prioritizations', prioritizationRoutes);
   app.use('/api/assignments', assignmentRoutes);
+  app.use('/api/investigators', investigatorRoutes);
   app.use('/api/users', usersRoutes);
 
   if (fs.existsSync(clientDist)) {

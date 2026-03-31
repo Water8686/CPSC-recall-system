@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   MessageSquareReply,
   Gavel,
+  ClipboardList,
   User,
   Users,
   Upload,
@@ -75,6 +76,13 @@ const NAV_ITEMS = [
     path: '/adjudications',
     icon: Gavel,
     sprint: 3,
+    requiresOperationalRole: true,
+  },
+  {
+    label: 'Investigators',
+    path: '/investigators',
+    icon: ClipboardList,
+    sprint: 2,
     requiresOperationalRole: true,
   },
 ];

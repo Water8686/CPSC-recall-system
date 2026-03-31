@@ -111,6 +111,17 @@ const assignmentsMap = new Map([
 
 let nextAssignmentId = 4;
 
+// Violations: recall_id -> { violation_status, violation_noticed_at }
+const violationsMap = new Map([
+  ['24-001', { violation_status: 'Open', violation_noticed_at: '2024-04-10T08:00:00Z' }],
+  ['24-002', { violation_status: 'Under Review', violation_noticed_at: '2024-04-12T09:30:00Z' }],
+  ['24-003', { violation_status: 'Closed', violation_noticed_at: '2024-04-08T14:00:00Z' }],
+]);
+
+export function getLatestViolationStatusByRecallId(recallId) {
+  return violationsMap.get(recallId)?.violation_status ?? null;
+}
+
 export function getAllRecalls() {
   return [...recalls];
 }

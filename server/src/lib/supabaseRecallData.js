@@ -218,6 +218,93 @@ export async function dbFetchAssignments(supabase) {
   );
 }
 
+export async function dbFetchAssignmentQueueRows(supabase) {
+  const { data, error } = await supabase
+    .from('recall_assignment')
+    .select(
+      `
+      recall_assignment_id,
+      recall_id,
+      investigator_user_id,
+      assigned_at,
+      recall (
+        recall_id,
+        recall_number,
+        recall_title,
+        product_name,
+        product_type,
+        hazard,
+        recall_date,
+        last_publish_date,
+        recall_image ( image_url )
+      )
+    `,
+    )
+    .order('assigned_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => {
+    const recall = row.recall ?? {};
+    const mapped = mapRecallRow(recall);
+    return {
+      ...mapped,
+      _pk: row.recall_id,
+      investigator_user_id: row.investigator_user_id != null ? Number(row.investigator_user_id) : null,
+      assigned_at: row.assigned_at ?? null,
+    };
+  });
+}
+
+export async function dbFetchLatestViolationStatusByRecallIds(supabase, recallPkIds) {
+  if (!recallPkIds || recallPkIds.length === 0) return {};
+  try {
+    const { data, error } = await supabase
+      .from('violation')
+      .select('recall_id, violation_status, violation_noticed_at')
+      .in('recall_id', recallPkIds)
+      .order('violation_noticed_at', { ascending: false });
+
+    if (error) {
+      console.warn('dbFetchLatestViolationStatusByRecallIds:', error.message);
+      return {};
+    }
+
+    const map = {};
+    for (const row of data ?? []) {
+      if (!(row.recall_id in map)) {
+        map[row.recall_id] = row.violation_status ?? null;
+      }
+    }
+    return map;
+  } catch (err) {
+    console.warn('dbFetchLatestViolationStatusByRecallIds:', err.message);
+    return {};
+  }
+}
+
+export async function dbFetchLatestPrioritiesByRecallIds(supabase, recallPkIds) {
+  if (!recallPkIds || recallPkIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from('prioritization')
+    .select('recall_id, priority_rank, prioritized_at')
+    .in('recall_id', recallPkIds)
+    .order('prioritized_at', { ascending: false });
+
+  if (error) {
+    console.warn('dbFetchLatestPrioritiesByRecallIds:', error.message);
+    return {};
+  }
+
+  const map = {};
+  for (const row of data ?? []) {
+    if (!(row.recall_id in map)) {
+      map[row.recall_id] = priorityLabelFromRank(row.priority_rank);
+    }
+  }
+  return map;
+}
+
 export async function dbResolveAppUserId(supabase, email, jwtSub) {
   const fromJwt = jwtSubToUserId(typeof jwtSub === 'string' ? jwtSub : String(jwtSub ?? ''));
   if (fromJwt != null) {
