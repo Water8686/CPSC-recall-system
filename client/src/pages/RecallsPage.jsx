@@ -376,7 +376,7 @@ export default function RecallsPage() {
 
   // Search/filter
   const [recallIdFilter, setRecallIdFilter] = useState('');
-  const [prioritizedOnly, setPrioritizedOnly] = useState(false);
+  const [showAssigned, setShowAssigned] = useState(false);
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
 
@@ -749,8 +749,11 @@ export default function RecallsPage() {
           (r.hazard ?? '').toLowerCase().includes(q),
       );
     }
-    if (prioritizedOnly) {
-      list = list.filter((r) => prioritizations[r.recall_id]);
+    if (!showAssigned) {
+      // Hide recalls that are already both prioritized and assigned — they're done
+      list = list.filter(
+        (r) => !(prioritizations[r.recall_id] && assignments[r.recall_id]),
+      );
     }
     if (sortField) {
       list = [...list].sort((a, b) => {
@@ -774,7 +777,7 @@ export default function RecallsPage() {
     }
     return list;
   }, [
-    recalls, assignments, isInvestigator, recallIdFilter, prioritizedOnly,
+    recalls, assignments, isInvestigator, recallIdFilter, showAssigned,
     prioritizations, sortField, sortDir, user?.id,
   ]);
 
@@ -970,11 +973,11 @@ export default function RecallsPage() {
             <FormControlLabel
               control={
                 <Switch
-                  checked={prioritizedOnly}
-                  onChange={(e) => setPrioritizedOnly(e.target.checked)}
+                  checked={showAssigned}
+                  onChange={(e) => setShowAssigned(e.target.checked)}
                 />
               }
-              label="Show prioritized only"
+              label="Show assigned"
             />
             <Typography variant="body2" color="text.secondary">
               {filteredRecalls.length} recall{filteredRecalls.length !== 1 ? 's' : ''}
@@ -997,7 +1000,11 @@ export default function RecallsPage() {
 
           {filteredRecalls.length === 0 && (
             <Paper sx={{ p: 4, textAlign: 'center' }}>
-              <Typography color="text.secondary">No recalls match your filters.</Typography>
+              <Typography color="text.secondary">
+                {recallIdFilter
+                  ? 'No recalls match your search.'
+                  : 'All recalls have been prioritized and assigned. Toggle "Show assigned" to review them.'}
+              </Typography>
             </Paper>
           )}
         </>
