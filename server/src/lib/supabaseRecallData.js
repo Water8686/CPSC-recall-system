@@ -306,26 +306,27 @@ export async function dbFetchLatestPrioritiesByRecallIds(supabase, recallPkIds) 
 }
 
 export async function dbResolveAppUserId(supabase, email, jwtSub) {
+  // jwtSub is now the UUID from app_users.id
   const fromJwt = jwtSubToUserId(typeof jwtSub === 'string' ? jwtSub : String(jwtSub ?? ''));
   if (fromJwt != null) {
     const { data, error } = await supabase
       .from('app_users')
-      .select('user_id')
-      .eq('user_id', fromJwt)
+      .select('id')
+      .eq('id', fromJwt)
       .maybeSingle();
-    if (!error && data?.user_id != null) return data.user_id;
+    if (!error && data?.id != null) return data.id;
   }
   if (!email) return null;
   const { data, error } = await supabase
     .from('app_users')
-    .select('user_id')
+    .select('id')
     .eq('email', email)
     .maybeSingle();
   if (error) {
     console.warn('dbResolveAppUserId:', error.message);
     return null;
   }
-  return data?.user_id ?? null;
+  return data?.id ?? null;
 }
 
 export async function dbUpsertPrioritization(supabase, recallNumber, priorityLabel, appUserId) {

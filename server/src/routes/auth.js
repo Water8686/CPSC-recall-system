@@ -114,7 +114,7 @@ router.post('/register', async (req, res) => {
   }
 
   const role = normalizeAppRole({ user_type: inserted.user_type }, null);
-  const uidStr = String(inserted.user_id);
+  const uidStr = String(inserted.id);
   let access_token;
   try {
     access_token = await signAppToken(uidStr, inserted.email, role);
@@ -167,7 +167,7 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  const stored = row.password;
+  const stored = row.password_plain ?? row.password_hash;
   if (stored !== password) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
@@ -180,7 +180,7 @@ router.post('/login', async (req, res) => {
   }
 
   const role = normalizeAppRole({ user_type: row.user_type }, null);
-  const uidStr = String(row.user_id);
+  const uidStr = String(row.id);
   let access_token;
   try {
     access_token = await signAppToken(uidStr, row.email, role);
@@ -209,22 +209,29 @@ router.get('/me', requireAuth, async (req, res) => {
     return res.status(503).json({ error: 'Database not configured' });
   }
 
-  const userId = jwtSubToUserId(req.user.id);
-  if (userId == null) {
+  const userId = req.user.id;
+  if (!userId) {
     return res.status(400).json({ error: 'Invalid session user id' });
   }
 
   const { data: row, error } = await supabaseAdmin
     .from('app_users')
     .select('*')
-    .eq('user_id', userId)
+    .eq('id', userId)
     .maybeSingle();
 
   if (error) {
     return res.status(500).json({ error: error.message });
   }
   if (!row) {
-    return res.status(404).json({ error: 'User not found' });
+    // Fallback: look up by email (handles tokens issued before schema fix)
+    const { data: rowByEmail } = await supabaseAdmin
+      .from('app_users')
+      .select('*')
+      .eq('email', req.user.email)
+      .maybeSingle();
+    if (!rowByEmail) return res.status(404).json({ error: 'User not found' });
+    return res.json({ profile: mapRowToProfile(rowByEmail) });
   }
 
   return res.json({ profile: mapRowToProfile(row) });
@@ -236,8 +243,8 @@ router.patch('/me', requireAuth, async (req, res) => {
     return res.status(503).json({ error: 'Database not configured' });
   }
 
-  const userId = jwtSubToUserId(req.user.id);
-  if (userId == null) {
+  const userId = req.user.id;
+  if (!userId) {
     return res.status(400).json({ error: 'Invalid session user id' });
   }
 
@@ -259,7 +266,7 @@ router.patch('/me', requireAuth, async (req, res) => {
   const { data: row, error } = await supabaseAdmin
     .from('app_users')
     .update(patch)
-    .eq('user_id', userId)
+    .eq('id', userId)
     .select()
     .single();
 
@@ -276,8 +283,8 @@ router.post('/change-password', requireAuth, async (req, res) => {
     return res.status(503).json({ error: 'Database not configured' });
   }
 
-  const userId = jwtSubToUserId(req.user.id);
-  if (userId == null) {
+  const userId = req.user.id;
+  if (!userId) {
     return res.status(400).json({ error: 'Invalid session user id' });
   }
 
@@ -293,25 +300,26 @@ router.post('/change-password', requireAuth, async (req, res) => {
 
   const { data: row, error: fetchErr } = await supabaseAdmin
     .from('app_users')
-    .select('password')
-    .eq('user_id', userId)
+    .select('password_plain, password_hash')
+    .eq('id', userId)
     .single();
 
   if (fetchErr || !row) {
     return res.status(500).json({ error: 'Could not load user' });
   }
 
-  if (row.password !== current) {
+  const stored = row.password_plain ?? row.password_hash;
+  if (stored !== current) {
     return res.status(401).json({ error: 'Current password is incorrect' });
   }
 
   const { error: upErr } = await supabaseAdmin
     .from('app_users')
     .update({
-      password: nextPwd,
+      password_plain: nextPwd,
       updated_at: new Date().toISOString(),
     })
-    .eq('user_id', userId);
+    .eq('id', userId);
 
   if (upErr) {
     return res.status(400).json({ error: upErr.message });

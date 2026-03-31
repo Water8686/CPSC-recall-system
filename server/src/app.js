@@ -13,6 +13,10 @@ import prioritizationRoutes from './routes/prioritizations.js';
 import assignmentRoutes from './routes/assignments.js';
 import investigatorRoutes from './routes/investigators.js';
 import usersRoutes from './routes/users.js';
+import listingRoutes from './routes/listings.js';
+import violationRoutes from './routes/violations.js';
+import responseRoutes from './routes/responses.js';
+import adjudicationRoutes from './routes/adjudications.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -42,6 +46,10 @@ export function createApp() {
   app.use('/api/assignments', assignmentRoutes);
   app.use('/api/investigators', investigatorRoutes);
   app.use('/api/users', usersRoutes);
+  app.use('/api/listings', listingRoutes);
+  app.use('/api/violations', violationRoutes);
+  app.use('/api/responses', responseRoutes);
+  app.use('/api/adjudications', adjudicationRoutes);
 
   if (fs.existsSync(clientDist)) {
     app.use(express.static(clientDist));

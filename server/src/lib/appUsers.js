@@ -1,39 +1,40 @@
 /**
- * Main Supabase schema: public.app_users uses bigint user_id (not uuid id) and password column.
+ * Main Supabase schema: public.app_users uses uuid `id` as the primary key.
  */
 
-/** @param {string | undefined} sub JWT subject */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** @param {string | undefined} sub JWT subject — the app_users.id UUID */
 export function jwtSubToUserId(sub) {
   if (sub == null || sub === '') return null;
-  const n = Number(sub);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return null;
-  return n;
+  if (UUID_RE.test(String(sub))) return String(sub);
+  return null;
 }
 
 /**
- * Map API / shared canonical role to DB user_type (MANAGER, INVESTIGATOR, RETAILER, ADMIN).
+ * Map API / shared canonical role to DB user_type.
  * @param {string} canonical
  */
 export function dbUserTypeFromCanonical(canonical) {
   const c = String(canonical ?? '')
     .trim()
     .toLowerCase();
-  if (c === 'admin') return 'ADMIN';
-  if (c === 'manager') return 'MANAGER';
-  if (c === 'investigator') return 'INVESTIGATOR';
-  if (c === 'seller') return 'RETAILER';
-  return 'INVESTIGATOR';
+  if (c === 'admin') return 'admin';
+  if (c === 'manager') return 'manager';
+  if (c === 'investigator') return 'investigator';
+  if (c === 'seller') return 'seller';
+  return 'investigator';
 }
 
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
- * @param {number} userId
+ * @param {string} userId  app_users.id (UUID)
  */
 export async function fetchAppUserByUserId(supabase, userId) {
   const { data, error } = await supabase
     .from('app_users')
     .select('*')
-    .eq('user_id', userId)
+    .eq('id', userId)
     .maybeSingle();
   if (error) throw error;
   return data;
@@ -45,9 +46,8 @@ export async function fetchAppUserByUserId(supabase, userId) {
  */
 export function mapAppUserRowToApi(row) {
   if (!row) return null;
-  const uid = row.user_id;
   return {
     ...row,
-    id: uid != null ? String(uid) : null,
+    id: row.id != null ? String(row.id) : null,
   };
 }
