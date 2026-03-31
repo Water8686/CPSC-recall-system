@@ -16,7 +16,7 @@ import { canAccessManagerFeatures, normalizeAppRole } from 'shared';
 
 /**
  * Dashboard — landing page after login.
- * Sprint 1: priority charts; CPSC Managers also use Recalls → Analytics for the same view.
+ * Sprint 1: priority charts for manager triage.
  */
 export default function DashboardPage() {
   const { session, profile, user } = useAuth();
@@ -100,7 +100,7 @@ export default function DashboardPage() {
             <Link component={RouterLink} to="/recalls">
               Open Recalls
             </Link>{' '}
-            for prioritization and analytics.
+            to prioritize recalls and manage assignments.
           </Typography>
         )}
       </Box>
