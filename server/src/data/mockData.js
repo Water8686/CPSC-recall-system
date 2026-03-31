@@ -93,6 +93,34 @@ export function getRecallByRecallId(recallId) {
   return recalls.find((r) => r.recall_id === recallId) ?? null;
 }
 
+const RECALL_DETAIL_DEFAULTS = {
+  recall_url: null,
+  consumer_contact: null,
+  recall_description: null,
+  injury: null,
+  remedy: null,
+  remedy_option: null,
+  manufacturer: null,
+  manufacturer_country: null,
+  importer: null,
+  distributor: null,
+  retailer: null,
+  product_name: null,
+  product_type: null,
+  number_of_units: null,
+  upc: null,
+  recall_date: null,
+  last_publish_date: null,
+};
+
+export function normalizeRecallDetailShape(recall) {
+  if (!recall) return null;
+  return {
+    ...RECALL_DETAIL_DEFAULTS,
+    ...recall,
+  };
+}
+
 export function getAllPrioritizations() {
   return Array.from(prioritizationsMap.values());
 }

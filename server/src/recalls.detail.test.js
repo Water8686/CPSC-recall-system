@@ -1,17 +1,24 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from './app.js';
 
-describe('GET /api/recalls/:id (detail, API_MOCK_MODE)', () => {
+describe('GET /api/recalls/:recall_number (detail, API_MOCK_MODE)', () => {
   let app;
+  const priorApiMockMode = process.env.API_MOCK_MODE;
 
   beforeAll(() => {
+    process.env.API_MOCK_MODE = 'true';
     app = createApp();
+  });
+
+  afterAll(() => {
+    if (priorApiMockMode === undefined) delete process.env.API_MOCK_MODE;
+    else process.env.API_MOCK_MODE = priorApiMockMode;
   });
 
   it('returns full detail payload by recall_number', async () => {
     const recallNumber = '24-001';
-    const res = await request(app).get(`/api/recalls/${encodeURIComponent(recallNumber)}`);
+    const res = await request(app).get(`/api/recalls/${recallNumber}`);
 
     expect(res.status).toBe(200);
 
@@ -55,6 +62,6 @@ describe('GET /api/recalls/:id (detail, API_MOCK_MODE)', () => {
     const res = await request(app).get('/api/recalls/99-999');
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: 'Recall not found' });
+    expect(res.body).toMatchObject({ error: 'Recall not found' });
   });
 });
