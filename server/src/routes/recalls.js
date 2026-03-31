@@ -3,12 +3,18 @@ import {
   getAllRecalls,
   getRecallById,
   getRecallByRecallId,
+  normalizeRecallDetailShape,
   updateRecallByRecallId,
   deleteRecallByRecallId,
 } from '../data/mockData.js';
 import { applyApiMockUser, requireRealAuth } from '../middleware/requireCpscManager.js';
 import { requireCpscManager } from '../middleware/requireCpscManager.js';
-import { dbDeleteRecall, dbFetchRecalls, dbUpdateRecall } from '../lib/supabaseRecallData.js';
+import {
+  dbDeleteRecall,
+  dbFetchRecalls,
+  dbFetchRecallDetailByRecallNumber,
+  dbUpdateRecall,
+} from '../lib/supabaseRecallData.js';
 
 const router = Router();
 
@@ -33,20 +39,17 @@ router.get('/', requireRealAuth, async (req, res) => {
 router.get('/:id', requireRealAuth, async (req, res) => {
   const { id } = req.params;
   if (req.isApiMockMode) {
-    const recall = getRecallById(id) ?? getRecallByRecallId(id);
+    const recall = getRecallByRecallId(id) ?? getRecallById(id);
     if (!recall) {
       return res.status(404).json({ error: 'Recall not found' });
     }
-    return res.json(recall);
+    return res.json(normalizeRecallDetailShape(recall));
   }
   if (!req.supabase) {
     return res.status(503).json({ error: 'Database client not available' });
   }
   try {
-    const list = await dbFetchRecalls(req.supabase);
-    const byPk = list.find((r) => r.id === id);
-    const byNum = list.find((r) => r.recall_id === id);
-    const hit = byPk ?? byNum;
+    const hit = await dbFetchRecallDetailByRecallNumber(req.supabase, id);
     if (!hit) {
       return res.status(404).json({ error: 'Recall not found' });
     }

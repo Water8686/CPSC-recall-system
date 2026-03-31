@@ -54,6 +54,31 @@ export function mapRecallRow(row) {
   };
 }
 
+export function mapRecallDetailRow(row) {
+  if (!row) return null;
+  const base = mapRecallRow(row);
+  return {
+    ...base,
+    recall_url: row.recall_url ?? null,
+    consumer_contact: row.consumer_contact ?? null,
+    recall_description: row.recall_description ?? null,
+    injury: row.injury ?? null,
+    remedy: row.remedy ?? null,
+    remedy_option: row.remedy_option ?? null,
+    manufacturer: row.manufacturer ?? null,
+    manufacturer_country: row.manufacturer_country ?? null,
+    importer: row.importer ?? null,
+    distributor: row.distributor ?? null,
+    retailer: row.retailer ?? null,
+    product_name: row.product_name ?? null,
+    product_type: row.product_type ?? null,
+    number_of_units: row.number_of_units ?? null,
+    upc: row.upc ?? null,
+    recall_date: row.recall_date ?? null,
+    last_publish_date: row.last_publish_date ?? null,
+  };
+}
+
 export function mapPrioritizationRow(row, recallNumberById) {
   if (!row) return null;
   const recallNum =
@@ -102,6 +127,44 @@ export async function dbFetchRecalls(supabase) {
 
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapRecallRow);
+}
+
+export async function dbFetchRecallDetailByRecallNumber(supabase, recallNumber) {
+  const { data, error } = await supabase
+    .from('recall')
+    .select(
+      `
+      recall_id,
+      recall_number,
+      recall_title,
+      product_name,
+      product_type,
+      hazard,
+      injury,
+      remedy,
+      remedy_option,
+      manufacturer,
+      manufacturer_country,
+      importer,
+      distributor,
+      retailer,
+      upc,
+      number_of_units,
+      recall_date,
+      last_publish_date,
+      recall_url,
+      consumer_contact,
+      recall_description,
+      recall_image ( image_url ),
+      image_url
+    `,
+    )
+    .eq('recall_number', String(recallNumber ?? '').trim())
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return mapRecallDetailRow(data);
 }
 
 export async function dbFetchPrioritizations(supabase) {
