@@ -52,44 +52,56 @@ function firstNonEmptyStringFromArray(arr, key) {
   return null;
 }
 
+function trimToMax(value, max) {
+  if (value == null) return null;
+  const s = String(value).trim();
+  if (!s) return null;
+  if (typeof max === 'number' && max > 0 && s.length > max) return s.slice(0, max);
+  return s;
+}
+
 /**
  * Map one CPSC JSON recall object to public.recall row shape.
  * @param {Record<string, unknown>} item
  */
 export function mapCpscJsonItemToRecallRecord(item) {
-  const num = normalizeRecallNumber(item.RecallNumber);
+  // Many existing Supabase schemas use varchar(255) for several recall columns.
+  // Keep imports robust even before migrations widen them to TEXT.
+  const V255 = 255;
+
+  const num = trimToMax(normalizeRecallNumber(item.RecallNumber), V255) ?? '';
   const img = Array.isArray(item.Images) ? item.Images[0] : null;
-  const title =
+  const rawTitle =
     item.Title != null && String(item.Title).trim()
       ? String(item.Title).trim()
-      : String(item.Description ?? 'Recall').slice(0, 500);
+      : String(item.Description ?? 'Recall');
+  const title = trimToMax(rawTitle, V255) ?? 'Recall';
 
   return {
     recall_number: num,
     recall_title: title,
-    recall_url: item.URL != null && String(item.URL).trim() ? String(item.URL).trim() : null,
+    recall_url: trimToMax(item.URL, 4000),
     consumer_contact:
-      item.ConsumerContact != null && String(item.ConsumerContact).trim()
-        ? String(item.ConsumerContact).trim()
-        : null,
+      trimToMax(item.ConsumerContact, 4000),
     recall_description:
-      item.Description != null && String(item.Description).trim()
-        ? String(item.Description).trim()
-        : null,
+      trimToMax(item.Description, 40000),
     hazard: firstNonEmptyStringFromArray(item.Hazards, 'Name'),
     injury: firstNonEmptyStringFromArray(item.Injuries, 'Name'),
     remedy: firstNonEmptyStringFromArray(item.Remedies, 'Name'),
-    remedy_option: firstStringFromArray(item.RemedyOptions, 'Option'),
-    manufacturer: firstNonEmptyStringFromArray(item.Manufacturers, 'Name'),
-    manufacturer_country: firstStringFromArray(item.ManufacturerCountries, 'Country'),
-    importer: firstNonEmptyStringFromArray(item.Importers, 'Name'),
-    distributor: firstNonEmptyStringFromArray(item.Distributors, 'Name'),
-    retailer: firstNonEmptyStringFromArray(item.Retailers, 'Name'),
-    upc: firstNonEmptyStringFromArray(item.ProductUPCs, 'UPC'),
-    product_name: firstNonEmptyStringFromArray(item.Products, 'Name'),
+    remedy_option: trimToMax(firstStringFromArray(item.RemedyOptions, 'Option'), V255),
+    manufacturer: trimToMax(firstNonEmptyStringFromArray(item.Manufacturers, 'Name'), V255),
+    manufacturer_country: trimToMax(firstStringFromArray(item.ManufacturerCountries, 'Country'), V255),
+    importer: trimToMax(firstNonEmptyStringFromArray(item.Importers, 'Name'), V255),
+    distributor: trimToMax(firstNonEmptyStringFromArray(item.Distributors, 'Name'), V255),
+    retailer: trimToMax(firstNonEmptyStringFromArray(item.Retailers, 'Name'), V255),
+    upc: trimToMax(firstNonEmptyStringFromArray(item.ProductUPCs, 'UPC'), V255),
+    product_name: trimToMax(firstNonEmptyStringFromArray(item.Products, 'Name'), V255),
     product_type:
-      firstNonEmptyStringFromArray(item.Products, 'Type') ??
-      firstNonEmptyStringFromArray(item.Products, 'Description'),
+      trimToMax(
+        firstNonEmptyStringFromArray(item.Products, 'Type') ??
+          firstNonEmptyStringFromArray(item.Products, 'Description'),
+        V255,
+      ),
     number_of_units: (() => {
       const raw = firstNonEmptyStringFromArray(item.Products, 'NumberOfUnits');
       if (!raw) return null;
@@ -101,7 +113,7 @@ export function mapCpscJsonItemToRecallRecord(item) {
     recall_date: parseDateOnly(item.RecallDate),
     last_publish_date: parseDateOnly(item.LastPublishDate),
     /** Synced to public.recall_image after recall upsert (not a recall column on main DB). */
-    image_url: img?.URL != null && String(img.URL).trim() ? String(img.URL).trim() : null,
+    image_url: trimToMax(img?.URL, 4000),
   };
 }
 
