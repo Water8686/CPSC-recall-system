@@ -32,6 +32,7 @@ import {
   Switch,
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import GroupsIcon from '@mui/icons-material/Groups';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import { useAuth } from '../context/AuthContext';
@@ -357,11 +358,12 @@ export default function RecallsPage() {
   // Multi-select state
   const [selectedRecallIds, setSelectedRecallIds] = useState(new Set());
 
-  // Bulk assign dialog
-  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
-  const [bulkAssignInvestigator, setBulkAssignInvestigator] = useState('');
-  const [bulkAssigning, setBulkAssigning] = useState(false);
-  const [bulkAssignError, setBulkAssignError] = useState(null);
+  // Review screen state
+  const [reviewMode, setReviewMode] = useState(false);
+  const [reviewPriorities, setReviewPriorities] = useState({});
+  const [reviewInvestigator, setReviewInvestigator] = useState('');
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewError, setReviewError] = useState(null);
 
   // Edit Priority dialog (per-card)
   const [editPriorityOpen, setEditPriorityOpen] = useState(false);
@@ -563,27 +565,44 @@ export default function RecallsPage() {
     });
   };
 
-  const handleBulkAssign = async () => {
-    const invId = Number.parseInt(String(bulkAssignInvestigator ?? ''), 10);
-    if (!Number.isFinite(invId) || invId < 1) {
-      setBulkAssignError('Please select an investigator');
+  const enterReviewMode = () => {
+    // Pre-populate priorities from any existing prioritizations
+    const initial = {};
+    for (const rid of selectedRecallIds) {
+      initial[rid] = prioritizations[rid]?.priority ?? '';
+    }
+    setReviewPriorities(initial);
+    setReviewInvestigator('');
+    setReviewError(null);
+    setReviewMode(true);
+  };
+
+  const handleConfirmReview = async () => {
+    const ids = Array.from(selectedRecallIds);
+    const missing = ids.filter((rid) => !reviewPriorities[rid]);
+    if (missing.length > 0) {
+      setReviewError(`Please set a priority for all ${missing.length} recall${missing.length !== 1 ? 's' : ''}.`);
       return;
     }
-    setBulkAssigning(true);
-    setBulkAssignError(null);
+    const invId = Number.parseInt(String(reviewInvestigator ?? ''), 10);
+    if (!Number.isFinite(invId) || invId < 1) {
+      setReviewError('Please select an investigator.');
+      return;
+    }
+    setReviewSaving(true);
+    setReviewError(null);
     try {
-      const ids = Array.from(selectedRecallIds);
+      await Promise.all(ids.map((rid) => savePrioritization(rid, reviewPriorities[rid])));
       await Promise.all(ids.map((rid) => saveAssignment(rid, invId)));
       const inv = investigators.find((u) => Number.parseInt(String(u.id), 10) === invId);
       const invName = inv?.full_name || inv?.email || `Investigator ${invId}`;
-      setSubmitSuccess(`${ids.length} recall${ids.length !== 1 ? 's' : ''} assigned to ${invName}.`);
+      setSubmitSuccess(`${ids.length} recall${ids.length !== 1 ? 's' : ''} prioritized and assigned to ${invName}.`);
       setSelectedRecallIds(new Set());
-      setBulkAssignOpen(false);
-      setBulkAssignInvestigator('');
+      setReviewMode(false);
     } catch (err) {
-      setBulkAssignError(err.message || 'Failed to assign recalls');
+      setReviewError(err.message || 'Failed to save');
     } finally {
-      setBulkAssigning(false);
+      setReviewSaving(false);
     }
   };
 
@@ -892,6 +911,135 @@ export default function RecallsPage() {
     );
   }
 
+  // Review screen — shown when manager clicks "Review & Prioritize"
+  if (reviewMode) {
+    const selectedRecalls = recalls.filter((r) => selectedRecallIds.has(r.recall_id));
+    const allPrioritiesSet = selectedRecalls.every((r) => reviewPriorities[r.recall_id]);
+    const reviewInvId = Number.parseInt(String(reviewInvestigator ?? ''), 10);
+    const canConfirm = allPrioritiesSet && Number.isFinite(reviewInvId) && reviewInvId > 0;
+
+    return (
+      <Box>
+        {/* Header */}
+        <Box display="flex" alignItems="flex-start" gap={2} mb={3}>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => setReviewMode(false)}
+            disabled={reviewSaving}
+            sx={{ mt: 0.5 }}
+          >
+            Back
+          </Button>
+          <Box>
+            <Typography variant="h5" fontWeight={700}>
+              Review & Prioritize Recalls
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Set a priority for each recall, then choose an investigator to assign them all to.
+            </Typography>
+          </Box>
+        </Box>
+
+        {reviewError && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setReviewError(null)}>
+            {reviewError}
+          </Alert>
+        )}
+
+        {/* Compact recall table */}
+        <Paper variant="outlined" sx={{ mb: 3 }}>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                  <TableCell><strong>Recall ID</strong></TableCell>
+                  <TableCell><strong>Product</strong></TableCell>
+                  <TableCell><strong>Hazard</strong></TableCell>
+                  <TableCell sx={{ width: 160 }}><strong>Priority</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {selectedRecalls.map((recall) => (
+                  <TableRow key={recall.recall_id}>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={500}>{recall.recall_id}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{recall.product || recall.title || '—'}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="error.main">{recall.hazard || '—'}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <FormControl size="small" fullWidth disabled={reviewSaving}>
+                        <Select
+                          value={reviewPriorities[recall.recall_id] ?? ''}
+                          displayEmpty
+                          onChange={(e) =>
+                            setReviewPriorities((prev) => ({
+                              ...prev,
+                              [recall.recall_id]: e.target.value,
+                            }))
+                          }
+                        >
+                          <MenuItem value=""><em>Set priority</em></MenuItem>
+                          {PRIORITY_LEVELS.map((p) => (
+                            <MenuItem key={p} value={p}>{p}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+
+        {/* Investigator picker + confirm */}
+        <Paper variant="outlined" sx={{ p: 3 }}>
+          <Typography variant="h6" gutterBottom>Assign to Investigator</Typography>
+          <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+            <FormControl sx={{ minWidth: 280 }} disabled={reviewSaving}>
+              <InputLabel>Investigator</InputLabel>
+              <Select
+                value={reviewInvestigator}
+                label="Investigator"
+                onChange={(e) => setReviewInvestigator(e.target.value)}
+              >
+                <MenuItem value=""><em>Select investigator</em></MenuItem>
+                {investigators.map((u) => (
+                  <MenuItem key={u.id} value={Number.parseInt(String(u.id), 10)}>
+                    {u.full_name || u.email || `User ${u.id}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Box flex={1} />
+            <Button onClick={() => setReviewMode(false)} disabled={reviewSaving}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              size="large"
+              disabled={!canConfirm || reviewSaving}
+              onClick={handleConfirmReview}
+            >
+              {reviewSaving ? <CircularProgress size={20} color="inherit" /> : 'Confirm & Assign'}
+            </Button>
+          </Box>
+          {!allPrioritiesSet && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              Set a priority for every recall before confirming.
+            </Typography>
+          )}
+        </Paper>
+
+        {renderDetailDialog()}
+      </Box>
+    );
+  }
+
   // Manager / Admin view — tabbed layout
   return (
     <Box>
@@ -943,19 +1091,19 @@ export default function RecallsPage() {
             <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
               <Box>
                 <Typography variant="h6" fontWeight={600} gutterBottom={false}>
-                  Recalls Selected: {selectedCount} / 5
+                  Recalls Selected: {selectedCount} / 10
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Select 3–5 recalls to prioritize for investigation
+                  Select 1–10 recalls, then review and set priorities before assigning
                 </Typography>
               </Box>
               <Button
                 variant="contained"
                 size="large"
-                disabled={selectedCount < 3 || selectedCount > 5}
-                onClick={() => { setBulkAssignOpen(true); setBulkAssignError(null); }}
+                disabled={selectedCount < 1 || selectedCount > 10}
+                onClick={enterReviewMode}
               >
-                Assign to Investigators
+                Review & Prioritize
               </Button>
             </Box>
           </Paper>
@@ -1179,44 +1327,6 @@ export default function RecallsPage() {
           })}
         </Box>
       )}
-
-      {/* ── Bulk Assign Dialog ── */}
-      <Dialog open={bulkAssignOpen} onClose={() => !bulkAssigning && setBulkAssignOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Assign to Investigator</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Assign {selectedCount} selected recall{selectedCount !== 1 ? 's' : ''} to an investigator.
-          </Typography>
-          {bulkAssignError && (
-            <Alert severity="error" sx={{ mb: 2 }}>{bulkAssignError}</Alert>
-          )}
-          <FormControl fullWidth disabled={bulkAssigning}>
-            <InputLabel>Investigator</InputLabel>
-            <Select
-              value={bulkAssignInvestigator}
-              label="Investigator"
-              onChange={(e) => setBulkAssignInvestigator(e.target.value)}
-            >
-              <MenuItem value=""><em>Select investigator</em></MenuItem>
-              {investigators.map((u) => (
-                <MenuItem key={u.id} value={Number.parseInt(String(u.id), 10)}>
-                  {u.full_name || u.email || `User ${u.id}`}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setBulkAssignOpen(false)} disabled={bulkAssigning}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleBulkAssign}
-            disabled={bulkAssigning || !bulkAssignInvestigator}
-          >
-            {bulkAssigning ? <CircularProgress size={20} color="inherit" /> : 'Assign'}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* ── Edit Priority Dialog ── */}
       <Dialog open={editPriorityOpen} onClose={() => !editPrioritySaving && setEditPriorityOpen(false)} maxWidth="xs" fullWidth>
