@@ -37,6 +37,25 @@ import { canAccessManagerFeatures, normalizeAppRole, USER_ROLES } from 'shared';
 
 const PRIORITY_LEVELS = ['High', 'Medium', 'Low'];
 
+function normalizeOptionalText(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value.trim();
+  return String(value);
+}
+
+function isValueEmpty(value) {
+  if (value == null) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  return false;
+}
+
+function formatMaybeDate(value) {
+  if (isValueEmpty(value)) return '';
+  const dt = new Date(value);
+  if (!Number.isFinite(dt.getTime())) return normalizeOptionalText(value);
+  return dt.toLocaleDateString();
+}
+
 /**
  * Stable column widths for the recall table. Default `table-layout: auto` lets the
  * browser shrink text columns when another cell has a large min-width (e.g. priority
@@ -151,6 +170,110 @@ export default function RecallsPage() {
   const [detailDeleting, setDetailDeleting] = useState(false);
   const [detailError, setDetailError] = useState(null);
   const [detailSuccess, setDetailSuccess] = useState(null);
+
+  const recallDetailGroups = useMemo(
+    () => [
+      {
+        title: 'Dates',
+        fields: [
+          { key: 'recall_date', label: 'Recall date', format: formatMaybeDate },
+          { key: 'last_publish_date', label: 'Last publish date', format: formatMaybeDate },
+        ],
+      },
+      {
+        title: 'Links & contact',
+        fields: [
+          { key: 'recall_url', label: 'Recall URL' },
+          { key: 'consumer_contact', label: 'Consumer contact' },
+        ],
+      },
+      {
+        title: 'Description',
+        fields: [{ key: 'recall_description', label: 'Recall description', kind: 'multiline' }],
+      },
+      {
+        title: 'Hazard & injury',
+        fields: [
+          { key: 'hazard', label: 'Hazard', source: 'draft' },
+          { key: 'injury', label: 'Injury' },
+        ],
+      },
+      {
+        title: 'Remedy',
+        fields: [
+          { key: 'remedy', label: 'Remedy' },
+          { key: 'remedy_option', label: 'Remedy option' },
+        ],
+      },
+      {
+        title: 'Company chain',
+        fields: [
+          { key: 'manufacturer', label: 'Manufacturer' },
+          { key: 'manufacturer_country', label: 'Manufacturer country' },
+          { key: 'importer', label: 'Importer' },
+          { key: 'distributor', label: 'Distributor' },
+          { key: 'retailer', label: 'Retailer' },
+        ],
+      },
+      {
+        title: 'Product metadata',
+        fields: [
+          { key: 'product_name', label: 'Product name' },
+          { key: 'product_type', label: 'Product type' },
+          { key: 'upc', label: 'UPC' },
+          { key: 'number_of_units', label: 'Number of units' },
+        ],
+      },
+    ],
+    [],
+  );
+
+  const renderDetailRow = ({ label, value, kind, isLink }) => {
+    if (isValueEmpty(value)) return null;
+    if (kind === 'multiline') {
+      return (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+            {label}
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            minRows={4}
+            value={normalizeOptionalText(value)}
+            InputProps={{ readOnly: true }}
+            sx={{
+              '& .MuiInputBase-root': {
+                maxHeight: 240,
+                overflow: 'auto',
+              },
+            }}
+          />
+        </Box>
+      );
+    }
+    return (
+      <Box>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+          {label}
+        </Typography>
+        <Typography variant="body2" sx={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+          {isLink ? (
+            <a
+              href={normalizeOptionalText(value)}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: 'inherit' }}
+            >
+              {normalizeOptionalText(value)}
+            </a>
+          ) : (
+            normalizeOptionalText(value)
+          )}
+        </Typography>
+      </Box>
+    );
+  };
 
   useEffect(() => {
     if (!detailOpen) return;
@@ -1112,6 +1235,77 @@ export default function RecallsPage() {
               />
             </Box>
           </Box>
+
+          {detailRecall && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Recall details
+              </Typography>
+              {(() => {
+                const DENYLIST = new Set(['id', 'recall_id']);
+                const hasAnyRows = recallDetailGroups.some((group) =>
+                  group.fields.some((f) => {
+                    if (DENYLIST.has(f.key)) return false;
+                    const raw =
+                      f.source === 'draft' ? detailDraft?.[f.key] : detailRecall?.[f.key];
+                    const formatted = f.format ? f.format(raw) : raw;
+                    return !isValueEmpty(formatted);
+                  }),
+                );
+                if (!hasAnyRows) {
+                  return (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      No additional recall details available.
+                    </Typography>
+                  );
+                }
+                return recallDetailGroups
+                  .map((group) => {
+                    const rows = group.fields
+                      .filter((f) => !DENYLIST.has(f.key))
+                      .map((f) => {
+                        const raw =
+                          f.source === 'draft' ? detailDraft?.[f.key] : detailRecall?.[f.key];
+                        const value = f.format ? f.format(raw) : raw;
+                        const row = renderDetailRow({
+                          label: f.label,
+                          value,
+                          kind: f.kind,
+                          isLink: f.key === 'recall_url',
+                        });
+                        return row ? { key: f.key, kind: f.kind ?? 'kv', node: row } : null;
+                      })
+                      .filter(Boolean);
+
+                    if (rows.length === 0) return null;
+                    const multilineRows = rows.filter((r) => r.kind === 'multiline');
+                    const kvRows = rows.filter((r) => r.kind !== 'multiline');
+
+                    return (
+                      <Box key={group.title} sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                          {group.title}
+                        </Typography>
+                        {multilineRows.map((r) => (
+                          <Box key={r.key}>{r.node}</Box>
+                        ))}
+                        {kvRows.length > 0 && (
+                          <Grid container spacing={2}>
+                            {kvRows.map((r) => (
+                              <Grid item xs={12} sm={4} key={r.key}>
+                                {r.node}
+                              </Grid>
+                            ))}
+                          </Grid>
+                        )}
+                        <Divider sx={{ mt: 2 }} />
+                      </Box>
+                    );
+                  })
+                  .filter(Boolean);
+              })()}
+            </Box>
+          )}
 
           <Divider sx={{ my: 2 }} />
           <Typography variant="body2" color="text.secondary">
