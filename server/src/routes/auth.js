@@ -169,9 +169,9 @@ router.post('/login', async (req, res) => {
   }
 
   const stored = row.password_plain ?? row.password_hash;
-  console.log('login: stored type:', typeof stored, '| match:', stored === password);
+  console.log('login debug — stored:', JSON.stringify(stored), '| entered:', JSON.stringify(password), '| match:', stored === password);
   if (stored !== password) {
-    return res.status(401).json({ error: 'Password is incorrect' });
+    return res.status(401).json({ error: 'Password is incorrect — stored: ' + JSON.stringify(stored) });
   }
 
   if (!row.approved) {
