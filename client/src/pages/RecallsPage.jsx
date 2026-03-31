@@ -140,6 +140,7 @@ export default function RecallsPage() {
   const [detailPriorityDraft, setDetailPriorityDraft] = useState('');
   const [detailAssigneeDraft, setDetailAssigneeDraft] = useState('');
   const [detailSavingMeta, setDetailSavingMeta] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [detailDraft, setDetailDraft] = useState({
     title: '',
     product: '',
@@ -150,6 +151,67 @@ export default function RecallsPage() {
   const [detailDeleting, setDetailDeleting] = useState(false);
   const [detailError, setDetailError] = useState(null);
   const [detailSuccess, setDetailSuccess] = useState(null);
+
+  useEffect(() => {
+    if (!detailOpen) return;
+    const recallNumber = String(detailRecall?.recall_id ?? '').trim();
+    if (!recallNumber) return;
+
+    const initialRecall = detailRecall;
+    const initialDraftFromRecall = {
+      title: initialRecall?.title ?? '',
+      product: initialRecall?.product ?? '',
+      hazard: initialRecall?.hazard ?? '',
+      image_url: initialRecall?.image_url ?? '',
+    };
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    void (async () => {
+      setDetailLoading(true);
+      try {
+        const res = await apiFetch(
+          `/api/recalls/${encodeURIComponent(recallNumber)}`,
+          session,
+          { signal: controller.signal },
+        );
+        if (!res.ok) {
+          throw new Error(await getApiErrorMessage(res, 'Failed to load recall details'));
+        }
+        const detail = await res.json();
+        if (cancelled) return;
+        setDetailRecall(detail);
+        setDetailDraft((prev) => {
+          if (
+            prev.title !== initialDraftFromRecall.title ||
+            prev.product !== initialDraftFromRecall.product ||
+            prev.hazard !== initialDraftFromRecall.hazard ||
+            prev.image_url !== initialDraftFromRecall.image_url
+          ) {
+            return prev;
+          }
+          return {
+            title: detail?.title ?? '',
+            product: detail?.product ?? '',
+            hazard: detail?.hazard ?? '',
+            image_url: detail?.image_url ?? '',
+          };
+        });
+      } catch (err) {
+        if (cancelled) return;
+        if (err?.name === 'AbortError') return;
+        setDetailError(err.message || 'Failed to load recall details');
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [detailOpen, detailRecall?.recall_id, session]);
 
   useEffect(() => {
     async function fetchData() {
@@ -434,6 +496,7 @@ export default function RecallsPage() {
   const closeDetail = () => {
     if (detailSaving || detailDeleting) return;
     setDetailOpen(false);
+    setDetailLoading(false);
   };
 
   const saveDetail = async () => {
@@ -921,6 +984,14 @@ export default function RecallsPage() {
           {detailRecall ? `Recall ${detailRecall.recall_id}` : 'Recall'}
         </DialogTitle>
         <DialogContent dividers>
+          {detailLoading && (
+            <Box display="flex" alignItems="center" gap={1} sx={{ mb: 2 }}>
+              <CircularProgress size={18} />
+              <Typography variant="body2" color="text.secondary">
+                Loading recall details…
+              </Typography>
+            </Box>
+          )}
           {detailError && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDetailError(null)}>
               {detailError}
