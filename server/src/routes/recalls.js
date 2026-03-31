@@ -39,7 +39,7 @@ router.get('/', requireRealAuth, async (req, res) => {
 router.get('/:id', requireRealAuth, async (req, res) => {
   const { id } = req.params;
   if (req.isApiMockMode) {
-    const recall = getRecallByRecallId(id) ?? getRecallById(id);
+    const recall = getRecallByRecallId(id);
     if (!recall) {
       return res.status(404).json({ error: 'Recall not found' });
     }
@@ -71,7 +71,7 @@ router.patch('/:id', requireCpscManager, async (req, res) => {
   };
 
   if (req.isApiMockMode) {
-    const recall = getRecallById(id) ?? getRecallByRecallId(id);
+    const recall = getRecallByRecallId(id);
     if (!recall) {
       return res.status(404).json({ error: 'Recall not found' });
     }
@@ -106,7 +106,7 @@ router.delete('/:id', requireCpscManager, async (req, res) => {
   const { id } = req.params;
 
   if (req.isApiMockMode) {
-    const recall = getRecallById(id) ?? getRecallByRecallId(id);
+    const recall = getRecallByRecallId(id);
     if (!recall) {
       return res.status(404).json({ error: 'Recall not found' });
     }
