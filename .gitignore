@@ -38,3 +38,6 @@ supabase/.temp/
 
 # Migrations applied / maintained in Supabase project; keep local only
 supabase/migrations/
+
+# Local git worktrees
+.worktrees/
