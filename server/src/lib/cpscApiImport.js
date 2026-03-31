@@ -28,15 +28,36 @@ function parseIsoDate(value) {
   return d.toISOString();
 }
 
+function parseDateOnly(value) {
+  const iso = parseIsoDate(value);
+  return iso ? iso.slice(0, 10) : null;
+}
+
+function firstStringFromArray(arr, key) {
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  const v = arr[0]?.[key];
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s || null;
+}
+
+function firstNonEmptyStringFromArray(arr, key) {
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  for (const obj of arr) {
+    const v = obj?.[key];
+    if (v == null) continue;
+    const s = String(v).trim();
+    if (s) return s;
+  }
+  return null;
+}
+
 /**
  * Map one CPSC JSON recall object to public.recall row shape.
  * @param {Record<string, unknown>} item
  */
 export function mapCpscJsonItemToRecallRecord(item) {
   const num = normalizeRecallNumber(item.RecallNumber);
-  const product = Array.isArray(item.Products) ? item.Products[0] : null;
-  const hazardObj = Array.isArray(item.Hazards) ? item.Hazards[0] : null;
-  const hazardText = hazardObj?.Name != null ? String(hazardObj.Name) : '';
   const img = Array.isArray(item.Images) ? item.Images[0] : null;
   const title =
     item.Title != null && String(item.Title).trim()
@@ -46,16 +67,39 @@ export function mapCpscJsonItemToRecallRecord(item) {
   return {
     recall_number: num,
     recall_title: title,
-    product_name: product?.Name != null ? String(product.Name).trim() || null : null,
+    recall_url: item.URL != null && String(item.URL).trim() ? String(item.URL).trim() : null,
+    consumer_contact:
+      item.ConsumerContact != null && String(item.ConsumerContact).trim()
+        ? String(item.ConsumerContact).trim()
+        : null,
+    recall_description:
+      item.Description != null && String(item.Description).trim()
+        ? String(item.Description).trim()
+        : null,
+    hazard: firstNonEmptyStringFromArray(item.Hazards, 'Name'),
+    injury: firstNonEmptyStringFromArray(item.Injuries, 'Name'),
+    remedy: firstNonEmptyStringFromArray(item.Remedies, 'Name'),
+    remedy_option: firstStringFromArray(item.RemedyOptions, 'Option'),
+    manufacturer: firstNonEmptyStringFromArray(item.Manufacturers, 'Name'),
+    manufacturer_country: firstStringFromArray(item.ManufacturerCountries, 'Country'),
+    importer: firstNonEmptyStringFromArray(item.Importers, 'Name'),
+    distributor: firstNonEmptyStringFromArray(item.Distributors, 'Name'),
+    retailer: firstNonEmptyStringFromArray(item.Retailers, 'Name'),
+    upc: firstNonEmptyStringFromArray(item.ProductUPCs, 'UPC'),
+    product_name: firstNonEmptyStringFromArray(item.Products, 'Name'),
     product_type:
-      product?.Type != null && String(product.Type).trim()
-        ? String(product.Type).trim()
-        : product?.Description != null && String(product.Description).trim()
-          ? String(product.Description).trim()
-          : null,
-    hazard: hazardText || null,
-    recall_date: parseIsoDate(item.RecallDate),
-    last_publish_date: parseIsoDate(item.LastPublishDate),
+      firstNonEmptyStringFromArray(item.Products, 'Type') ??
+      firstNonEmptyStringFromArray(item.Products, 'Description'),
+    number_of_units: (() => {
+      const raw = firstNonEmptyStringFromArray(item.Products, 'NumberOfUnits');
+      if (!raw) return null;
+      const digits = raw.replace(/[^\d]/g, '');
+      if (!digits) return null;
+      const n = Number.parseInt(digits, 10);
+      return Number.isFinite(n) ? n : null;
+    })(),
+    recall_date: parseDateOnly(item.RecallDate),
+    last_publish_date: parseDateOnly(item.LastPublishDate),
     /** Synced to public.recall_image after recall upsert (not a recall column on main DB). */
     image_url: img?.URL != null && String(img.URL).trim() ? String(img.URL).trim() : null,
   };
