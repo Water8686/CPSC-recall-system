@@ -6,6 +6,14 @@ import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from './ui/table';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -20,21 +28,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import { AlertCircle, CheckCircle2, Clock, Edit } from 'lucide-react';
+import { Clock, Users } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import {
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
 
 interface Recall {
   id: string;
@@ -45,6 +40,22 @@ interface Recall {
   dateIssued: string;
   hazardType: string;
   selected: boolean;
+}
+
+interface Investigator {
+  id: string;
+  name: string;
+  team: string;
+  active: boolean;
+}
+
+interface RecallAssignment {
+  id: string;
+  recallId: string;
+  investigatorId: string;
+  assignedDate: string;
+  dueDate: string;
+  status: 'Assigned' | 'In Progress' | 'Blocked' | 'Closed';
 }
 
 export function CPSCManagerView() {
@@ -105,6 +116,55 @@ export function CPSCManagerView() {
   const [selectedRecall, setSelectedRecall] = useState<Recall | null>(null);
   const [newPriority, setNewPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
 
+  const [investigators] = useState<Investigator[]>([
+    { id: 'INV-001', name: 'Alex Rivera', team: 'Northeast', active: true },
+    { id: 'INV-002', name: 'Jamie Chen', team: 'Southeast', active: true },
+    { id: 'INV-003', name: 'Morgan Patel', team: 'West', active: true },
+  ]);
+
+  const [assignments] = useState<RecallAssignment[]>([
+    {
+      id: 'ASG-001',
+      recallId: 'RC-2026-001',
+      investigatorId: 'INV-001',
+      assignedDate: '2026-02-02',
+      dueDate: '2026-02-20',
+      status: 'In Progress',
+    },
+    {
+      id: 'ASG-002',
+      recallId: 'RC-2026-002',
+      investigatorId: 'INV-001',
+      assignedDate: '2026-02-05',
+      dueDate: '2026-02-22',
+      status: 'Assigned',
+    },
+    {
+      id: 'ASG-003',
+      recallId: 'RC-2026-003',
+      investigatorId: 'INV-002',
+      assignedDate: '2026-02-07',
+      dueDate: '2026-02-28',
+      status: 'Blocked',
+    },
+    {
+      id: 'ASG-004',
+      recallId: 'RC-2026-004',
+      investigatorId: 'INV-003',
+      assignedDate: '2026-02-10',
+      dueDate: '2026-02-26',
+      status: 'In Progress',
+    },
+    {
+      id: 'ASG-005',
+      recallId: 'RC-2026-005',
+      investigatorId: 'INV-003',
+      assignedDate: '2026-02-12',
+      dueDate: '2026-03-05',
+      status: 'Assigned',
+    },
+  ]);
+
   const toggleRecall = (id: string) => {
     setRecalls(
       recalls.map((recall) =>
@@ -134,27 +194,6 @@ export function CPSCManagerView() {
 
   const selectedCount = recalls.filter((r) => r.selected).length;
 
-  // Calculate recall statistics for visualizations
-  const priorityStats = {
-    High: recalls.filter((r) => r.priorityLevel === 'High').length,
-    Medium: recalls.filter((r) => r.priorityLevel === 'Medium').length,
-    Low: recalls.filter((r) => r.priorityLevel === 'Low').length,
-  };
-
-  const barChartData = [
-    { priority: 'High', count: priorityStats.High, fill: '#ef4444' },
-    { priority: 'Medium', count: priorityStats.Medium, fill: '#f97316' },
-    { priority: 'Low', count: priorityStats.Low, fill: '#eab308' },
-  ];
-
-  const pieChartData = [
-    { name: 'High', value: priorityStats.High, color: '#ef4444' },
-    { name: 'Medium', value: priorityStats.Medium, color: '#f97316' },
-    { name: 'Low', value: priorityStats.Low, color: '#eab308' },
-  ];
-
-  const totalRecalls = recalls.length;
-
   const getPriorityColor = (level: string) => {
     switch (level) {
       case 'High':
@@ -167,6 +206,30 @@ export function CPSCManagerView() {
         return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
+
+  const getAssignmentStatusColor = (status: RecallAssignment['status']) => {
+    switch (status) {
+      case 'Closed':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'In Progress':
+        return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'Blocked':
+        return 'bg-red-100 text-red-800 border-red-300';
+      case 'Assigned':
+      default:
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+    }
+  };
+
+  const getRecallById = (recallId: string) => recalls.find((r) => r.id === recallId);
+
+  const getAssignmentsForInvestigator = (investigatorId: string) =>
+    assignments
+      .filter((a) => a.investigatorId === investigatorId)
+      .map((a) => ({ assignment: a, recall: getRecallById(a.recallId) }))
+      .filter((row): row is { assignment: RecallAssignment; recall: Recall } => !!row.recall);
+
+  const priorities: Array<Recall['priorityLevel']> = ['High', 'Medium', 'Low'];
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -190,7 +253,12 @@ export function CPSCManagerView() {
           <TabsList className="mb-6">
             <TabsTrigger value="prioritize">Prioritize Recalls</TabsTrigger>
             <TabsTrigger value="active">Active Investigations</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
+            <TabsTrigger value="investigators">
+              <span className="inline-flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Investigators
+              </span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="prioritize">
@@ -331,78 +399,144 @@ export function CPSCManagerView() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="reports">
+          <TabsContent value="investigators">
             <div className="space-y-6">
-              {/* Summary Stats */}
-              <div className="grid grid-cols-4 gap-4">
-                <Card className="p-4">
-                  <p className="text-sm text-gray-600 mb-1">Total Recalls</p>
-                  <p className="text-3xl font-bold text-gray-900">{totalRecalls}</p>
-                </Card>
-                <Card className="p-4 bg-red-50 border-red-200">
-                  <p className="text-sm text-gray-600 mb-1">High Priority</p>
-                  <p className="text-3xl font-bold text-red-600">{priorityStats.High}</p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    {((priorityStats.High / totalRecalls) * 100).toFixed(0)}%
-                  </p>
-                </Card>
-                <Card className="p-4 bg-orange-50 border-orange-200">
-                  <p className="text-sm text-gray-600 mb-1">Medium Priority</p>
-                  <p className="text-3xl font-bold text-orange-600">{priorityStats.Medium}</p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    {((priorityStats.Medium / totalRecalls) * 100).toFixed(0)}%
-                  </p>
-                </Card>
-                <Card className="p-4 bg-yellow-50 border-yellow-200">
-                  <p className="text-sm text-gray-600 mb-1">Low Priority</p>
-                  <p className="text-3xl font-bold text-yellow-600">{priorityStats.Low}</p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    {((priorityStats.Low / totalRecalls) * 100).toFixed(0)}%
-                  </p>
-                </Card>
-              </div>
-
-              {/* Bar Chart */}
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Recalls by Priority Level</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={barChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="priority" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="count" name="Number of Recalls" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </Card>
-
-              {/* Pie Chart */}
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Priority Level Distribution</h3>
-                <div className="flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height={350}>
-                    <PieChart>
-                      <Pie
-                        data={pieChartData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={120}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {pieChartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
+              <Card className="p-6 bg-white">
+                <div className="flex items-start justify-between gap-6">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-1">
+                      Investigator Assignments
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Recalls assigned to each investigator, broken out by
+                      priority so it’s easy to triage.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{investigators.filter((i) => i.active).length} active</Badge>
+                    <Badge variant="outline">{assignments.length} assignments</Badge>
+                  </div>
                 </div>
               </Card>
+
+              <div className="grid grid-cols-1 gap-6">
+                {investigators.map((inv) => {
+                  const rows = getAssignmentsForInvestigator(inv.id);
+                  const rowsByPriority = {
+                    High: rows.filter((r) => r.recall.priorityLevel === 'High'),
+                    Medium: rows.filter((r) => r.recall.priorityLevel === 'Medium'),
+                    Low: rows.filter((r) => r.recall.priorityLevel === 'Low'),
+                  };
+
+                  return (
+                    <Card key={inv.id} className="p-6">
+                      <div className="flex items-start justify-between gap-6 mb-5">
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <h4 className="text-xl font-semibold text-gray-900">
+                              {inv.name}
+                            </h4>
+                            <Badge variant="outline">{inv.team}</Badge>
+                            {!inv.active && (
+                              <Badge
+                                variant="outline"
+                                className="bg-gray-100 text-gray-700 border-gray-300"
+                              >
+                                Inactive
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Assigned recalls: <span className="font-medium">{rows.length}</span>
+                          </p>
+                        </div>
+                        <Button variant="outline" size="sm" disabled>
+                          Reassign
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-6">
+                        {priorities.map((priority) => {
+                          const priorityRows = rowsByPriority[priority];
+                          return (
+                            <div key={`${inv.id}-${priority}`}>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <Badge
+                                    variant="outline"
+                                    className={getPriorityColor(priority)}
+                                  >
+                                    {priority} Priority
+                                  </Badge>
+                                  <span className="text-sm text-gray-600">
+                                    {priorityRows.length} assigned
+                                  </span>
+                                </div>
+                              </div>
+
+                              <Card className="border p-0 overflow-hidden">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Recall</TableHead>
+                                      <TableHead>Manufacturer</TableHead>
+                                      <TableHead>Hazard</TableHead>
+                                      <TableHead>Assigned</TableHead>
+                                      <TableHead>Due</TableHead>
+                                      <TableHead>Status</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {priorityRows.length === 0 ? (
+                                      <TableRow>
+                                        <TableCell
+                                          colSpan={6}
+                                          className="text-sm text-gray-500 py-6"
+                                        >
+                                          No {priority.toLowerCase()} priority recalls assigned.
+                                        </TableCell>
+                                      </TableRow>
+                                    ) : (
+                                      priorityRows.map(({ assignment, recall }) => (
+                                        <TableRow key={assignment.id}>
+                                          <TableCell className="whitespace-normal">
+                                            <div className="font-medium text-gray-900">
+                                              {recall.productName}
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                              {recall.id} • Model {recall.modelNumber}
+                                            </div>
+                                          </TableCell>
+                                          <TableCell className="whitespace-normal">
+                                            {recall.manufacturer}
+                                          </TableCell>
+                                          <TableCell className="whitespace-normal text-red-700">
+                                            {recall.hazardType}
+                                          </TableCell>
+                                          <TableCell>{assignment.assignedDate}</TableCell>
+                                          <TableCell>{assignment.dueDate}</TableCell>
+                                          <TableCell>
+                                            <Badge
+                                              variant="outline"
+                                              className={getAssignmentStatusColor(assignment.status)}
+                                            >
+                                              {assignment.status}
+                                            </Badge>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </Card>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
           </TabsContent>
         </Tabs>
