@@ -15,7 +15,7 @@ This should work in both:
 ## Current state (as-is)
 
 - The client renders the recall detail dialog in `client/src/pages/RecallsPage.jsx`.
-- The detail dialog fetches `GET /api/recalls/:id`.
+- The detail dialog is opened from list data; it does not currently fetch a “full detail” payload on open.
 - `GET /api/recalls/:id` currently returns the **same summary shape** as `GET /api/recalls` (it re-fetches the full list then `find()`s the hit).
 
 Result: the UI cannot show additional recall-table fields because they are never returned.
@@ -29,19 +29,24 @@ Keep `GET /api/recalls` returning a **summary list** for the table view.
 Update `GET /api/recalls/:id` to return a **full recall detail** payload, including:
 - All recall informational columns from `public.recall`
 - Image URL, preferring `public.recall_image.image_url` (first image) when present
-- A stable identifier for the client to PATCH/DELETE (existing route uses `:id` as either recall_number or internal id)
+- The existing summary fields used by the SPA today (so the modal’s edit controls keep working without refactors)
 
 #### DB query
 
-Add a dedicated Supabase query helper, e.g. `dbFetchRecallDetail(supabase, idOrNumber)`:
+Define the route identifier clearly:
+- `:id` is the **recall number** (e.g. `24-090`) for GET/PATCH/DELETE.
+
+Add a dedicated Supabase query helper, e.g. `dbFetchRecallDetailByRecallNumber(supabase, recallNumber)`:
 - `from('recall')`
-- `select('* , recall_image ( image_url )')`
-- filter by either:
-  - `recall_id` when `idOrNumber` looks numeric, OR
-  - `recall_number` when not numeric
+- select only the needed columns (avoid `select('*')`), plus `recall_image ( image_url )`
+- filter by `recall_number`
 - return a single row
 
-Map response to a JSON shape that includes all informational fields, and includes the image URL in a predictable place (e.g. top-level `image_url`).
+Map response to a JSON shape that:
+- preserves the existing summary keys (`id`, `recall_id`, `title`, `product`, `hazard`, `image_url`)
+- adds all additional informational keys from the recall table for display in the modal
+
+Do not include internal keys in the response beyond what the SPA already uses (`id` is acceptable for internal tracking; it is not displayed).
 
 #### API mock mode
 
@@ -53,6 +58,10 @@ Keep the existing UI controls and edit behavior:
 - Assignee selector + “Save assignee”
 - Priority selector + “Save priority”
 - Existing editable inputs: Title, Product, Hazard, Image URL
+
+Add: on modal open, fetch full details.
+- When the modal opens (or when the selected recall changes), call `GET /api/recalls/:recall_number`.
+- Merge/replace `detailRecall` with the returned payload.
 
 Add a **read-only “Recall details”** section below the editable fields that shows all other recall informational fields returned by the API, grouped for readability.
 
@@ -101,12 +110,18 @@ Suggested groups:
 
 ## Data contract (detail payload)
 
-The detail endpoint should return (at minimum) these fields when present:
-- `recall_number`
-- `recall_title`
-- `product_name`
-- `product_type`
+The detail endpoint should return the existing SPA summary keys:
+- `id` (DB PK as string; internal only)
+- `recall_id` (recall number string; display + used for PATCH/DELETE)
+- `title`
+- `product`
 - `hazard`
+- `image_url`
+
+Plus (when present) the additional informational keys from the recall table:
+- `recall_url`
+- `consumer_contact`
+- `recall_description`
 - `injury`
 - `remedy`
 - `remedy_option`
@@ -115,14 +130,12 @@ The detail endpoint should return (at minimum) these fields when present:
 - `importer`
 - `distributor`
 - `retailer`
-- `upc`
+- `product_name`
+- `product_type`
 - `number_of_units`
+- `upc`
 - `recall_date`
 - `last_publish_date`
-- `recall_url`
-- `consumer_contact`
-- `recall_description`
-- `image_url` (derived from `recall_image` when available)
 
 The payload may include internal identifiers needed by the client for subsequent actions, but the UI must not display them.
 
