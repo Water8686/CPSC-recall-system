@@ -323,7 +323,14 @@ export default function RecallsPage() {
 
   const handlePrioritize = (e) => {
     e.preventDefault();
-    void savePrioritization(selectedRecallId, selectedPriority, { fromForm: true });
+    const rid = selectedRecallId;
+    const assignId = selectedAssignee;
+    void (async () => {
+      await savePrioritization(rid, selectedPriority, { fromForm: true });
+      if (assignId) {
+        await saveAssignment(rid, assignId);
+      }
+    })();
   };
 
   const getPriorityColor = (priority) => {
@@ -408,6 +415,11 @@ export default function RecallsPage() {
 
   const openDetail = (recall) => {
     setDetailRecall(recall);
+    const rid = recall?.recall_id;
+    const prior = rid ? prioritizations[rid] : null;
+    const assign = rid ? assignments[rid] : null;
+    setDetailPriorityDraft(prior?.priority ?? '');
+    setDetailAssigneeDraft(assign?.investigator_user_id ?? '');
     setDetailDraft({
       title: recall?.title ?? '',
       product: recall?.product ?? '',
@@ -448,6 +460,89 @@ export default function RecallsPage() {
       setDetailError(err.message || 'Failed to update recall');
     } finally {
       setDetailSaving(false);
+    }
+  };
+
+  const saveDetailPriority = async () => {
+    if (!detailRecall) return;
+    const rid = String(detailRecall.recall_id ?? '').trim();
+    if (!rid) return;
+    if (!detailPriorityDraft) {
+      setDetailError('Priority level is required');
+      return;
+    }
+    setDetailSavingMeta(true);
+    setDetailError(null);
+    setDetailSuccess(null);
+    try {
+      const res = await apiFetch('/api/prioritizations', session, {
+        method: 'POST',
+        body: JSON.stringify({ recall_id: rid, priority: detailPriorityDraft }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDetailError(
+          data.error || (await getApiErrorMessage(res, 'Failed to save prioritization')),
+        );
+        return;
+      }
+      setPrioritizations((prev) => ({ ...prev, [data.recall_id]: data }));
+      setPrioritizationList((prev) => {
+        const idx = prev.findIndex((p) => p.recall_id === data.recall_id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = data;
+          return next;
+        }
+        return [...prev, data];
+      });
+      setDetailSuccess('Priority saved.');
+    } catch (err) {
+      setDetailError(err.message || 'Failed to save prioritization');
+    } finally {
+      setDetailSavingMeta(false);
+    }
+  };
+
+  const saveDetailAssignee = async () => {
+    if (!detailRecall) return;
+    const rid = String(detailRecall.recall_id ?? '').trim();
+    if (!rid) return;
+    const invId = Number.parseInt(String(detailAssigneeDraft ?? ''), 10);
+    if (!Number.isFinite(invId) || invId < 1) {
+      setDetailError('Assignee investigator is required');
+      return;
+    }
+    setDetailSavingMeta(true);
+    setDetailError(null);
+    setDetailSuccess(null);
+    try {
+      const res = await apiFetch('/api/assignments', session, {
+        method: 'POST',
+        body: JSON.stringify({ recall_id: rid, investigator_user_id: invId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDetailError(data.error || (await getApiErrorMessage(res, 'Failed to save assignment')));
+        return;
+      }
+
+      setAssignments((prev) => ({ ...prev, [data.recall_id]: data }));
+      setAssignmentList((prev) => {
+        const idx = prev.findIndex((a) => a.recall_id === data.recall_id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = data;
+          return next;
+        }
+        return [...prev, data];
+      });
+
+      setDetailSuccess('Assignee saved.');
+    } catch (err) {
+      setDetailError(err.message || 'Failed to save assignment');
+    } finally {
+      setDetailSavingMeta(false);
     }
   };
 
@@ -533,11 +628,33 @@ export default function RecallsPage() {
                 disabled={rowSavingRecallId != null}
                 getOptionLabel={(r) => `${r.recall_id} — ${r.title}`}
                 value={recalls.find((r) => r.recall_id === selectedRecallId) ?? null}
-                onChange={(_, value) => setSelectedRecallId(value?.recall_id ?? '')}
+                onChange={(_, value) => {
+                  setSelectedRecallId(value?.recall_id ?? '');
+                  setSelectedAssignee('');
+                  setSelectedPriority('');
+                }}
                 renderInput={(params) => (
                   <TextField {...params} label="Recall ID" placeholder="Select a recall" required />
                 )}
               />
+              <FormControl fullWidth disabled={rowSavingRecallId != null}>
+                <InputLabel>Assignee (Investigator)</InputLabel>
+                <Select
+                  value={selectedAssignee}
+                  label="Assignee (Investigator)"
+                  onChange={(e) => setSelectedAssignee(e.target.value)}
+                  disabled={investigators.length === 0 || rowSavingRecallId != null}
+                >
+                  <MenuItem value="">
+                    <em>Unassigned</em>
+                  </MenuItem>
+                  {investigators.map((u) => (
+                    <MenuItem key={u.id} value={Number.parseInt(String(u.id), 10)}>
+                      {u.full_name || u.email || `User ${u.id}`}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               <FormControl fullWidth required disabled={rowSavingRecallId != null}>
                 <InputLabel>Priority Level</InputLabel>
                 <Select
@@ -820,6 +937,75 @@ export default function RecallsPage() {
               <RecallThumb url={detailDraft.image_url} title={detailDraft.title} />
             </Box>
             <Box sx={{ flex: '1 1 360px', minWidth: 280 }}>
+              <Box
+                display="flex"
+                gap={2}
+                flexWrap="wrap"
+                alignItems="center"
+                sx={{ mb: 2 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Box sx={{ flex: '1 1 260px', minWidth: 240 }}>
+                  <FormControl fullWidth size="small" disabled={!canPrioritize || detailSavingMeta}>
+                    <InputLabel>Assignee (Investigator)</InputLabel>
+                    <Select
+                      value={detailAssigneeDraft}
+                      label="Assignee (Investigator)"
+                      onChange={(e) => setDetailAssigneeDraft(e.target.value)}
+                      displayEmpty
+                    >
+                      <MenuItem value="">
+                        <em>Unassigned</em>
+                      </MenuItem>
+                      {investigators.map((u) => (
+                        <MenuItem key={u.id} value={Number.parseInt(String(u.id), 10)}>
+                          {u.full_name || u.email || `User ${u.id}`}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+                {canPrioritize && (
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={detailSavingMeta || !detailAssigneeDraft}
+                    onClick={() => void saveDetailAssignee()}
+                  >
+                    Save assignee
+                  </Button>
+                )}
+                <Box sx={{ flex: '1 1 220px', minWidth: 200 }}>
+                  <FormControl fullWidth size="small" disabled={!canPrioritize || detailSavingMeta}>
+                    <InputLabel>Priority</InputLabel>
+                    <Select
+                      value={detailPriorityDraft}
+                      label="Priority"
+                      onChange={(e) => setDetailPriorityDraft(e.target.value)}
+                      displayEmpty
+                    >
+                      <MenuItem value="">
+                        <em>Unprioritized</em>
+                      </MenuItem>
+                      {PRIORITY_LEVELS.map((p) => (
+                        <MenuItem key={p} value={p}>
+                          {p}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+                {canPrioritize && (
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={detailSavingMeta || !detailPriorityDraft}
+                    onClick={() => void saveDetailPriority()}
+                  >
+                    Save priority
+                  </Button>
+                )}
+              </Box>
               <TextField
                 fullWidth
                 label="Title"
