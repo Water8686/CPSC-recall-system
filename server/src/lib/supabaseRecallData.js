@@ -37,7 +37,7 @@ function firstImageUrlFromRow(row) {
     const u = nested.image_url;
     return u?.trim() || null;
   }
-  return row.image_url?.trim() || null;
+  return null;
 }
 
 export function mapRecallRow(row) {
@@ -155,8 +155,7 @@ export async function dbFetchRecallDetailByRecallNumber(supabase, recallNumber) 
       recall_url,
       consumer_contact,
       recall_description,
-      recall_image ( image_url ),
-      image_url
+      recall_image ( image_url )
     `,
     )
     .eq('recall_number', String(recallNumber ?? '').trim())
@@ -387,22 +386,60 @@ export async function dbUpsertAssignment(
 export async function dbUpdateRecall(supabase, recallNumber, patch) {
   const now = new Date().toISOString();
   const update = {};
+  const imageUrlProvided = patch?.image_url !== undefined;
+  const imageUrl =
+    imageUrlProvided ? (String(patch.image_url ?? '').trim() || null) : undefined;
 
   if (patch?.title !== undefined) update.recall_title = String(patch.title).trim() || null;
   if (patch?.product !== undefined) update.product_name = String(patch.product).trim() || null;
   if (patch?.hazard !== undefined) update.hazard = String(patch.hazard).trim() || null;
-  if (patch?.image_url !== undefined) update.image_url = String(patch.image_url).trim() || null;
 
-  if (Object.keys(update).length === 0) {
+  if (Object.keys(update).length === 0 && !imageUrlProvided) {
     return { success: false, error: 'No valid fields to update' };
   }
 
-  update.updated_at = now;
+  // recall has no image_url column in the main DB (image lives in recall_image).
+  // Only set updated_at when we actually update recall columns.
+  if (Object.keys(update).length > 0) {
+    update.updated_at = now;
+  }
+
+  // Resolve recall PK for image updates and to re-select the row.
+  const { data: pkRow, error: pkErr } = await supabase
+    .from('recall')
+    .select('recall_id')
+    .eq('recall_number', recallNumber.trim())
+    .maybeSingle();
+
+  if (pkErr) return { success: false, error: pkErr.message };
+  if (!pkRow?.recall_id) return { success: false, error: 'Recall not found' };
+
+  if (Object.keys(update).length > 0) {
+    const { error: upErr } = await supabase
+      .from('recall')
+      .update(update)
+      .eq('recall_id', pkRow.recall_id);
+    if (upErr) return { success: false, error: upErr.message };
+  }
+
+  if (imageUrlProvided) {
+    // Replace any existing images with the single provided URL (or delete if blank).
+    const { error: delErr } = await supabase
+      .from('recall_image')
+      .delete()
+      .eq('recall_id', pkRow.recall_id);
+    if (delErr) return { success: false, error: delErr.message };
+
+    if (imageUrl) {
+      const { error: insErr } = await supabase
+        .from('recall_image')
+        .insert({ recall_id: pkRow.recall_id, image_url: imageUrl });
+      if (insErr) return { success: false, error: insErr.message };
+    }
+  }
 
   const { data: updated, error } = await supabase
     .from('recall')
-    .update(update)
-    .eq('recall_number', recallNumber.trim())
     .select(
       `
       recall_id,
@@ -413,10 +450,10 @@ export async function dbUpdateRecall(supabase, recallNumber, patch) {
       hazard,
       recall_date,
       last_publish_date,
-      recall_image ( image_url ),
-      image_url
+      recall_image ( image_url )
     `,
     )
+    .eq('recall_id', pkRow.recall_id)
     .maybeSingle();
 
   if (error) return { success: false, error: error.message };
@@ -440,8 +477,7 @@ export async function dbDeleteRecall(supabase, recallNumber) {
       hazard,
       recall_date,
       last_publish_date,
-      recall_image ( image_url ),
-      image_url
+      recall_image ( image_url )
     `,
     )
     .maybeSingle();
