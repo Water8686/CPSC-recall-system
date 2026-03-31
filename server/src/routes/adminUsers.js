@@ -14,7 +14,7 @@ router.get('/users', requireAdmin, async (req, res) => {
 
   const { data, error } = await supabaseAdmin
     .from('app_users')
-    .select('user_id, email, user_type, full_name, approved, avatar_url, updated_at, created_at')
+    .select('*')
     .order('email', { ascending: true });
 
   if (error) {
@@ -38,8 +38,8 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
     return res.status(503).json({ error: 'Database not configured' });
   }
 
-  const userId = Number.parseInt(String(req.params.id), 10);
-  if (!Number.isFinite(userId)) {
+  const userId = req.params.id;
+  if (!userId) {
     return res.status(400).json({ error: 'Invalid user id' });
   }
 
@@ -62,7 +62,7 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from('app_users')
     .update(patch)
-    .eq('user_id', userId)
+    .eq('id', userId)
     .select()
     .single();
 

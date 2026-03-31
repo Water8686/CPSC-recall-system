@@ -168,7 +168,6 @@ router.post('/login', async (req, res) => {
   }
 
   const stored = row.password_plain ?? row.password_hash ?? row.password;
-  console.log('login debug — row keys:', Object.keys(row), '| stored:', JSON.stringify(stored), '| match:', stored === password);
   if (stored !== password) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
