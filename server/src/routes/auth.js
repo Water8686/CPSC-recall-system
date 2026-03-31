@@ -164,14 +164,13 @@ router.post('/login', async (req, res) => {
   }
 
   if (!row) {
-    console.error('login: no user found for email', email);
-    return res.status(401).json({ error: 'No account found with that email address' });
+    return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  const stored = row.password_plain ?? row.password_hash;
-  console.log('login debug — stored:', JSON.stringify(stored), '| entered:', JSON.stringify(password), '| match:', stored === password);
+  const stored = row.password_plain ?? row.password_hash ?? row.password;
+  console.log('login debug — row keys:', Object.keys(row), '| stored:', JSON.stringify(stored), '| match:', stored === password);
   if (stored !== password) {
-    return res.status(401).json({ error: 'Password is incorrect — stored: ' + JSON.stringify(stored) });
+    return res.status(401).json({ error: 'Invalid email or password' });
   }
 
   if (!row.approved) {
