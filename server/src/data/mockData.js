@@ -72,6 +72,15 @@ const prioritizationsMap = new Map([
 
 let nextPrioritizationId = 11;
 
+// Assignments: recall_id -> { id, recall_id, investigator_user_id, assigned_at, assigned_by_user_id }
+const assignmentsMap = new Map([
+  ['24-001', { id: 'a1', recall_id: '24-001', investigator_user_id: 2001, assigned_at: '2024-04-01T11:00:00Z', assigned_by_user_id: 'mock-user-id' }],
+  ['24-002', { id: 'a2', recall_id: '24-002', investigator_user_id: 2001, assigned_at: '2024-04-01T11:05:00Z', assigned_by_user_id: 'mock-user-id' }],
+  ['24-003', { id: 'a3', recall_id: '24-003', investigator_user_id: 2002, assigned_at: '2024-04-01T11:10:00Z', assigned_by_user_id: 'mock-user-id' }],
+]);
+
+let nextAssignmentId = 4;
+
 export function getAllRecalls() {
   return [...recalls];
 }
@@ -115,4 +124,56 @@ export function createOrUpdatePrioritization(recallId, priority, userId = 'mock-
   };
   prioritizationsMap.set(recallId, newPrioritization);
   return { success: true, data: newPrioritization };
+}
+
+export function getAllAssignments() {
+  return Array.from(assignmentsMap.values());
+}
+
+export function getAssignmentByRecallId(recallId) {
+  return assignmentsMap.get(recallId) ?? null;
+}
+
+export function createOrUpdateAssignment(recallId, investigatorUserId, assignedByUserId = 'mock-user-id') {
+  const recall = getRecallByRecallId(recallId);
+  if (!recall) return { success: false, error: 'Recall ID does not exist' };
+
+  const now = new Date().toISOString();
+  const existing = assignmentsMap.get(recallId);
+  if (existing) {
+    existing.investigator_user_id = investigatorUserId;
+    existing.assigned_at = now;
+    existing.assigned_by_user_id = assignedByUserId;
+    return { success: true, data: existing };
+  }
+
+  const newAssignment = {
+    id: `a${nextAssignmentId++}`,
+    recall_id: recallId,
+    investigator_user_id: investigatorUserId,
+    assigned_at: now,
+    assigned_by_user_id: assignedByUserId,
+  };
+  assignmentsMap.set(recallId, newAssignment);
+  return { success: true, data: newAssignment };
+}
+
+export function updateRecallByRecallId(recallId, patch) {
+  const idx = recalls.findIndex((r) => r.recall_id === recallId);
+  if (idx < 0) return { success: false, error: 'Recall not found' };
+  const next = {
+    ...recalls[idx],
+    ...patch,
+  };
+  recalls[idx] = next;
+  return { success: true, data: next };
+}
+
+export function deleteRecallByRecallId(recallId) {
+  const idx = recalls.findIndex((r) => r.recall_id === recallId);
+  if (idx < 0) return { success: false, error: 'Recall not found' };
+  const [deleted] = recalls.splice(idx, 1);
+  prioritizationsMap.delete(recallId);
+  assignmentsMap.delete(recallId);
+  return { success: true, data: deleted };
 }

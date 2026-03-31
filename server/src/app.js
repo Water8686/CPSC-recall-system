@@ -10,6 +10,8 @@ import adminUsersRoutes from './routes/adminUsers.js';
 import adminRecallImportRoutes from './routes/adminRecallImport.js';
 import recallRoutes from './routes/recalls.js';
 import prioritizationRoutes from './routes/prioritizations.js';
+import assignmentRoutes from './routes/assignments.js';
+import usersRoutes from './routes/users.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -36,6 +38,8 @@ export function createApp() {
   app.use('/api/admin', adminRecallImportRoutes);
   app.use('/api/recalls', recallRoutes);
   app.use('/api/prioritizations', prioritizationRoutes);
+  app.use('/api/assignments', assignmentRoutes);
+  app.use('/api/users', usersRoutes);
 
   if (fs.existsSync(clientDist)) {
     app.use(express.static(clientDist));

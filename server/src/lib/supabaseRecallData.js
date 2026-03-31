@@ -69,6 +69,19 @@ export function mapPrioritizationRow(row, recallNumberById) {
   };
 }
 
+export function mapAssignmentRow(row, recallNumberById) {
+  if (!row) return null;
+  const recallNum =
+    recallNumberById?.get(row.recall_id) ?? String(row.recall_id);
+  return {
+    id: String(row.recall_assignment_id),
+    recall_id: recallNum,
+    investigator_user_id: row.investigator_user_id != null ? Number(row.investigator_user_id) : null,
+    assigned_by_user_id: row.assigned_by_user_id != null ? String(row.assigned_by_user_id) : null,
+    assigned_at: row.assigned_at ?? null,
+  };
+}
+
 export async function dbFetchRecalls(supabase) {
   const { data, error } = await supabase
     .from('recall')
@@ -114,6 +127,32 @@ export async function dbFetchPrioritizations(supabase) {
 
   return Array.from(byRecall.values()).map((row) =>
     mapPrioritizationRow(row, recallNumberById),
+  );
+}
+
+export async function dbFetchAssignments(supabase) {
+  const { data, error } = await supabase
+    .from('recall_assignment')
+    .select(
+      'recall_assignment_id, recall_id, investigator_user_id, assigned_by_user_id, assigned_at, recall(recall_number)',
+    )
+    .order('assigned_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  const recallNumberById = new Map(
+    (data ?? []).map((row) => [row.recall_id, row.recall?.recall_number ?? String(row.recall_id)]),
+  );
+
+  const byRecall = new Map();
+  for (const row of data ?? []) {
+    if (!byRecall.has(row.recall_id)) {
+      byRecall.set(row.recall_id, row);
+    }
+  }
+
+  return Array.from(byRecall.values()).map((row) =>
+    mapAssignmentRow(row, recallNumberById),
   );
 }
 
@@ -219,4 +258,133 @@ export async function dbUpsertPrioritization(supabase, recallNumber, priorityLab
     success: true,
     data: mapPrioritizationRow(inserted, recallNumberById),
   };
+}
+
+export async function dbUpsertAssignment(
+  supabase,
+  recallNumber,
+  investigatorUserId,
+  assignedByAppUserId,
+) {
+  const { data: recallRow, error: findErr } = await supabase
+    .from('recall')
+    .select('recall_id')
+    .eq('recall_number', recallNumber.trim())
+    .maybeSingle();
+
+  if (findErr) return { success: false, error: findErr.message };
+  if (!recallRow) return { success: false, error: 'Recall ID does not exist' };
+
+  const recallPk = recallRow.recall_id;
+
+  const now = new Date().toISOString();
+
+  const { data: existing, error: exErr } = await supabase
+    .from('recall_assignment')
+    .select('recall_assignment_id')
+    .eq('recall_id', recallPk)
+    .limit(1)
+    .maybeSingle();
+
+  if (exErr) return { success: false, error: exErr.message };
+
+  if (existing?.recall_assignment_id != null) {
+    const { data: updated, error: upErr } = await supabase
+      .from('recall_assignment')
+      .update({
+        investigator_user_id: investigatorUserId,
+        assigned_by_user_id: assignedByAppUserId ?? null,
+        assigned_at: now,
+      })
+      .eq('recall_assignment_id', existing.recall_assignment_id)
+      .select('recall_assignment_id, recall_id, investigator_user_id, assigned_by_user_id, assigned_at')
+      .single();
+
+    if (upErr) return { success: false, error: upErr.message };
+    const recallNumberById = new Map([[recallPk, recallNumber.trim()]]);
+    return { success: true, data: mapAssignmentRow(updated, recallNumberById) };
+  }
+
+  const { data: inserted, error: insErr } = await supabase
+    .from('recall_assignment')
+    .insert({
+      recall_id: recallPk,
+      investigator_user_id: investigatorUserId,
+      assigned_by_user_id: assignedByAppUserId ?? null,
+      assigned_at: now,
+    })
+    .select('recall_assignment_id, recall_id, investigator_user_id, assigned_by_user_id, assigned_at')
+    .single();
+
+  if (insErr) return { success: false, error: insErr.message };
+  const recallNumberById = new Map([[recallPk, recallNumber.trim()]]);
+  return { success: true, data: mapAssignmentRow(inserted, recallNumberById) };
+}
+
+export async function dbUpdateRecall(supabase, recallNumber, patch) {
+  const now = new Date().toISOString();
+  const update = {};
+
+  if (patch?.title !== undefined) update.recall_title = String(patch.title).trim() || null;
+  if (patch?.product !== undefined) update.product_name = String(patch.product).trim() || null;
+  if (patch?.hazard !== undefined) update.hazard = String(patch.hazard).trim() || null;
+  if (patch?.image_url !== undefined) update.image_url = String(patch.image_url).trim() || null;
+
+  if (Object.keys(update).length === 0) {
+    return { success: false, error: 'No valid fields to update' };
+  }
+
+  update.updated_at = now;
+
+  const { data: updated, error } = await supabase
+    .from('recall')
+    .update(update)
+    .eq('recall_number', recallNumber.trim())
+    .select(
+      `
+      recall_id,
+      recall_number,
+      recall_title,
+      product_name,
+      product_type,
+      hazard,
+      recall_date,
+      last_publish_date,
+      recall_image ( image_url ),
+      image_url
+    `,
+    )
+    .maybeSingle();
+
+  if (error) return { success: false, error: error.message };
+  if (!updated) return { success: false, error: 'Recall not found' };
+
+  return { success: true, data: mapRecallRow(updated) };
+}
+
+export async function dbDeleteRecall(supabase, recallNumber) {
+  const { data: deleted, error } = await supabase
+    .from('recall')
+    .delete()
+    .eq('recall_number', recallNumber.trim())
+    .select(
+      `
+      recall_id,
+      recall_number,
+      recall_title,
+      product_name,
+      product_type,
+      hazard,
+      recall_date,
+      last_publish_date,
+      recall_image ( image_url ),
+      image_url
+    `,
+    )
+    .maybeSingle();
+
+  if (error) return { success: false, error: error.message };
+  if (!deleted) return { success: false, error: 'Recall not found' };
+
+  return { success: true, data: mapRecallRow(deleted) };
 }
