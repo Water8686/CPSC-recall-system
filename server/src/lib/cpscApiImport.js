@@ -68,6 +68,7 @@ export function mapCpscJsonItemToRecallRecord(item) {
   // Many existing Supabase schemas use varchar(255) for several recall columns.
   // Keep imports robust even before migrations widen them to TEXT.
   const V255 = 255;
+  const INT4_MAX = 2_147_483_647;
 
   const num = trimToMax(normalizeRecallNumber(item.RecallNumber), V255) ?? '';
   const img = Array.isArray(item.Images) ? item.Images[0] : null;
@@ -107,8 +108,13 @@ export function mapCpscJsonItemToRecallRecord(item) {
       if (!raw) return null;
       const digits = raw.replace(/[^\d]/g, '');
       if (!digits) return null;
+      // Some CPSC records contain malformed NumberOfUnits values (e.g. UPC-like identifiers).
+      // Guard against int4 overflow and treat suspiciously large values as unknown.
+      if (digits.length >= 10) return null;
       const n = Number.parseInt(digits, 10);
-      return Number.isFinite(n) ? n : null;
+      if (!Number.isFinite(n)) return null;
+      if (n > INT4_MAX) return null;
+      return n;
     })(),
     recall_date: parseDateOnly(item.RecallDate),
     last_publish_date: parseDateOnly(item.LastPublishDate),

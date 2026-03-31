@@ -132,6 +132,13 @@ export async function upsertRecallRecords(supabase, records) {
   let upserted = 0;
   const chunkSize = 100;
 
+  async function upsertSingle(row) {
+    const { error } = await supabase.from('recall').upsert([row], {
+      onConflict: 'recall_number',
+    });
+    return { error };
+  }
+
   for (let i = 0; i < records.length; i += chunkSize) {
     const slice = records.slice(i, i + chunkSize);
     const chunk = slice.map(recallRowForUpsert);
@@ -139,8 +146,15 @@ export async function upsertRecallRecords(supabase, records) {
       onConflict: 'recall_number',
     });
     if (error) {
+      // A single bad row can cause the whole batch upsert to fail.
+      // Fall back to per-row upserts so the import can progress.
       for (const r of chunk) {
-        failed.push({ recall_number: r.recall_number, message: error.message });
+        const { error: rowErr } = await upsertSingle(r);
+        if (rowErr) {
+          failed.push({ recall_number: r.recall_number, message: rowErr.message });
+        } else {
+          upserted += 1;
+        }
       }
     } else {
       upserted += chunk.length;
