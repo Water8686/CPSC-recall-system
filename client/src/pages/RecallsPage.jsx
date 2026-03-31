@@ -117,8 +117,8 @@ function RecallCard({
     <Paper
       variant="outlined"
       sx={{
-        p: 3,
-        mb: 2,
+        p: 1.5,
+        mb: 1,
         border: selected ? '2px solid' : '1px solid',
         borderColor: selected ? 'primary.main' : 'divider',
         bgcolor: selected ? 'primary.50' : 'background.paper',
@@ -126,20 +126,20 @@ function RecallCard({
         '&:hover': selected ? {} : { borderColor: 'grey.400' },
       }}
     >
-      <Box display="flex" alignItems="flex-start" gap={2}>
+      <Box display="flex" alignItems="flex-start" gap={1}>
         {canPrioritize && (
           <Checkbox
             checked={selected}
             onChange={onToggle}
-            sx={{ mt: 0.5, p: 0.5 }}
+            sx={{ mt: 0.25, p: 0.5 }}
           />
         )}
-        <Box flex={1}>
+        <Box flex={1} minWidth={0}>
           {/* Header row */}
-          <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={1.5}>
-            <Box>
-              <Box display="flex" alignItems="center" gap={1} mb={0.5} flexWrap="wrap">
-                <Typography variant="h6" fontWeight={600}>
+          <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={0.5}>
+            <Box minWidth={0} flex={1}>
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                <Typography variant="body1" fontWeight={600} sx={{ lineHeight: 1.3 }}>
                   {recall.title || recall.recall_id}
                 </Typography>
                 {priority && priorityColors && (
@@ -152,67 +152,63 @@ function RecallCard({
                       color: priorityColors.color,
                       borderColor: priorityColors.borderColor,
                       fontWeight: 500,
+                      height: 20,
+                      fontSize: '0.7rem',
                     }}
                   />
                 )}
               </Box>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="caption" color="text.secondary">
                 <strong>Recall ID:</strong> {recall.recall_id}
+                {recall.recall_date && <> &nbsp;·&nbsp; <strong>Date Issued:</strong> {formatMaybeDate(recall.recall_date)}</>}
               </Typography>
-              {recall.recall_date && (
-                <Typography variant="body2" color="text.secondary">
-                  <strong>Date Issued:</strong> {formatMaybeDate(recall.recall_date)}
-                </Typography>
-              )}
             </Box>
             {canPrioritize && (
               <Button
                 variant="outlined"
                 size="small"
                 onClick={(e) => { e.stopPropagation(); onEditPriority(recall, prior); }}
-                sx={{ ml: 2, flexShrink: 0 }}
+                sx={{ ml: 1.5, flexShrink: 0, fontSize: '0.7rem', py: 0.25, px: 1 }}
               >
                 Edit Priority
               </Button>
             )}
           </Box>
 
-          {/* Details grid */}
-          <Paper
-            variant="outlined"
-            sx={{ p: 2, bgcolor: 'background.paper', mb: 2 }}
+          {/* Details row */}
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 3,
+              px: 1,
+              py: 0.75,
+              bgcolor: 'grey.50',
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              mb: 0.75,
+              flexWrap: 'wrap',
+            }}
           >
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={4}>
-                <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-                  Manufacturer
-                </Typography>
-                <Typography variant="body2" fontWeight={500}>
-                  {recall.manufacturer || '—'}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-                  Product
-                </Typography>
-                <Typography variant="body2" fontWeight={500}>
-                  {recall.product || '—'}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-                  Hazard Type
-                </Typography>
-                <Typography variant="body2" fontWeight={500} color="error.main">
-                  {recall.hazard || '—'}
-                </Typography>
-              </Grid>
-            </Grid>
-          </Paper>
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block">Manufacturer</Typography>
+              <Typography variant="caption" fontWeight={500}>{recall.manufacturer || '—'}</Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block">Product</Typography>
+              <Typography variant="caption" fontWeight={500}>{recall.product || '—'}</Typography>
+            </Box>
+            <Box flex={1} minWidth={120}>
+              <Typography variant="caption" color="text.secondary" display="block">Hazard Type</Typography>
+              <Typography variant="caption" fontWeight={500} color="error.main">{recall.hazard || '—'}</Typography>
+            </Box>
+          </Box>
 
           {/* Action buttons */}
-          <Box display="flex" gap={1} flexWrap="wrap">
-            <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); onViewDetails(recall); }}>
+          <Box display="flex" gap={1}>
+            <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); onViewDetails(recall); }}
+              sx={{ fontSize: '0.7rem', py: 0.25, px: 1 }}
+            >
               View Full Recall Details
             </Button>
           </Box>
