@@ -9,7 +9,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  TableSortLabel,
   TextField,
   Button,
   FormControl,
@@ -19,17 +18,21 @@ import {
   Alert,
   CircularProgress,
   Chip,
-  Autocomplete,
-  Grid,
-  FormControlLabel,
-  Switch,
-  Avatar,
+  Checkbox,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   Divider,
+  Tabs,
+  Tab,
+  Grid,
+  Avatar,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import GroupsIcon from '@mui/icons-material/Groups';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
@@ -56,49 +59,8 @@ function formatMaybeDate(value) {
   return dt.toLocaleDateString();
 }
 
-/**
- * Stable column widths for the recall table. Default `table-layout: auto` lets the
- * browser shrink text columns when another cell has a large min-width (e.g. priority
- * controls), which produces extremely tall wrapped cells and misaligned headers.
- */
-function recallTableColumnSx(canPrioritize) {
-  const text = {
-    wordBreak: 'break-word',
-    overflowWrap: 'anywhere',
-    verticalAlign: 'top',
-  };
-  return {
-    image: { width: 56, minWidth: 56, maxWidth: 64, verticalAlign: 'middle', boxSizing: 'border-box' },
-    recall_id: { width: 92, minWidth: 92, maxWidth: 110, ...text, boxSizing: 'border-box' },
-    title: { width: '24%', minWidth: 160, ...text },
-    product: { width: '15%', minWidth: 120, ...text },
-    hazard: { width: '28%', minWidth: 180, ...text },
-    assignee: {
-      width: canPrioritize ? 260 : 120,
-      minWidth: canPrioritize ? 260 : 120,
-      maxWidth: canPrioritize ? 260 : 120,
-      verticalAlign: 'middle',
-      boxSizing: 'border-box',
-    },
-    priority: {
-      width: canPrioritize ? 228 : 108,
-      minWidth: canPrioritize ? 228 : 108,
-      maxWidth: canPrioritize ? 228 : 108,
-      verticalAlign: 'middle',
-      boxSizing: 'border-box',
-    },
-    prioritized_at: {
-      width: 128,
-      minWidth: 128,
-      whiteSpace: 'nowrap',
-      verticalAlign: 'top',
-      boxSizing: 'border-box',
-    },
-  };
-}
-
 /** Product/recall thumbnail — live URL from DB with lazy load and fallback icon. */
-function RecallThumb({ url, title }) {
+function RecallThumb({ url, title, size = 48 }) {
   const [broken, setBroken] = useState(false);
   const src = url?.trim() && !broken ? url.trim() : undefined;
   return (
@@ -106,7 +68,7 @@ function RecallThumb({ url, title }) {
       variant="rounded"
       src={src}
       alt={title ? `${title} — product image` : 'Product image'}
-      sx={{ width: 48, height: 48, bgcolor: 'action.hover' }}
+      sx={{ width: size, height: size, bgcolor: 'action.hover' }}
       imgProps={{
         loading: 'lazy',
         onError: () => setBroken(true),
@@ -114,6 +76,256 @@ function RecallThumb({ url, title }) {
     >
       <Inventory2Icon fontSize="small" sx={{ color: 'text.secondary' }} aria-hidden />
     </Avatar>
+  );
+}
+
+function getPriorityColor(priority) {
+  switch (priority) {
+    case 'High': return 'error';
+    case 'Medium': return 'warning';
+    case 'Low': return 'success';
+    default: return 'default';
+  }
+}
+
+function getPriorityBgColor(priority) {
+  switch (priority) {
+    case 'High': return { bgcolor: '#fef2f2', color: '#991b1b', borderColor: '#fca5a5' };
+    case 'Medium': return { bgcolor: '#fff7ed', color: '#9a3412', borderColor: '#fdba74' };
+    case 'Low': return { bgcolor: '#fefce8', color: '#854d0e', borderColor: '#fde047' };
+    default: return { bgcolor: 'grey.100', color: 'text.secondary', borderColor: 'grey.300' };
+  }
+}
+
+/**
+ * Card for a single recall in the Prioritize Recalls tab.
+ */
+function RecallCard({
+  recall,
+  prior,
+  selected,
+  onToggle,
+  onViewDetails,
+  onEditPriority,
+  canPrioritize,
+}) {
+  const priority = prior?.priority;
+  const priorityColors = priority ? getPriorityBgColor(priority) : null;
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 3,
+        mb: 2,
+        border: selected ? '2px solid' : '1px solid',
+        borderColor: selected ? 'primary.main' : 'divider',
+        bgcolor: selected ? 'primary.50' : 'background.paper',
+        transition: 'border-color 0.15s, background-color 0.15s',
+        '&:hover': selected ? {} : { borderColor: 'grey.400' },
+      }}
+    >
+      <Box display="flex" alignItems="flex-start" gap={2}>
+        {canPrioritize && (
+          <Checkbox
+            checked={selected}
+            onChange={onToggle}
+            sx={{ mt: 0.5, p: 0.5 }}
+          />
+        )}
+        <Box flex={1}>
+          {/* Header row */}
+          <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={1.5}>
+            <Box>
+              <Box display="flex" alignItems="center" gap={1} mb={0.5} flexWrap="wrap">
+                <Typography variant="h6" fontWeight={600}>
+                  {recall.title || recall.recall_id}
+                </Typography>
+                {priority && priorityColors && (
+                  <Chip
+                    label={`${priority} Priority`}
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                      bgcolor: priorityColors.bgcolor,
+                      color: priorityColors.color,
+                      borderColor: priorityColors.borderColor,
+                      fontWeight: 500,
+                    }}
+                  />
+                )}
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                <strong>Recall ID:</strong> {recall.recall_id}
+              </Typography>
+              {recall.recall_date && (
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Date Issued:</strong> {formatMaybeDate(recall.recall_date)}
+                </Typography>
+              )}
+            </Box>
+            {canPrioritize && (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={(e) => { e.stopPropagation(); onEditPriority(recall, prior); }}
+                sx={{ ml: 2, flexShrink: 0 }}
+              >
+                Edit Priority
+              </Button>
+            )}
+          </Box>
+
+          {/* Details grid */}
+          <Paper
+            variant="outlined"
+            sx={{ p: 2, bgcolor: 'background.paper', mb: 2 }}
+          >
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={4}>
+                <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                  Manufacturer
+                </Typography>
+                <Typography variant="body2" fontWeight={500}>
+                  {recall.manufacturer || '—'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                  Product
+                </Typography>
+                <Typography variant="body2" fontWeight={500}>
+                  {recall.product || '—'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                  Hazard Type
+                </Typography>
+                <Typography variant="body2" fontWeight={500} color="error.main">
+                  {recall.hazard || '—'}
+                </Typography>
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* Action buttons */}
+          <Box display="flex" gap={1} flexWrap="wrap">
+            <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); onViewDetails(recall); }}>
+              View Full Recall Details
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+    </Paper>
+  );
+}
+
+/**
+ * Stable column widths for the recall table (investigator view).
+ */
+function recallTableColumnSx() {
+  const text = { wordBreak: 'break-word', overflowWrap: 'anywhere', verticalAlign: 'top' };
+  return {
+    image: { width: 56, minWidth: 56, maxWidth: 64, verticalAlign: 'middle', boxSizing: 'border-box' },
+    recall_id: { width: 92, minWidth: 92, maxWidth: 110, ...text, boxSizing: 'border-box' },
+    title: { width: '24%', minWidth: 160, ...text },
+    product: { width: '15%', minWidth: 120, ...text },
+    hazard: { width: '28%', minWidth: 180, ...text },
+    assignee: { width: 120, minWidth: 120, maxWidth: 120, verticalAlign: 'middle', boxSizing: 'border-box' },
+    priority: { width: 108, minWidth: 108, maxWidth: 108, verticalAlign: 'middle', boxSizing: 'border-box' },
+    prioritized_at: { width: 128, minWidth: 128, whiteSpace: 'nowrap', verticalAlign: 'top', boxSizing: 'border-box' },
+  };
+}
+
+const recallDetailGroups = [
+  {
+    title: 'Dates',
+    fields: [
+      { key: 'recall_date', label: 'Recall date', format: formatMaybeDate },
+      { key: 'last_publish_date', label: 'Last publish date', format: formatMaybeDate },
+    ],
+  },
+  {
+    title: 'Links & contact',
+    fields: [
+      { key: 'recall_url', label: 'Recall URL' },
+      { key: 'consumer_contact', label: 'Consumer contact' },
+    ],
+  },
+  {
+    title: 'Description',
+    fields: [{ key: 'recall_description', label: 'Recall description', kind: 'multiline' }],
+  },
+  {
+    title: 'Hazard & injury',
+    fields: [
+      { key: 'hazard', label: 'Hazard', source: 'draft' },
+      { key: 'injury', label: 'Injury' },
+    ],
+  },
+  {
+    title: 'Remedy',
+    fields: [
+      { key: 'remedy', label: 'Remedy' },
+      { key: 'remedy_option', label: 'Remedy option' },
+    ],
+  },
+  {
+    title: 'Company chain',
+    fields: [
+      { key: 'manufacturer', label: 'Manufacturer' },
+      { key: 'manufacturer_country', label: 'Manufacturer country' },
+      { key: 'importer', label: 'Importer' },
+      { key: 'distributor', label: 'Distributor' },
+      { key: 'retailer', label: 'Retailer' },
+    ],
+  },
+  {
+    title: 'Product metadata',
+    fields: [
+      { key: 'product_name', label: 'Product name' },
+      { key: 'product_type', label: 'Product type' },
+      { key: 'upc', label: 'UPC' },
+      { key: 'number_of_units', label: 'Number of units' },
+    ],
+  },
+];
+
+function renderDetailRow({ label, value, kind, isLink }) {
+  if (isValueEmpty(value)) return null;
+  if (kind === 'multiline') {
+    return (
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+          {label}
+        </Typography>
+        <TextField
+          fullWidth
+          multiline
+          minRows={4}
+          value={normalizeOptionalText(value)}
+          InputProps={{ readOnly: true }}
+          sx={{ '& .MuiInputBase-root': { maxHeight: 240, overflow: 'auto' } }}
+        />
+      </Box>
+    );
+  }
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+        {isLink ? (
+          <a href={normalizeOptionalText(value)} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>
+            {normalizeOptionalText(value)}
+          </a>
+        ) : (
+          normalizeOptionalText(value)
+        )}
+      </Typography>
+    </Box>
   );
 }
 
@@ -128,7 +340,7 @@ export default function RecallsPage() {
   );
   const canPrioritize = canAccessManagerFeatures(role);
   const isInvestigator = role === USER_ROLES.INVESTIGATOR;
-  const recallColSx = recallTableColumnSx(canPrioritize);
+  const recallColSx = recallTableColumnSx();
 
   const [recalls, setRecalls] = useState([]);
   const [prioritizations, setPrioritizations] = useState({});
@@ -138,142 +350,48 @@ export default function RecallsPage() {
   const [investigators, setInvestigators] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedRecallId, setSelectedRecallId] = useState('');
-  const [selectedPriority, setSelectedPriority] = useState('');
-  const [selectedAssignee, setSelectedAssignee] = useState('');
-  const [submitLoading, setSubmitLoading] = useState(false);
+
+  // Tab state (manager view only)
+  const [activeTab, setActiveTab] = useState(0);
+
+  // Multi-select state
+  const [selectedRecallIds, setSelectedRecallIds] = useState(new Set());
+
+  // Bulk assign dialog
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+  const [bulkAssignInvestigator, setBulkAssignInvestigator] = useState('');
+  const [bulkAssigning, setBulkAssigning] = useState(false);
+  const [bulkAssignError, setBulkAssignError] = useState(null);
+
+  // Edit Priority dialog (per-card)
+  const [editPriorityOpen, setEditPriorityOpen] = useState(false);
+  const [editPriorityRecall, setEditPriorityRecall] = useState(null);
+  const [editPriorityValue, setEditPriorityValue] = useState('');
+  const [editPrioritySaving, setEditPrioritySaving] = useState(false);
+  const [editPriorityError, setEditPriorityError] = useState(null);
+
+  // Global status messages
   const [submitSuccess, setSubmitSuccess] = useState(null);
   const [submitError, setSubmitError] = useState(null);
-  /** Per-row priority dropdown overrides (recall_number string key). */
-  const [rowPriorityDraft, setRowPriorityDraft] = useState({});
-  const [rowSavingRecallId, setRowSavingRecallId] = useState(null);
-  const [rowAssigneeDraft, setRowAssigneeDraft] = useState({});
-  const [rowSavingAssigneeRecallId, setRowSavingAssigneeRecallId] = useState(null);
+
+  // Search/filter
   const [recallIdFilter, setRecallIdFilter] = useState('');
   const [prioritizedOnly, setPrioritizedOnly] = useState(false);
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
 
+  // Detail dialog
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecall, setDetailRecall] = useState(null);
   const [detailPriorityDraft, setDetailPriorityDraft] = useState('');
   const [detailAssigneeDraft, setDetailAssigneeDraft] = useState('');
   const [detailSavingMeta, setDetailSavingMeta] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailDraft, setDetailDraft] = useState({
-    title: '',
-    product: '',
-    hazard: '',
-    image_url: '',
-  });
+  const [detailDraft, setDetailDraft] = useState({ title: '', product: '', hazard: '', image_url: '' });
   const [detailSaving, setDetailSaving] = useState(false);
   const [detailDeleting, setDetailDeleting] = useState(false);
   const [detailError, setDetailError] = useState(null);
   const [detailSuccess, setDetailSuccess] = useState(null);
-
-  const recallDetailGroups = useMemo(
-    () => [
-      {
-        title: 'Dates',
-        fields: [
-          { key: 'recall_date', label: 'Recall date', format: formatMaybeDate },
-          { key: 'last_publish_date', label: 'Last publish date', format: formatMaybeDate },
-        ],
-      },
-      {
-        title: 'Links & contact',
-        fields: [
-          { key: 'recall_url', label: 'Recall URL' },
-          { key: 'consumer_contact', label: 'Consumer contact' },
-        ],
-      },
-      {
-        title: 'Description',
-        fields: [{ key: 'recall_description', label: 'Recall description', kind: 'multiline' }],
-      },
-      {
-        title: 'Hazard & injury',
-        fields: [
-          { key: 'hazard', label: 'Hazard', source: 'draft' },
-          { key: 'injury', label: 'Injury' },
-        ],
-      },
-      {
-        title: 'Remedy',
-        fields: [
-          { key: 'remedy', label: 'Remedy' },
-          { key: 'remedy_option', label: 'Remedy option' },
-        ],
-      },
-      {
-        title: 'Company chain',
-        fields: [
-          { key: 'manufacturer', label: 'Manufacturer' },
-          { key: 'manufacturer_country', label: 'Manufacturer country' },
-          { key: 'importer', label: 'Importer' },
-          { key: 'distributor', label: 'Distributor' },
-          { key: 'retailer', label: 'Retailer' },
-        ],
-      },
-      {
-        title: 'Product metadata',
-        fields: [
-          { key: 'product_name', label: 'Product name' },
-          { key: 'product_type', label: 'Product type' },
-          { key: 'upc', label: 'UPC' },
-          { key: 'number_of_units', label: 'Number of units' },
-        ],
-      },
-    ],
-    [],
-  );
-
-  const renderDetailRow = ({ label, value, kind, isLink }) => {
-    if (isValueEmpty(value)) return null;
-    if (kind === 'multiline') {
-      return (
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-            {label}
-          </Typography>
-          <TextField
-            fullWidth
-            multiline
-            minRows={4}
-            value={normalizeOptionalText(value)}
-            InputProps={{ readOnly: true }}
-            sx={{
-              '& .MuiInputBase-root': {
-                maxHeight: 240,
-                overflow: 'auto',
-              },
-            }}
-          />
-        </Box>
-      );
-    }
-    return (
-      <Box>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-          {label}
-        </Typography>
-        <Typography variant="body2" sx={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-          {isLink ? (
-            <a
-              href={normalizeOptionalText(value)}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: 'inherit' }}
-            >
-              {normalizeOptionalText(value)}
-            </a>
-          ) : (
-            normalizeOptionalText(value)
-          )}
-        </Typography>
-      </Box>
-    );
-  };
 
   useEffect(() => {
     if (!detailOpen) return;
@@ -344,31 +462,23 @@ export default function RecallsPage() {
           apiFetch('/api/prioritizations', session),
           apiFetch('/api/assignments', session),
         ]);
-        if (!recallsRes.ok) {
-          throw new Error(await getApiErrorMessage(recallsRes, 'Failed to load recalls'));
-        }
-        if (!priorRes.ok) {
-          throw new Error(await getApiErrorMessage(priorRes, 'Failed to load prioritizations'));
-        }
-        if (!assignRes.ok) {
-          throw new Error(await getApiErrorMessage(assignRes, 'Failed to load assignments'));
-        }
+        if (!recallsRes.ok) throw new Error(await getApiErrorMessage(recallsRes, 'Failed to load recalls'));
+        if (!priorRes.ok) throw new Error(await getApiErrorMessage(priorRes, 'Failed to load prioritizations'));
+        if (!assignRes.ok) throw new Error(await getApiErrorMessage(assignRes, 'Failed to load assignments'));
+
         const recallsData = await recallsRes.json();
         const priorData = await priorRes.json();
         const assignData = await assignRes.json();
+
         setRecalls(recallsData);
         setPrioritizationList(priorData);
         const priorMap = {};
-        priorData.forEach((p) => {
-          priorMap[p.recall_id] = p;
-        });
+        priorData.forEach((p) => { priorMap[p.recall_id] = p; });
         setPrioritizations(priorMap);
 
         setAssignmentList(assignData);
         const assignMap = {};
-        assignData.forEach((a) => {
-          assignMap[a.recall_id] = a;
-        });
+        assignData.forEach((a) => { assignMap[a.recall_id] = a; });
         setAssignments(assignMap);
       } catch (err) {
         setError(err.message);
@@ -384,9 +494,7 @@ export default function RecallsPage() {
     async function fetchInvestigators() {
       try {
         const res = await apiFetch('/api/users?role=investigator', session);
-        if (!res.ok) {
-          throw new Error(await getApiErrorMessage(res, 'Failed to load investigators'));
-        }
+        if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Failed to load investigators'));
         const data = await res.json();
         setInvestigators(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -397,20 +505,11 @@ export default function RecallsPage() {
     fetchInvestigators();
   }, [canPrioritize, session]);
 
-  const savePrioritization = async (recallId, priority, { fromForm = false } = {}) => {
+  // --- Handlers ---
+
+  const savePrioritization = async (recallId, priority) => {
     const rid = String(recallId ?? '').trim();
-    if (!rid) {
-      setSubmitError('Recall ID is required');
-      return;
-    }
-    if (!priority) {
-      setSubmitError('Priority level is required');
-      return;
-    }
-    setSubmitError(null);
-    setSubmitSuccess(null);
-    if (fromForm) setSubmitLoading(true);
-    else setRowSavingRecallId(rid);
+    if (!rid || !priority) return false;
     try {
       const res = await apiFetch('/api/prioritizations', session, {
         method: 'POST',
@@ -418,125 +517,213 @@ export default function RecallsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setSubmitError(
-          data.error || (await getApiErrorMessage(res, 'Failed to save prioritization'))
-        );
-        return;
+        throw new Error(data.error || 'Failed to save prioritization');
       }
-      setPrioritizations((prev) => ({
-        ...prev,
-        [data.recall_id]: data,
-      }));
+      setPrioritizations((prev) => ({ ...prev, [data.recall_id]: data }));
       setPrioritizationList((prev) => {
         const idx = prev.findIndex((p) => p.recall_id === data.recall_id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = data;
-          return next;
-        }
+        if (idx >= 0) { const next = [...prev]; next[idx] = data; return next; }
         return [...prev, data];
       });
-      setSubmitSuccess(`Recall ${data.recall_id} set to ${data.priority} priority.`);
-      setRowPriorityDraft((prev) => {
-        const next = { ...prev };
-        delete next[data.recall_id];
-        return next;
-      });
-      if (fromForm) {
-        setSelectedRecallId('');
-        setSelectedPriority('');
-      }
+      return true;
     } catch (err) {
-      setSubmitError(err.message || 'Failed to save prioritization');
-    } finally {
-      if (fromForm) setSubmitLoading(false);
-      else setRowSavingRecallId(null);
+      throw err;
     }
   };
 
   const saveAssignment = async (recallId, investigatorUserId) => {
     const rid = String(recallId ?? '').trim();
-    if (!rid) {
-      setSubmitError('Recall ID is required');
-      return;
-    }
     const invId = Number.parseInt(String(investigatorUserId ?? ''), 10);
-    if (!Number.isFinite(invId) || invId < 1) {
-      setSubmitError('Investigator is required');
-      return;
-    }
-
-    setSubmitError(null);
-    setSubmitSuccess(null);
-    setRowSavingAssigneeRecallId(rid);
+    if (!rid || !Number.isFinite(invId) || invId < 1) return false;
     try {
       const res = await apiFetch('/api/assignments', session, {
         method: 'POST',
         body: JSON.stringify({ recall_id: rid, investigator_user_id: invId }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setSubmitError(
-          data.error || (await getApiErrorMessage(res, 'Failed to save assignment'))
-        );
-        return;
-      }
-
+      if (!res.ok) throw new Error(data.error || 'Failed to save assignment');
       setAssignments((prev) => ({ ...prev, [data.recall_id]: data }));
       setAssignmentList((prev) => {
         const idx = prev.findIndex((a) => a.recall_id === data.recall_id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = data;
-          return next;
-        }
+        if (idx >= 0) { const next = [...prev]; next[idx] = data; return next; }
         return [...prev, data];
       });
-
-      setSubmitSuccess(`Recall ${data.recall_id} assigned.`);
-      setRowAssigneeDraft((prev) => {
-        const next = { ...prev };
-        delete next[data.recall_id];
-        return next;
-      });
+      return true;
     } catch (err) {
-      setSubmitError(err.message || 'Failed to save assignment');
+      throw err;
+    }
+  };
+
+  const handleToggleRecall = (recallId) => {
+    setSelectedRecallIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(recallId)) next.delete(recallId);
+      else next.add(recallId);
+      return next;
+    });
+  };
+
+  const handleBulkAssign = async () => {
+    const invId = Number.parseInt(String(bulkAssignInvestigator ?? ''), 10);
+    if (!Number.isFinite(invId) || invId < 1) {
+      setBulkAssignError('Please select an investigator');
+      return;
+    }
+    setBulkAssigning(true);
+    setBulkAssignError(null);
+    try {
+      const ids = Array.from(selectedRecallIds);
+      await Promise.all(ids.map((rid) => saveAssignment(rid, invId)));
+      const inv = investigators.find((u) => Number.parseInt(String(u.id), 10) === invId);
+      const invName = inv?.full_name || inv?.email || `Investigator ${invId}`;
+      setSubmitSuccess(`${ids.length} recall${ids.length !== 1 ? 's' : ''} assigned to ${invName}.`);
+      setSelectedRecallIds(new Set());
+      setBulkAssignOpen(false);
+      setBulkAssignInvestigator('');
+    } catch (err) {
+      setBulkAssignError(err.message || 'Failed to assign recalls');
     } finally {
-      setRowSavingAssigneeRecallId(null);
+      setBulkAssigning(false);
     }
   };
 
-  const handlePrioritize = (e) => {
-    e.preventDefault();
-    const rid = selectedRecallId;
-    const assignId = selectedAssignee;
-    void (async () => {
-      await savePrioritization(rid, selectedPriority, { fromForm: true });
-      if (assignId) {
-        await saveAssignment(rid, assignId);
+  const openEditPriority = (recall, prior) => {
+    setEditPriorityRecall(recall);
+    setEditPriorityValue(prior?.priority ?? '');
+    setEditPriorityError(null);
+    setEditPriorityOpen(true);
+  };
+
+  const handleSaveEditPriority = async () => {
+    if (!editPriorityRecall || !editPriorityValue) {
+      setEditPriorityError('Please select a priority level');
+      return;
+    }
+    setEditPrioritySaving(true);
+    setEditPriorityError(null);
+    try {
+      await savePrioritization(editPriorityRecall.recall_id, editPriorityValue);
+      setSubmitSuccess(`Priority updated for ${editPriorityRecall.recall_id}.`);
+      setEditPriorityOpen(false);
+    } catch (err) {
+      setEditPriorityError(err.message || 'Failed to update priority');
+    } finally {
+      setEditPrioritySaving(false);
+    }
+  };
+
+  const openDetail = (recall) => {
+    setDetailRecall(recall);
+    const rid = recall?.recall_id;
+    const prior = rid ? prioritizations[rid] : null;
+    const assign = rid ? assignments[rid] : null;
+    setDetailPriorityDraft(prior?.priority ?? '');
+    setDetailAssigneeDraft(assign?.investigator_user_id ?? '');
+    setDetailDraft({
+      title: recall?.title ?? '',
+      product: recall?.product ?? '',
+      hazard: recall?.hazard ?? '',
+      image_url: recall?.image_url ?? '',
+    });
+    setDetailError(null);
+    setDetailSuccess(null);
+    setDetailOpen(true);
+  };
+
+  const closeDetail = () => {
+    if (detailSaving || detailDeleting) return;
+    setDetailOpen(false);
+    setDetailLoading(false);
+  };
+
+  const saveDetail = async () => {
+    if (!detailRecall) return;
+    setDetailSaving(true);
+    setDetailError(null);
+    setDetailSuccess(null);
+    try {
+      const res = await apiFetch(`/api/recalls/${detailRecall.recall_id}`, session, {
+        method: 'PATCH',
+        body: JSON.stringify(detailDraft),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDetailError(data.error || (await getApiErrorMessage(res, 'Failed to update recall')));
+        return;
       }
-    })();
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'High':
-        return 'error';
-      case 'Medium':
-        return 'warning';
-      case 'Low':
-        return 'success';
-      default:
-        return 'default';
+      setRecalls((prev) => prev.map((r) => (r.recall_id === data.recall_id ? data : r)));
+      setDetailRecall(data);
+      setDetailSuccess('Saved.');
+    } catch (err) {
+      setDetailError(err.message || 'Failed to update recall');
+    } finally {
+      setDetailSaving(false);
     }
   };
 
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir('asc');
+  const saveDetailPriority = async () => {
+    if (!detailRecall) return;
+    const rid = String(detailRecall.recall_id ?? '').trim();
+    if (!rid || !detailPriorityDraft) {
+      setDetailError('Priority level is required');
+      return;
+    }
+    setDetailSavingMeta(true);
+    setDetailError(null);
+    setDetailSuccess(null);
+    try {
+      await savePrioritization(rid, detailPriorityDraft);
+      setDetailSuccess('Priority saved.');
+    } catch (err) {
+      setDetailError(err.message || 'Failed to save prioritization');
+    } finally {
+      setDetailSavingMeta(false);
+    }
+  };
+
+  const saveDetailAssignee = async () => {
+    if (!detailRecall) return;
+    const rid = String(detailRecall.recall_id ?? '').trim();
+    if (!rid) return;
+    const invId = Number.parseInt(String(detailAssigneeDraft ?? ''), 10);
+    if (!Number.isFinite(invId) || invId < 1) {
+      setDetailError('Assignee investigator is required');
+      return;
+    }
+    setDetailSavingMeta(true);
+    setDetailError(null);
+    setDetailSuccess(null);
+    try {
+      await saveAssignment(rid, invId);
+      setDetailSuccess('Assignee saved.');
+    } catch (err) {
+      setDetailError(err.message || 'Failed to save assignment');
+    } finally {
+      setDetailSavingMeta(false);
+    }
+  };
+
+  const deleteDetail = async () => {
+    if (!detailRecall) return;
+    const ok = window.confirm(`Delete recall ${detailRecall.recall_id}? This cannot be undone.`);
+    if (!ok) return;
+    setDetailDeleting(true);
+    setDetailError(null);
+    setDetailSuccess(null);
+    try {
+      const res = await apiFetch(`/api/recalls/${detailRecall.recall_id}`, session, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDetailError(data.error || (await getApiErrorMessage(res, 'Failed to delete recall')));
+        return;
+      }
+      if (!data?.success) { setDetailError('Delete failed'); return; }
+      setRecalls((prev) => prev.filter((r) => r.recall_id !== detailRecall.recall_id));
+      setDetailOpen(false);
+    } catch (err) {
+      setDetailError(err.message || 'Failed to delete recall');
+    } finally {
+      setDetailDeleting(false);
     }
   };
 
@@ -587,181 +774,38 @@ export default function RecallsPage() {
     }
     return list;
   }, [
-    recalls,
-    assignments,
-    isInvestigator,
-    recallIdFilter,
-    prioritizedOnly,
-    prioritizations,
-    sortField,
-    sortDir,
-    user?.id,
+    recalls, assignments, isInvestigator, recallIdFilter, prioritizedOnly,
+    prioritizations, sortField, sortDir, user?.id,
   ]);
 
-  const openDetail = (recall) => {
-    setDetailRecall(recall);
-    const rid = recall?.recall_id;
-    const prior = rid ? prioritizations[rid] : null;
-    const assign = rid ? assignments[rid] : null;
-    setDetailPriorityDraft(prior?.priority ?? '');
-    setDetailAssigneeDraft(assign?.investigator_user_id ?? '');
-    setDetailDraft({
-      title: recall?.title ?? '',
-      product: recall?.product ?? '',
-      hazard: recall?.hazard ?? '',
-      image_url: recall?.image_url ?? '',
+  // Stats for Active Investigations tab
+  const investigationStats = useMemo(() => {
+    const assigned = assignmentList.length;
+    const prioritized = prioritizationList.length;
+    return { pendingReview: prioritized - assigned, underInvestigation: assigned };
+  }, [assignmentList, prioritizationList]);
+
+  // Per-investigator assignments for Investigators tab
+  const investigatorAssignments = useMemo(() => {
+    return investigators.map((inv) => {
+      const invId = Number.parseInt(String(inv.id), 10);
+      const invAssignments = assignmentList.filter(
+        (a) => a.investigator_user_id === invId,
+      );
+      const assignedRecalls = invAssignments
+        .map((a) => {
+          const recall = recalls.find((r) => r.recall_id === a.recall_id);
+          const prior = prioritizations[a.recall_id];
+          return recall ? { recall, prior, assignment: a } : null;
+        })
+        .filter(Boolean);
+      return { inv, assignedRecalls };
     });
-    setDetailError(null);
-    setDetailSuccess(null);
-    setDetailOpen(true);
-  };
+  }, [investigators, assignmentList, recalls, prioritizations]);
 
-  const closeDetail = () => {
-    if (detailSaving || detailDeleting) return;
-    setDetailOpen(false);
-    setDetailLoading(false);
-  };
+  const selectedCount = selectedRecallIds.size;
 
-  const saveDetail = async () => {
-    if (!detailRecall) return;
-    setDetailSaving(true);
-    setDetailError(null);
-    setDetailSuccess(null);
-    try {
-      const res = await apiFetch(`/api/recalls/${detailRecall.recall_id}`, session, {
-        method: 'PATCH',
-        body: JSON.stringify(detailDraft),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setDetailError(
-          data.error || (await getApiErrorMessage(res, 'Failed to update recall'))
-        );
-        return;
-      }
-      setRecalls((prev) => prev.map((r) => (r.recall_id === data.recall_id ? data : r)));
-      setDetailRecall(data);
-      setDetailSuccess('Saved.');
-    } catch (err) {
-      setDetailError(err.message || 'Failed to update recall');
-    } finally {
-      setDetailSaving(false);
-    }
-  };
-
-  const saveDetailPriority = async () => {
-    if (!detailRecall) return;
-    const rid = String(detailRecall.recall_id ?? '').trim();
-    if (!rid) return;
-    if (!detailPriorityDraft) {
-      setDetailError('Priority level is required');
-      return;
-    }
-    setDetailSavingMeta(true);
-    setDetailError(null);
-    setDetailSuccess(null);
-    try {
-      const res = await apiFetch('/api/prioritizations', session, {
-        method: 'POST',
-        body: JSON.stringify({ recall_id: rid, priority: detailPriorityDraft }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setDetailError(
-          data.error || (await getApiErrorMessage(res, 'Failed to save prioritization')),
-        );
-        return;
-      }
-      setPrioritizations((prev) => ({ ...prev, [data.recall_id]: data }));
-      setPrioritizationList((prev) => {
-        const idx = prev.findIndex((p) => p.recall_id === data.recall_id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = data;
-          return next;
-        }
-        return [...prev, data];
-      });
-      setDetailSuccess('Priority saved.');
-    } catch (err) {
-      setDetailError(err.message || 'Failed to save prioritization');
-    } finally {
-      setDetailSavingMeta(false);
-    }
-  };
-
-  const saveDetailAssignee = async () => {
-    if (!detailRecall) return;
-    const rid = String(detailRecall.recall_id ?? '').trim();
-    if (!rid) return;
-    const invId = Number.parseInt(String(detailAssigneeDraft ?? ''), 10);
-    if (!Number.isFinite(invId) || invId < 1) {
-      setDetailError('Assignee investigator is required');
-      return;
-    }
-    setDetailSavingMeta(true);
-    setDetailError(null);
-    setDetailSuccess(null);
-    try {
-      const res = await apiFetch('/api/assignments', session, {
-        method: 'POST',
-        body: JSON.stringify({ recall_id: rid, investigator_user_id: invId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setDetailError(data.error || (await getApiErrorMessage(res, 'Failed to save assignment')));
-        return;
-      }
-
-      setAssignments((prev) => ({ ...prev, [data.recall_id]: data }));
-      setAssignmentList((prev) => {
-        const idx = prev.findIndex((a) => a.recall_id === data.recall_id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = data;
-          return next;
-        }
-        return [...prev, data];
-      });
-
-      setDetailSuccess('Assignee saved.');
-    } catch (err) {
-      setDetailError(err.message || 'Failed to save assignment');
-    } finally {
-      setDetailSavingMeta(false);
-    }
-  };
-
-  const deleteDetail = async () => {
-    if (!detailRecall) return;
-    const ok = window.confirm(`Delete recall ${detailRecall.recall_id}? This cannot be undone.`);
-    if (!ok) return;
-    setDetailDeleting(true);
-    setDetailError(null);
-    setDetailSuccess(null);
-    try {
-      const res = await apiFetch(`/api/recalls/${detailRecall.recall_id}`, session, {
-        method: 'DELETE',
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setDetailError(
-          data.error || (await getApiErrorMessage(res, 'Failed to delete recall'))
-        );
-        return;
-      }
-      if (!data?.success) {
-        setDetailError('Delete failed');
-        return;
-      }
-      setRecalls((prev) => prev.filter((r) => r.recall_id !== detailRecall.recall_id));
-      setDetailOpen(false);
-    } catch (err) {
-      setDetailError(err.message || 'Failed to delete recall');
-    } finally {
-      setDetailDeleting(false);
-    }
-  };
+  // --- Render ---
 
   if (loading) {
     return (
@@ -774,118 +818,154 @@ export default function RecallsPage() {
   if (error) {
     return (
       <Box>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
-          Recalls
-        </Typography>
+        <Typography variant="h4" fontWeight={700} gutterBottom>Recalls</Typography>
         <Alert severity="error">{error}</Alert>
       </Box>
     );
   }
 
+  // Investigator view — simple table of their assigned recalls
+  if (isInvestigator) {
+    return (
+      <Box>
+        <Typography variant="h4" fontWeight={700} gutterBottom>My Assigned Recalls</Typography>
+        <Typography color="text.secondary" sx={{ mb: 3 }}>
+          View recalls assigned to you.
+        </Typography>
+        <Paper sx={{ p: 3 }}>
+          <TextField
+            size="small"
+            label="Search"
+            placeholder="ID, title, product, or hazard"
+            value={recallIdFilter}
+            onChange={(e) => setRecallIdFilter(e.target.value)}
+            sx={{ mb: 2, minWidth: 280 }}
+          />
+          <TableContainer sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <Table size="small" sx={{ tableLayout: 'fixed', width: '100%', minWidth: 720 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={recallColSx.image}><strong>Image</strong></TableCell>
+                  <TableCell sx={recallColSx.recall_id}><strong>Recall ID</strong></TableCell>
+                  <TableCell sx={recallColSx.title}><strong>Title</strong></TableCell>
+                  <TableCell sx={recallColSx.product}><strong>Product</strong></TableCell>
+                  <TableCell sx={recallColSx.hazard}><strong>Hazard</strong></TableCell>
+                  <TableCell sx={recallColSx.priority}><strong>Priority</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredRecalls.map((recall) => {
+                  const prior = prioritizations[recall.recall_id];
+                  return (
+                    <TableRow key={recall.id} hover sx={{ cursor: 'pointer' }} onClick={() => openDetail(recall)}>
+                      <TableCell sx={recallColSx.image}>
+                        <RecallThumb url={recall.image_url} title={recall.title} />
+                      </TableCell>
+                      <TableCell sx={recallColSx.recall_id}>{recall.recall_id}</TableCell>
+                      <TableCell sx={recallColSx.title}>{recall.title}</TableCell>
+                      <TableCell sx={recallColSx.product}>{recall.product}</TableCell>
+                      <TableCell sx={recallColSx.hazard}>{recall.hazard}</TableCell>
+                      <TableCell sx={recallColSx.priority}>
+                        {prior ? (
+                          <Chip label={prior.priority} color={getPriorityColor(prior.priority)} size="small" />
+                        ) : (
+                          <Typography color="text.secondary" variant="body2">—</Typography>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          {filteredRecalls.length === 0 && (
+            <Typography color="text.secondary" sx={{ mt: 2 }}>No recalls assigned to you.</Typography>
+          )}
+        </Paper>
+
+        {/* Detail dialog */}
+        {renderDetailDialog()}
+      </Box>
+    );
+  }
+
+  // Manager / Admin view — tabbed layout
   return (
     <Box>
       <Typography variant="h4" fontWeight={700} gutterBottom>
-        Recalls
+        CPSC Manager Dashboard
       </Typography>
-      <Typography color="text.secondary" sx={{ mb: 2 }}>
-        {canPrioritize
-          ? 'Prioritize recalls and assign investigators (Sprint 1).'
-          : isInvestigator
-            ? 'View recalls assigned to you. Only CPSC Managers and Admins can change priority or assignments.'
-            : 'View recalls and priority assignments. Only CPSC Managers and Admins can change priority or assignments.'}
+      <Typography color="text.secondary" sx={{ mb: 3 }}>
+        Select high-priority recalls to monitor for online violations
       </Typography>
 
-      <Box sx={{ pt: 1 }}>
-        {canPrioritize && (
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Prioritize Recall
-            </Typography>
-            <Box
-              component="form"
-              onSubmit={handlePrioritize}
-              display="flex"
-              flexDirection="column"
-              gap={2}
-              maxWidth={{ xs: '100%', sm: 400 }}
-            >
-              <Autocomplete
-                options={recalls}
-                disabled={rowSavingRecallId != null}
-                getOptionLabel={(r) => `${r.recall_id} — ${r.title}`}
-                value={recalls.find((r) => r.recall_id === selectedRecallId) ?? null}
-                onChange={(_, value) => {
-                  setSelectedRecallId(value?.recall_id ?? '');
-                  setSelectedAssignee('');
-                  setSelectedPriority('');
-                }}
-                renderInput={(params) => (
-                  <TextField {...params} label="Recall ID" placeholder="Select a recall" required />
-                )}
-              />
-              <FormControl fullWidth disabled={rowSavingRecallId != null}>
-                <InputLabel>Assignee (Investigator)</InputLabel>
-                <Select
-                  value={selectedAssignee}
-                  label="Assignee (Investigator)"
-                  onChange={(e) => setSelectedAssignee(e.target.value)}
-                  disabled={investigators.length === 0 || rowSavingRecallId != null}
-                >
-                  <MenuItem value="">
-                    <em>Unassigned</em>
-                  </MenuItem>
-                  {investigators.map((u) => (
-                    <MenuItem key={u.id} value={Number.parseInt(String(u.id), 10)}>
-                      {u.full_name || u.email || `User ${u.id}`}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl fullWidth required disabled={rowSavingRecallId != null}>
-                <InputLabel>Priority Level</InputLabel>
-                <Select
-                  value={selectedPriority}
-                  label="Priority Level"
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                >
-                  {PRIORITY_LEVELS.map((p) => (
-                    <MenuItem key={p} value={p}>
-                      {p}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+      {submitSuccess && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSubmitSuccess(null)}>
+          {submitSuccess}
+        </Alert>
+      )}
+      {submitError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setSubmitError(null)}>
+          {submitError}
+        </Alert>
+      )}
+
+      <Tabs
+        value={activeTab}
+        onChange={(_, v) => setActiveTab(v)}
+        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab label="Prioritize Recalls" />
+        <Tab label="Active Investigations" />
+        <Tab label={
+          <Box display="flex" alignItems="center" gap={0.5}>
+            <GroupsIcon fontSize="small" />
+            Investigators
+          </Box>
+        } />
+      </Tabs>
+
+      {/* ── Tab 0: Prioritize Recalls ── */}
+      {activeTab === 0 && (
+        <>
+          {/* Selection banner */}
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 3, mb: 3,
+              bgcolor: 'primary.50',
+              borderColor: 'primary.200',
+            }}
+          >
+            <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
+              <Box>
+                <Typography variant="h6" fontWeight={600} gutterBottom={false}>
+                  Recalls Selected: {selectedCount} / 5
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Select 3–5 recalls to prioritize for investigation
+                </Typography>
+              </Box>
               <Button
-                type="submit"
                 variant="contained"
-                disabled={submitLoading || rowSavingRecallId != null}
+                size="large"
+                disabled={selectedCount < 3 || selectedCount > 5}
+                onClick={() => { setBulkAssignOpen(true); setBulkAssignError(null); }}
               >
-                {submitLoading ? <CircularProgress size={24} /> : 'Assign Priority'}
+                Assign to Investigators
               </Button>
-              {submitSuccess && <Alert severity="success">{submitSuccess}</Alert>}
-              {submitError && <Alert severity="error">{submitError}</Alert>}
             </Box>
           </Paper>
-        )}
 
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Recall List
-          </Typography>
-          <Box
-            display="flex"
-            flexWrap="wrap"
-            gap={2}
-            alignItems="center"
-            sx={{ mb: 2 }}
-          >
+          {/* Search / filter */}
+          <Box display="flex" flexWrap="wrap" gap={2} alignItems="center" sx={{ mb: 2 }}>
             <TextField
               size="small"
               label="Search"
               placeholder="ID, title, product, or hazard"
               value={recallIdFilter}
               onChange={(e) => setRecallIdFilter(e.target.value)}
-              sx={{ flex: { xs: '1 1 100%', sm: '0 1 auto' }, minWidth: { xs: '100%', sm: 280 } }}
+              sx={{ minWidth: 280 }}
             />
             <FormControlLabel
               control={
@@ -896,212 +976,286 @@ export default function RecallsPage() {
               }
               label="Show prioritized only"
             />
+            <Typography variant="body2" color="text.secondary">
+              {filteredRecalls.length} recall{filteredRecalls.length !== 1 ? 's' : ''}
+            </Typography>
           </Box>
-          <TableContainer
-            sx={{
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch',
-              maxWidth: '100%',
-              scrollbarGutter: 'stable',
-            }}
-          >
-            <Table
-              size="small"
-              sx={{
-                tableLayout: 'fixed',
-                width: '100%',
-                minWidth: { xs: 920, md: 1160 },
-              }}
-            >
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={recallColSx.image}>
-                    <strong>Image</strong>
-                  </TableCell>
-                  {[
-                    { id: 'recall_id', label: 'Recall ID' },
-                    { id: 'title', label: 'Title' },
-                    { id: 'product', label: 'Product' },
-                    { id: 'hazard', label: 'Hazard' },
-                    { id: 'assignee', label: 'Assignee' },
-                    { id: 'priority', label: 'Priority' },
-                    { id: 'prioritized_at', label: 'Prioritized At' },
-                  ].map((col) => (
-                    <TableCell
-                      key={col.id}
-                      sortDirection={sortField === col.id ? sortDir : false}
-                      sx={recallColSx[col.id]}
-                    >
-                      <TableSortLabel
-                        active={sortField === col.id}
-                        direction={sortField === col.id ? sortDir : 'asc'}
-                        onClick={() => handleSort(col.id)}
-                      >
-                        <strong>{col.label}</strong>
-                      </TableSortLabel>
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredRecalls.map((recall) => {
-                  const prior = prioritizations[recall.recall_id];
-                  const rowPriority =
-                    rowPriorityDraft[recall.recall_id] ?? prior?.priority ?? '';
-                  const rowSaving = rowSavingRecallId === recall.recall_id;
-                  const a = assignments[recall.recall_id];
-                  const rowAssignee =
-                    rowAssigneeDraft[recall.recall_id] ?? a?.investigator_user_id ?? '';
-                  const rowSavingAssignee =
-                    rowSavingAssigneeRecallId === recall.recall_id;
+
+          {/* Recall cards */}
+          {filteredRecalls.map((recall) => (
+            <RecallCard
+              key={recall.recall_id}
+              recall={recall}
+              prior={prioritizations[recall.recall_id]}
+              selected={selectedRecallIds.has(recall.recall_id)}
+              onToggle={() => handleToggleRecall(recall.recall_id)}
+              onViewDetails={openDetail}
+              onEditPriority={openEditPriority}
+              canPrioritize={canPrioritize}
+            />
+          ))}
+
+          {filteredRecalls.length === 0 && (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <Typography color="text.secondary">No recalls match your filters.</Typography>
+            </Paper>
+          )}
+        </>
+      )}
+
+      {/* ── Tab 1: Active Investigations ── */}
+      {activeTab === 1 && (
+        <Paper sx={{ p: 6, textAlign: 'center' }}>
+          <AccessTimeIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 2 }} />
+          <Typography variant="h5" fontWeight={600} gutterBottom>
+            Active Investigations
+          </Typography>
+          <Typography color="text.secondary" sx={{ mb: 4 }}>
+            View ongoing violation investigations and their status
+          </Typography>
+          <Grid container spacing={3} justifyContent="center" maxWidth={600} mx="auto">
+            <Grid item xs={12} sm={4}>
+              <Paper variant="outlined" sx={{ p: 3, bgcolor: '#fefce8' }}>
+                <Typography variant="h3" fontWeight={700} sx={{ color: '#854d0e' }}>
+                  {Math.max(0, investigationStats.pendingReview)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Pending Review
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Paper variant="outlined" sx={{ p: 3, bgcolor: 'primary.50' }}>
+                <Typography variant="h3" fontWeight={700} color="primary">
+                  {investigationStats.underInvestigation}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Under Investigation
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Paper variant="outlined" sx={{ p: 3, bgcolor: '#f0fdf4' }}>
+                <Typography variant="h3" fontWeight={700} sx={{ color: '#166534' }}>
+                  {prioritizationList.length}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Prioritized
+                </Typography>
+              </Paper>
+            </Grid>
+          </Grid>
+        </Paper>
+      )}
+
+      {/* ── Tab 2: Investigators ── */}
+      {activeTab === 2 && (
+        <Box>
+          <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
+            <Box display="flex" alignItems="flex-start" justifyContent="space-between" gap={2} flexWrap="wrap">
+              <Box>
+                <Typography variant="h6" fontWeight={600} gutterBottom={false}>
+                  Investigator Assignments
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Recalls assigned to each investigator, broken out by priority.
+                </Typography>
+              </Box>
+              <Box display="flex" gap={1}>
+                <Chip variant="outlined" label={`${investigators.length} active`} />
+                <Chip variant="outlined" label={`${assignmentList.length} assignments`} />
+              </Box>
+            </Box>
+          </Paper>
+
+          {investigatorAssignments.length === 0 && (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <Typography color="text.secondary">No investigators found.</Typography>
+            </Paper>
+          )}
+
+          {investigatorAssignments.map(({ inv, assignedRecalls }) => {
+            const byPriority = {
+              High: assignedRecalls.filter((r) => r.prior?.priority === 'High'),
+              Medium: assignedRecalls.filter((r) => r.prior?.priority === 'Medium'),
+              Low: assignedRecalls.filter((r) => r.prior?.priority === 'Low'),
+              Unset: assignedRecalls.filter((r) => !r.prior?.priority),
+            };
+            return (
+              <Paper key={inv.id} variant="outlined" sx={{ p: 3, mb: 3 }}>
+                <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={3} gap={2}>
+                  <Box>
+                    <Typography variant="h6" fontWeight={600}>
+                      {inv.full_name || inv.email || `Investigator ${inv.id}`}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {inv.email} · {assignedRecalls.length} assigned recall{assignedRecalls.length !== 1 ? 's' : ''}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {(['High', 'Medium', 'Low'] ).map((priority) => {
+                  const rows = byPriority[priority] ?? [];
+                  const colors = getPriorityBgColor(priority);
                   return (
-                    <TableRow
-                      key={recall.id}
-                      hover
-                      sx={{ cursor: 'pointer' }}
-                      onClick={() => openDetail(recall)}
-                    >
-                      <TableCell sx={recallColSx.image}>
-                        <RecallThumb url={recall.image_url} title={recall.title} />
-                      </TableCell>
-                      <TableCell sx={recallColSx.recall_id}>{recall.recall_id}</TableCell>
-                      <TableCell sx={recallColSx.title}>{recall.title}</TableCell>
-                      <TableCell sx={recallColSx.product}>{recall.product}</TableCell>
-                      <TableCell sx={recallColSx.hazard}>{recall.hazard}</TableCell>
-                      <TableCell sx={recallColSx.assignee}>
-                        {canPrioritize ? (
-                          <Box
-                            display="flex"
-                            alignItems="center"
-                            gap={1}
-                            flexWrap="wrap"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FormControl size="small" sx={{ minWidth: 180, flex: '1 1 auto' }}>
-                              <Select
-                                value={rowAssignee}
-                                displayEmpty
-                                disabled={rowSavingAssignee || investigators.length === 0}
-                                inputProps={{ 'aria-label': 'Assignee' }}
-                                onChange={(e) =>
-                                  setRowAssigneeDraft((prev) => ({
-                                    ...prev,
-                                    [recall.recall_id]: e.target.value,
-                                  }))
-                                }
-                              >
-                                <MenuItem value="" sx={{ color: 'text.secondary' }}>
-                                  <em>Select investigator</em>
-                                </MenuItem>
-                                {investigators.map((u) => (
-                                  <MenuItem
-                                    key={u.id}
-                                    value={Number.parseInt(String(u.id), 10)}
-                                  >
-                                    {u.full_name || u.email || `User ${u.id}`}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            </FormControl>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              disabled={rowSavingAssignee || !rowAssignee || submitLoading}
-                              onClick={() => void saveAssignment(recall.recall_id, rowAssignee)}
-                            >
-                              {rowSavingAssignee ? (
-                                <CircularProgress size={18} color="inherit" />
+                    <Box key={priority} sx={{ mb: 3 }}>
+                      <Box display="flex" alignItems="center" gap={1} mb={1}>
+                        <Chip
+                          label={`${priority} Priority`}
+                          size="small"
+                          variant="outlined"
+                          sx={{ bgcolor: colors.bgcolor, color: colors.color, borderColor: colors.borderColor }}
+                        />
+                        <Typography variant="body2" color="text.secondary">
+                          {rows.length} assigned
+                        </Typography>
+                      </Box>
+                      <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ bgcolor: 'grey.50' }}>
+                                <TableCell><strong>Recall</strong></TableCell>
+                                <TableCell><strong>Manufacturer</strong></TableCell>
+                                <TableCell><strong>Hazard</strong></TableCell>
+                                <TableCell><strong>Assigned</strong></TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {rows.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={4} sx={{ color: 'text.secondary', py: 2 }}>
+                                    No {priority.toLowerCase()} priority recalls assigned.
+                                  </TableCell>
+                                </TableRow>
                               ) : (
-                                'Save'
+                                rows.map(({ recall, assignment }) => (
+                                  <TableRow
+                                    key={recall.recall_id}
+                                    hover
+                                    sx={{ cursor: 'pointer' }}
+                                    onClick={() => openDetail(recall)}
+                                  >
+                                    <TableCell>
+                                      <Typography variant="body2" fontWeight={500}>
+                                        {recall.title || recall.recall_id}
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {recall.recall_id}
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="body2">{recall.manufacturer || '—'}</Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="body2" color="error.main">{recall.hazard || '—'}</Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {assignment?.assigned_at
+                                          ? new Date(assignment.assigned_at).toLocaleDateString()
+                                          : '—'}
+                                      </Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                ))
                               )}
-                            </Button>
-                          </Box>
-                        ) : a?.investigator_user_id ? (
-                          <Typography variant="body2">{a.investigator_user_id}</Typography>
-                        ) : (
-                          <Typography color="text.secondary" variant="body2">
-                            —
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell sx={recallColSx.priority}>
-                        {canPrioritize ? (
-                          <Box
-                            display="flex"
-                            alignItems="center"
-                            gap={1}
-                            flexWrap="wrap"
-                            sx={{ maxWidth: '100%' }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FormControl size="small" sx={{ minWidth: 120, flex: '1 1 auto' }}>
-                              <Select
-                                id={`priority-select-${recall.id}`}
-                                value={rowPriority}
-                                displayEmpty
-                                disabled={rowSaving}
-                                inputProps={{ 'aria-label': 'Priority' }}
-                                onChange={(e) =>
-                                  setRowPriorityDraft((prev) => ({
-                                    ...prev,
-                                    [recall.recall_id]: e.target.value,
-                                  }))
-                                }
-                              >
-                                <MenuItem value="" sx={{ color: 'text.secondary' }}>
-                                  <em>Select priority</em>
-                                </MenuItem>
-                                {PRIORITY_LEVELS.map((p) => (
-                                  <MenuItem key={p} value={p}>
-                                    {p}
-                                  </MenuItem>
-                                ))}
-                              </Select>
-                            </FormControl>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              disabled={rowSaving || !rowPriority || submitLoading}
-                              onClick={() =>
-                                void savePrioritization(recall.recall_id, rowPriority, {
-                                  fromForm: false,
-                                })
-                              }
-                            >
-                              {rowSaving ? <CircularProgress size={18} color="inherit" /> : 'Save'}
-                            </Button>
-                          </Box>
-                        ) : prior ? (
-                          <Chip
-                            label={prior.priority}
-                            color={getPriorityColor(prior.priority)}
-                            size="small"
-                          />
-                        ) : (
-                          <Typography color="text.secondary" variant="body2">
-                            —
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell sx={recallColSx.prioritized_at}>
-                        {prior?.prioritized_at
-                          ? new Date(prior.prioritized_at).toLocaleString()
-                          : '—'}
-                      </TableCell>
-                    </TableRow>
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Paper>
+                    </Box>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          {filteredRecalls.length === 0 && (
-            <Typography color="text.secondary" sx={{ mt: 2 }}>
-              No recalls match your filters.
+              </Paper>
+            );
+          })}
+        </Box>
+      )}
+
+      {/* ── Bulk Assign Dialog ── */}
+      <Dialog open={bulkAssignOpen} onClose={() => !bulkAssigning && setBulkAssignOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Assign to Investigator</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Assign {selectedCount} selected recall{selectedCount !== 1 ? 's' : ''} to an investigator.
+          </Typography>
+          {bulkAssignError && (
+            <Alert severity="error" sx={{ mb: 2 }}>{bulkAssignError}</Alert>
+          )}
+          <FormControl fullWidth disabled={bulkAssigning}>
+            <InputLabel>Investigator</InputLabel>
+            <Select
+              value={bulkAssignInvestigator}
+              label="Investigator"
+              onChange={(e) => setBulkAssignInvestigator(e.target.value)}
+            >
+              <MenuItem value=""><em>Select investigator</em></MenuItem>
+              {investigators.map((u) => (
+                <MenuItem key={u.id} value={Number.parseInt(String(u.id), 10)}>
+                  {u.full_name || u.email || `User ${u.id}`}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkAssignOpen(false)} disabled={bulkAssigning}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleBulkAssign}
+            disabled={bulkAssigning || !bulkAssignInvestigator}
+          >
+            {bulkAssigning ? <CircularProgress size={20} color="inherit" /> : 'Assign'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Edit Priority Dialog ── */}
+      <Dialog open={editPriorityOpen} onClose={() => !editPrioritySaving && setEditPriorityOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Edit Recall Priority</DialogTitle>
+        <DialogContent>
+          {editPriorityRecall && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {editPriorityRecall.title || editPriorityRecall.recall_id}
             </Typography>
           )}
-        </Paper>
-      </Box>
+          {editPriorityError && (
+            <Alert severity="error" sx={{ mb: 2 }}>{editPriorityError}</Alert>
+          )}
+          <FormControl fullWidth disabled={editPrioritySaving}>
+            <InputLabel>Priority Level</InputLabel>
+            <Select
+              value={editPriorityValue}
+              label="Priority Level"
+              onChange={(e) => setEditPriorityValue(e.target.value)}
+            >
+              <MenuItem value=""><em>Select priority</em></MenuItem>
+              {PRIORITY_LEVELS.map((p) => (
+                <MenuItem key={p} value={p}>{p}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditPriorityOpen(false)} disabled={editPrioritySaving}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveEditPriority}
+            disabled={editPrioritySaving || !editPriorityValue}
+          >
+            {editPrioritySaving ? <CircularProgress size={20} color="inherit" /> : 'Update Priority'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
+      {/* ── Recall Detail Dialog ── */}
+      {renderDetailDialog()}
+    </Box>
+  );
+
+  function renderDetailDialog() {
+    return (
       <Dialog open={detailOpen} onClose={closeDetail} fullWidth maxWidth="md">
         <DialogTitle>
           {detailRecall ? `Recall ${detailRecall.recall_id}` : 'Recall'}
@@ -1110,35 +1264,22 @@ export default function RecallsPage() {
           {detailLoading && (
             <Box display="flex" alignItems="center" gap={1} sx={{ mb: 2 }}>
               <CircularProgress size={18} />
-              <Typography variant="body2" color="text.secondary">
-                Loading recall details…
-              </Typography>
+              <Typography variant="body2" color="text.secondary">Loading recall details…</Typography>
             </Box>
           )}
           {detailError && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDetailError(null)}>
-              {detailError}
-            </Alert>
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDetailError(null)}>{detailError}</Alert>
           )}
           {detailSuccess && (
-            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setDetailSuccess(null)}>
-              {detailSuccess}
-            </Alert>
+            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setDetailSuccess(null)}>{detailSuccess}</Alert>
           )}
 
           <Box display="flex" gap={2} alignItems="flex-start" flexWrap="wrap">
             <Box sx={{ width: 120 }}>
-              <RecallThumb url={detailDraft.image_url} title={detailDraft.title} />
+              <RecallThumb url={detailDraft.image_url} title={detailDraft.title} size={96} />
             </Box>
             <Box sx={{ flex: '1 1 360px', minWidth: 280 }}>
-              <Box
-                display="flex"
-                gap={2}
-                flexWrap="wrap"
-                alignItems="center"
-                sx={{ mb: 2 }}
-                onClick={(e) => e.stopPropagation()}
-              >
+              <Box display="flex" gap={2} flexWrap="wrap" alignItems="center" sx={{ mb: 2 }} onClick={(e) => e.stopPropagation()}>
                 <Box sx={{ flex: '1 1 260px', minWidth: 240 }}>
                   <FormControl fullWidth size="small" disabled={!canPrioritize || detailSavingMeta}>
                     <InputLabel>Assignee (Investigator)</InputLabel>
@@ -1148,9 +1289,7 @@ export default function RecallsPage() {
                       onChange={(e) => setDetailAssigneeDraft(e.target.value)}
                       displayEmpty
                     >
-                      <MenuItem value="">
-                        <em>Unassigned</em>
-                      </MenuItem>
+                      <MenuItem value=""><em>Unassigned</em></MenuItem>
                       {investigators.map((u) => (
                         <MenuItem key={u.id} value={Number.parseInt(String(u.id), 10)}>
                           {u.full_name || u.email || `User ${u.id}`}
@@ -1160,12 +1299,7 @@ export default function RecallsPage() {
                   </FormControl>
                 </Box>
                 {canPrioritize && (
-                  <Button
-                    variant="contained"
-                    size="small"
-                    disabled={detailSavingMeta || !detailAssigneeDraft}
-                    onClick={() => void saveDetailAssignee()}
-                  >
+                  <Button variant="contained" size="small" disabled={detailSavingMeta || !detailAssigneeDraft} onClick={() => void saveDetailAssignee()}>
                     Save assignee
                   </Button>
                 )}
@@ -1178,24 +1312,15 @@ export default function RecallsPage() {
                       onChange={(e) => setDetailPriorityDraft(e.target.value)}
                       displayEmpty
                     >
-                      <MenuItem value="">
-                        <em>Unprioritized</em>
-                      </MenuItem>
+                      <MenuItem value=""><em>Unprioritized</em></MenuItem>
                       {PRIORITY_LEVELS.map((p) => (
-                        <MenuItem key={p} value={p}>
-                          {p}
-                        </MenuItem>
+                        <MenuItem key={p} value={p}>{p}</MenuItem>
                       ))}
                     </Select>
                   </FormControl>
                 </Box>
                 {canPrioritize && (
-                  <Button
-                    variant="contained"
-                    size="small"
-                    disabled={detailSavingMeta || !detailPriorityDraft}
-                    onClick={() => void saveDetailPriority()}
-                  >
+                  <Button variant="contained" size="small" disabled={detailSavingMeta || !detailPriorityDraft} onClick={() => void saveDetailPriority()}>
                     Save priority
                   </Button>
                 )}
@@ -1238,16 +1363,13 @@ export default function RecallsPage() {
 
           {detailRecall && (
             <Box sx={{ mt: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Recall details
-              </Typography>
+              <Typography variant="h6" gutterBottom>Recall details</Typography>
               {(() => {
                 const DENYLIST = new Set(['id', 'recall_id']);
                 const hasAnyRows = recallDetailGroups.some((group) =>
                   group.fields.some((f) => {
                     if (DENYLIST.has(f.key)) return false;
-                    const raw =
-                      f.source === 'draft' ? detailDraft?.[f.key] : detailRecall?.[f.key];
+                    const raw = f.source === 'draft' ? detailDraft?.[f.key] : detailRecall?.[f.key];
                     const formatted = f.format ? f.format(raw) : raw;
                     return !isValueEmpty(formatted);
                   }),
@@ -1264,15 +1386,9 @@ export default function RecallsPage() {
                     const rows = group.fields
                       .filter((f) => !DENYLIST.has(f.key))
                       .map((f) => {
-                        const raw =
-                          f.source === 'draft' ? detailDraft?.[f.key] : detailRecall?.[f.key];
+                        const raw = f.source === 'draft' ? detailDraft?.[f.key] : detailRecall?.[f.key];
                         const value = f.format ? f.format(raw) : raw;
-                        const row = renderDetailRow({
-                          label: f.label,
-                          value,
-                          kind: f.kind,
-                          isLink: f.key === 'recall_url',
-                        });
+                        const row = renderDetailRow({ label: f.label, value, kind: f.kind, isLink: f.key === 'recall_url' });
                         return row ? { key: f.key, kind: f.kind ?? 'kv', node: row } : null;
                       })
                       .filter(Boolean);
@@ -1283,18 +1399,12 @@ export default function RecallsPage() {
 
                     return (
                       <Box key={group.title} sx={{ mb: 2 }}>
-                        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                          {group.title}
-                        </Typography>
-                        {multilineRows.map((r) => (
-                          <Box key={r.key}>{r.node}</Box>
-                        ))}
+                        <Typography variant="subtitle2" sx={{ mb: 1 }}>{group.title}</Typography>
+                        {multilineRows.map((r) => <Box key={r.key}>{r.node}</Box>)}
                         {kvRows.length > 0 && (
                           <Grid container spacing={2}>
                             {kvRows.map((r) => (
-                              <Grid item xs={12} sm={4} key={r.key}>
-                                {r.node}
-                              </Grid>
+                              <Grid item xs={12} sm={4} key={r.key}>{r.node}</Grid>
                             ))}
                           </Grid>
                         )}
@@ -1313,29 +1423,19 @@ export default function RecallsPage() {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeDetail} disabled={detailSaving || detailDeleting}>
-            Close
-          </Button>
+          <Button onClick={closeDetail} disabled={detailSaving || detailDeleting}>Close</Button>
           {canPrioritize && (
             <>
-              <Button
-                color="error"
-                onClick={deleteDetail}
-                disabled={detailSaving || detailDeleting}
-              >
+              <Button color="error" onClick={deleteDetail} disabled={detailSaving || detailDeleting}>
                 {detailDeleting ? 'Deleting…' : 'Delete'}
               </Button>
-              <Button
-                variant="contained"
-                onClick={saveDetail}
-                disabled={detailSaving || detailDeleting}
-              >
+              <Button variant="contained" onClick={saveDetail} disabled={detailSaving || detailDeleting}>
                 {detailSaving ? 'Saving…' : 'Save changes'}
               </Button>
             </>
           )}
         </DialogActions>
       </Dialog>
-    </Box>
-  );
+    );
+  }
 }
