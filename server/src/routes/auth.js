@@ -114,7 +114,7 @@ router.post('/register', async (req, res) => {
   }
 
   const role = normalizeAppRole({ user_type: inserted.user_type }, null);
-  const uidStr = String(inserted.id);
+  const uidStr = String(inserted.user_id);
   let access_token;
   try {
     access_token = await signAppToken(uidStr, inserted.email, role);
@@ -167,7 +167,7 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  const stored = row.password_plain ?? row.password_hash ?? row.password;
+  const stored = row.password;
   if (stored !== password) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
@@ -180,7 +180,7 @@ router.post('/login', async (req, res) => {
   }
 
   const role = normalizeAppRole({ user_type: row.user_type }, null);
-  const uidStr = String(row.id);
+  const uidStr = String(row.user_id);
   let access_token;
   try {
     access_token = await signAppToken(uidStr, row.email, role);
@@ -217,7 +217,7 @@ router.get('/me', requireAuth, async (req, res) => {
   const { data: row, error } = await supabaseAdmin
     .from('app_users')
     .select('*')
-    .eq('id', userId)
+    .eq('user_id', userId)
     .maybeSingle();
 
   if (error) {
@@ -266,7 +266,7 @@ router.patch('/me', requireAuth, async (req, res) => {
   const { data: row, error } = await supabaseAdmin
     .from('app_users')
     .update(patch)
-    .eq('id', userId)
+    .eq('user_id', userId)
     .select()
     .single();
 
@@ -300,15 +300,15 @@ router.post('/change-password', requireAuth, async (req, res) => {
 
   const { data: row, error: fetchErr } = await supabaseAdmin
     .from('app_users')
-    .select('password_plain, password_hash')
-    .eq('id', userId)
+    .select('password')
+    .eq('user_id', userId)
     .single();
 
   if (fetchErr || !row) {
     return res.status(500).json({ error: 'Could not load user' });
   }
 
-  const stored = row.password_plain ?? row.password_hash;
+  const stored = row.password;
   if (stored !== current) {
     return res.status(401).json({ error: 'Current password is incorrect' });
   }
@@ -316,10 +316,10 @@ router.post('/change-password', requireAuth, async (req, res) => {
   const { error: upErr } = await supabaseAdmin
     .from('app_users')
     .update({
-      password_plain: nextPwd,
+      password: nextPwd,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', userId);
+    .eq('user_id', userId);
 
   if (upErr) {
     return res.status(400).json({ error: upErr.message });

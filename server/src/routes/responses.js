@@ -46,7 +46,7 @@ router.post('/', requireRealAuth, async (req, res) => {
     const userId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);
     const row = await dbCreateResponse(req.supabase, {
       violation_id: Number(violation_id),
-      seller_id: userId,
+      user_id: userId,
       response_text: String(response_text).trim(),
       action_taken: action_taken ?? null,
     });

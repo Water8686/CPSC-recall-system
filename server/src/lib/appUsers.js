@@ -1,14 +1,13 @@
 /**
- * Main Supabase schema: public.app_users uses uuid `id` as the primary key.
+ * Main Supabase schema: public.app_users uses bigint `user_id` as the primary key.
  */
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** @param {string | undefined} sub JWT subject — the app_users.id UUID */
+/** @param {string | undefined} sub JWT subject — the app_users.user_id (bigint as string) */
 export function jwtSubToUserId(sub) {
   if (sub == null || sub === '') return null;
-  if (UUID_RE.test(String(sub))) return String(sub);
-  return null;
+  const n = Number(sub);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
 }
 
 /**
@@ -28,13 +27,13 @@ export function dbUserTypeFromCanonical(canonical) {
 
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
- * @param {string} userId  app_users.id (UUID)
+ * @param {number} userId  app_users.user_id (bigint)
  */
 export async function fetchAppUserByUserId(supabase, userId) {
   const { data, error } = await supabase
     .from('app_users')
     .select('*')
-    .eq('id', userId)
+    .eq('user_id', userId)
     .maybeSingle();
   if (error) throw error;
   return data;
@@ -48,6 +47,6 @@ export function mapAppUserRowToApi(row) {
   if (!row) return null;
   return {
     ...row,
-    id: row.id != null ? String(row.id) : null,
+    id: row.user_id != null ? String(row.user_id) : null,
   };
 }

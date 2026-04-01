@@ -306,27 +306,27 @@ export async function dbFetchLatestPrioritiesByRecallIds(supabase, recallPkIds) 
 }
 
 export async function dbResolveAppUserId(supabase, email, jwtSub) {
-  // jwtSub is now the UUID from app_users.id
+  // jwtSub is the bigint user_id from app_users.user_id (stored as string in JWT)
   const fromJwt = jwtSubToUserId(typeof jwtSub === 'string' ? jwtSub : String(jwtSub ?? ''));
   if (fromJwt != null) {
     const { data, error } = await supabase
       .from('app_users')
-      .select('id')
-      .eq('id', fromJwt)
+      .select('user_id')
+      .eq('user_id', fromJwt)
       .maybeSingle();
-    if (!error && data?.id != null) return data.id;
+    if (!error && data?.user_id != null) return data.user_id;
   }
   if (!email) return null;
   const { data, error } = await supabase
     .from('app_users')
-    .select('id')
+    .select('user_id')
     .eq('email', email)
     .maybeSingle();
   if (error) {
     console.warn('dbResolveAppUserId:', error.message);
     return null;
   }
-  return data?.id ?? null;
+  return data?.user_id ?? null;
 }
 
 export async function dbUpsertPrioritization(supabase, recallNumber, priorityLabel, appUserId) {
