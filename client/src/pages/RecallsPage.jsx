@@ -1352,6 +1352,7 @@ export default function RecallsPage() {
 
   function renderDetailDialog() {
     return (
+      <>
       <Dialog open={detailOpen} onClose={closeDetail} fullWidth maxWidth="md">
         <DialogTitle>
           {detailRecall ? `Recall ${detailRecall.recall_id}` : 'Recall'}
@@ -1551,6 +1552,7 @@ export default function RecallsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+    </>
     );
   }
 }
