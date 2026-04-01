@@ -22,6 +22,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogContentText,
   DialogActions,
   Divider,
   Tabs,
@@ -38,8 +39,7 @@ import Inventory2Icon from '@mui/icons-material/Inventory2';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
 import { canAccessManagerFeatures, normalizeAppRole, USER_ROLES } from 'shared';
-
-const PRIORITY_LEVELS = ['High', 'Medium', 'Low'];
+import { PRIORITY_LEVELS, getPriorityBgColor, getPriorityColor } from '../constants/priorities';
 
 function normalizeOptionalText(value) {
   if (value == null) return '';
@@ -80,23 +80,6 @@ function RecallThumb({ url, title, size = 48 }) {
   );
 }
 
-function getPriorityColor(priority) {
-  switch (priority) {
-    case 'High': return 'error';
-    case 'Medium': return 'warning';
-    case 'Low': return 'success';
-    default: return 'default';
-  }
-}
-
-function getPriorityBgColor(priority) {
-  switch (priority) {
-    case 'High': return { bgcolor: '#fef2f2', color: '#991b1b', borderColor: '#fca5a5' };
-    case 'Medium': return { bgcolor: '#fff7ed', color: '#9a3412', borderColor: '#fdba74' };
-    case 'Low': return { bgcolor: '#fefce8', color: '#854d0e', borderColor: '#fde047' };
-    default: return { bgcolor: 'grey.100', color: 'text.secondary', borderColor: 'grey.300' };
-  }
-}
 
 /**
  * Card for a single recall in the Prioritize Recalls tab.
@@ -389,6 +372,7 @@ export default function RecallsPage() {
   const [detailSaving, setDetailSaving] = useState(false);
   const [detailDeleting, setDetailDeleting] = useState(false);
   const [detailError, setDetailError] = useState(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [detailSuccess, setDetailSuccess] = useState(null);
 
   useEffect(() => {
@@ -720,8 +704,7 @@ export default function RecallsPage() {
 
   const deleteDetail = async () => {
     if (!detailRecall) return;
-    const ok = window.confirm(`Delete recall ${detailRecall.recall_id}? This cannot be undone.`);
-    if (!ok) return;
+    setDeleteConfirmOpen(false);
     setDetailDeleting(true);
     setDetailError(null);
     setDetailSuccess(null);
@@ -863,12 +846,12 @@ export default function RecallsPage() {
             <Table size="small" sx={{ tableLayout: 'fixed', width: '100%', minWidth: 720 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={recallColSx.image}><strong>Image</strong></TableCell>
-                  <TableCell sx={recallColSx.recall_id}><strong>Recall ID</strong></TableCell>
-                  <TableCell sx={recallColSx.title}><strong>Title</strong></TableCell>
-                  <TableCell sx={recallColSx.product}><strong>Product</strong></TableCell>
-                  <TableCell sx={recallColSx.hazard}><strong>Hazard</strong></TableCell>
-                  <TableCell sx={recallColSx.priority}><strong>Priority</strong></TableCell>
+                  <TableCell scope="col" sx={recallColSx.image}><strong>Image</strong></TableCell>
+                  <TableCell scope="col" sx={recallColSx.recall_id}><strong>Recall ID</strong></TableCell>
+                  <TableCell scope="col" sx={recallColSx.title}><strong>Title</strong></TableCell>
+                  <TableCell scope="col" sx={recallColSx.product}><strong>Product</strong></TableCell>
+                  <TableCell scope="col" sx={recallColSx.hazard}><strong>Hazard</strong></TableCell>
+                  <TableCell scope="col" sx={recallColSx.priority}><strong>Priority</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -948,10 +931,10 @@ export default function RecallsPage() {
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'grey.50' }}>
-                  <TableCell><strong>Recall ID</strong></TableCell>
-                  <TableCell><strong>Product</strong></TableCell>
-                  <TableCell><strong>Hazard</strong></TableCell>
-                  <TableCell sx={{ width: 160 }}><strong>Priority</strong></TableCell>
+                  <TableCell scope="col"><strong>Recall ID</strong></TableCell>
+                  <TableCell scope="col"><strong>Product</strong></TableCell>
+                  <TableCell scope="col"><strong>Hazard</strong></TableCell>
+                  <TableCell scope="col" sx={{ width: 160 }}><strong>Priority</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1261,15 +1244,15 @@ export default function RecallsPage() {
                           {rows.length} assigned
                         </Typography>
                       </Box>
-                      <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+                      <Paper variant="outlined" sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                         <TableContainer>
                           <Table size="small">
                             <TableHead>
                               <TableRow sx={{ bgcolor: 'grey.50' }}>
-                                <TableCell><strong>Recall</strong></TableCell>
-                                <TableCell><strong>Manufacturer</strong></TableCell>
-                                <TableCell><strong>Hazard</strong></TableCell>
-                                <TableCell><strong>Assigned</strong></TableCell>
+                                <TableCell scope="col"><strong>Recall</strong></TableCell>
+                                <TableCell scope="col"><strong>Manufacturer</strong></TableCell>
+                                <TableCell scope="col"><strong>Hazard</strong></TableCell>
+                                <TableCell scope="col"><strong>Assigned</strong></TableCell>
                               </TableRow>
                             </TableHead>
                             <TableBody>
@@ -1380,9 +1363,11 @@ export default function RecallsPage() {
               <Typography variant="body2" color="text.secondary">Loading recall details…</Typography>
             </Box>
           )}
-          {detailError && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDetailError(null)}>{detailError}</Alert>
-          )}
+          <div role="alert" aria-live="assertive">
+            {detailError && (
+              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDetailError(null)}>{detailError}</Alert>
+            )}
+          </div>
           {detailSuccess && (
             <Alert severity="success" sx={{ mb: 2 }} onClose={() => setDetailSuccess(null)}>{detailSuccess}</Alert>
           )}
@@ -1539,7 +1524,7 @@ export default function RecallsPage() {
           <Button onClick={closeDetail} disabled={detailSaving || detailDeleting}>Close</Button>
           {canPrioritize && (
             <>
-              <Button color="error" onClick={deleteDetail} disabled={detailSaving || detailDeleting}>
+              <Button color="error" onClick={() => setDeleteConfirmOpen(true)} disabled={detailSaving || detailDeleting}>
                 {detailDeleting ? 'Deleting…' : 'Delete'}
               </Button>
               <Button variant="contained" onClick={saveDetail} disabled={detailSaving || detailDeleting}>
@@ -1547,6 +1532,23 @@ export default function RecallsPage() {
               </Button>
             </>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} maxWidth="xs">
+        <DialogTitle>Delete recall?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will permanently delete recall <strong>{detailRecall?.recall_id}</strong>
+            {detailRecall?.title ? ` — ${detailRecall.title}` : ''}. This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={() => void deleteDetail()}>
+            Delete permanently
+          </Button>
         </DialogActions>
       </Dialog>
     );

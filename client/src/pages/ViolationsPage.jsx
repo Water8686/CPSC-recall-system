@@ -17,19 +17,7 @@ import SendIcon from '@mui/icons-material/Send';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
 import { normalizeAppRole } from 'shared';
-
-const MARKETPLACES = ['eBay', 'Craigslist', 'Amazon', 'Facebook Marketplace', 'Etsy', 'Other'];
-const VIOLATION_STATUS_TABS = ['All', 'Open', 'Notice Sent', 'Response Received', 'Closed'];
-
-function statusColor(status) {
-  switch (status) {
-    case 'Open': return 'warning';
-    case 'Notice Sent': return 'info';
-    case 'Response Received': return 'secondary';
-    case 'Closed': return 'default';
-    default: return 'default';
-  }
-}
+import { MARKETPLACES, VIOLATION_STATUS_TABS, statusColor } from '../constants/violations';
 
 function AnnotationChip({ val }) {
   if (val === true)  return <Chip label="True match" color="error" size="small" icon={<CheckCircleOutlineIcon />} />;
@@ -394,7 +382,9 @@ export default function ViolationsPage() {
         </Button>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      <div role="alert" aria-live="assertive">
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      </div>
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label={`Listings (${listings.length})`} />
@@ -437,6 +427,7 @@ export default function ViolationsPage() {
                   </TableCell>
                   <TableCell sx={{ maxWidth: 220 }}>
                     <MuiLink href={l.url} target="_blank" rel="noopener"
+                      title={l.url}
                       sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
                       {l.title || l.url}
                     </MuiLink>
@@ -460,19 +451,19 @@ export default function ViolationsPage() {
                   </TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                     <Tooltip title="Annotate listing">
-                      <IconButton size="small" onClick={() => setAnnotateTarget(l)}>
+                      <IconButton size="small" aria-label="Annotate listing" onClick={() => setAnnotateTarget(l)}>
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                     {l.is_true_match === true && (
                       <Tooltip title="Create violation notice">
-                        <IconButton size="small" color="error" onClick={() => setViolationTarget(l)}>
+                        <IconButton size="small" color="error" aria-label="Create violation notice" onClick={() => setViolationTarget(l)}>
                           <GavelIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
                     <Tooltip title="Open listing">
-                      <IconButton size="small" component="a" href={l.url} target="_blank" rel="noopener">
+                      <IconButton size="small" aria-label="Open listing in new tab" component="a" href={l.url} target="_blank" rel="noopener">
                         <OpenInNewIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
@@ -535,6 +526,7 @@ export default function ViolationsPage() {
                     <TableCell sx={{ maxWidth: 160 }}>
                       {v.listing_url ? (
                         <MuiLink href={v.listing_url} target="_blank" rel="noopener"
+                          title={v.listing_url}
                           sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
                           {v.listing_marketplace || 'View'}
                         </MuiLink>
@@ -570,7 +562,7 @@ export default function ViolationsPage() {
                     <TableCell align="right">
                       {v.violation_status === 'Open' && (
                         <Tooltip title="Mark notice as sent">
-                          <IconButton size="small" color="primary" onClick={() => setNoticeSentTarget(v)}>
+                          <IconButton size="small" color="primary" aria-label="Mark notice as sent" onClick={() => setNoticeSentTarget(v)}>
                             <SendIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>

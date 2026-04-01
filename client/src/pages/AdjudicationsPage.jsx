@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Button, Chip,
+  TableContainer, TableHead, TableRow, TablePagination, Button, Chip,
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, MenuItem, Select, FormControl, InputLabel,
   Alert, CircularProgress, Link as MuiLink,
@@ -162,6 +162,8 @@ export default function AdjudicationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
     async function load() {
@@ -224,7 +226,9 @@ export default function AdjudicationsPage() {
         </Button>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      <div role="alert" aria-live="assertive">
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      </div>
 
       {readyViolations.length > 0 && (
         <Alert severity="warning" sx={{ mb: 2 }}>
@@ -244,14 +248,14 @@ export default function AdjudicationsPage() {
         <Table size="small">
           <TableHead>
             <TableRow sx={{ '& th': { fontWeight: 700 } }}>
-              <TableCell>Violation #</TableCell>
-              <TableCell>Recall</TableCell>
-              <TableCell>Listing</TableCell>
-              <TableCell>Investigator</TableCell>
-              <TableCell>Seller action</TableCell>
-              <TableCell>Ruling</TableCell>
-              <TableCell>Reason</TableCell>
-              <TableCell>Date</TableCell>
+              <TableCell scope="col">Violation #</TableCell>
+              <TableCell scope="col">Recall</TableCell>
+              <TableCell scope="col">Listing</TableCell>
+              <TableCell scope="col">Investigator</TableCell>
+              <TableCell scope="col">Seller action</TableCell>
+              <TableCell scope="col">Ruling</TableCell>
+              <TableCell scope="col">Reason</TableCell>
+              <TableCell scope="col">Date</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -262,7 +266,7 @@ export default function AdjudicationsPage() {
                 </TableCell>
               </TableRow>
             )}
-            {adjudications.map((a) => (
+            {adjudications.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((a) => (
               <TableRow key={a.adjudication_id} hover>
                 <TableCell>
                   <Typography variant="body2" fontWeight={600}>#{a.violation_id}</Typography>
@@ -316,6 +320,17 @@ export default function AdjudicationsPage() {
             ))}
           </TableBody>
         </Table>
+        {adjudications.length > 0 && (
+          <TablePagination
+            component="div"
+            count={adjudications.length}
+            page={page}
+            onPageChange={(_, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+            rowsPerPageOptions={[10, 25, 50]}
+          />
+        )}
       </TableContainer>
 
       <AdjudicateDialog

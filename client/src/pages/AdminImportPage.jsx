@@ -183,11 +183,13 @@ export default function AdminImportPage() {
         <LinearProgress sx={{ mb: 2, borderRadius: 1 }} aria-label="Import in progress" />
       )}
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      <div role="alert" aria-live="assertive">
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+      </div>
 
       {result?.ok && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setResult(null)}>

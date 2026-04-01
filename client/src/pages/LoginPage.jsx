@@ -18,13 +18,29 @@ import AuthShell from '../components/AuthShell';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
+  const validateEmail = (value) => {
+    if (!value) return 'Email is required';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email address';
+    return '';
+  };
+
+  const handleEmailBlur = () => {
+    setEmailError(validateEmail(email));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const emailValidation = validateEmail(email);
+    if (emailValidation) {
+      setEmailError(emailValidation);
+      return;
+    }
     setError(null);
     setLoading(true);
 
@@ -49,11 +65,13 @@ export default function LoginPage() {
             Use your registered email and password.
           </Typography>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
+          <div role="alert" aria-live="assertive">
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
+          </div>
 
           <Box component="form" onSubmit={handleSubmit}>
             <TextField
@@ -62,7 +80,10 @@ export default function LoginPage() {
               fullWidth
               required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(''); }}
+              onBlur={handleEmailBlur}
+              error={!!emailError}
+              helperText={emailError}
               margin="normal"
               autoFocus
             />
@@ -83,7 +104,7 @@ export default function LoginPage() {
               disabled={loading}
               sx={{ mt: 2 }}
             >
-              {loading ? <CircularProgress size={24} /> : 'Sign In'}
+              {loading ? <CircularProgress size={24} aria-label="Signing in" /> : 'Sign In'}
             </Button>
           </Box>
 

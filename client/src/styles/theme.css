@@ -9,7 +9,7 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: #2563eb;
+  --primary: #0D47A1;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.95 0.0058 264.53);
   --secondary-foreground: #030213;
@@ -34,7 +34,7 @@
   --radius: 0.625rem;
   --sidebar: #fafafa;
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #2563eb;
+  --sidebar-primary: #0D47A1;
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);

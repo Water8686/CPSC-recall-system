@@ -105,9 +105,10 @@ function NavLink({ item, onNavigate }) {
     <button
       type="button"
       onClick={() => onNavigate(item.path)}
+      aria-current={selected ? 'page' : undefined}
       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
         selected
-          ? 'bg-blue-50 text-blue-900 shadow-sm ring-1 ring-blue-100'
+          ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20'
           : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
       }`}
     >
@@ -171,9 +172,10 @@ export default function Layout() {
             key={item.path}
             type="button"
             onClick={() => handleNav(item.path)}
+            aria-current={selected ? 'page' : undefined}
             className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
               selected
-                ? 'bg-blue-50 text-blue-900 shadow-sm ring-1 ring-blue-100'
+                ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20'
                 : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
             }`}
           >
@@ -189,7 +191,7 @@ export default function Layout() {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
+    <div className="flex min-h-screen flex-col bg-background">
       {/* Top bar — matches wireframe stakeholder headers */}
       <header className="sticky top-0 z-50 border-b border-border bg-white shadow-sm">
         <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between gap-4 px-4 md:px-8">
@@ -200,16 +202,17 @@ export default function Layout() {
               size="icon"
               className="shrink-0 md:hidden"
               onClick={() => setDrawerOpen((o) => !o)}
-              aria-label="Open menu"
+              aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={drawerOpen}
             >
               <Menu className="size-5" />
             </Button>
-            <Shield className="size-8 shrink-0 text-blue-600" aria-hidden />
+            <Shield className="size-8 shrink-0 text-primary" aria-hidden />
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-bold leading-tight text-gray-900 md:text-xl">
+              <h1 className="truncate text-lg font-bold leading-tight text-foreground md:text-xl">
                 CPSC Recall Violation Monitoring System
               </h1>
-              <p className="hidden text-xs text-gray-600 sm:block">
+              <p className="hidden text-xs text-muted-foreground sm:block">
                 Regulatory monitoring and violation response
               </p>
             </div>
