@@ -13,6 +13,7 @@ import ProfilePage from './pages/ProfilePage';
 import DashboardPage from './pages/DashboardPage';
 import RecallsPage from './pages/RecallsPage';
 import ViolationsPage from './pages/ViolationsPage';
+import CreateViolationPage from './pages/CreateViolationPage';
 import ResponsesPage from './pages/ResponsesPage';
 import AdjudicationsPage from './pages/AdjudicationsPage';
 import InvestigatorsPage from './pages/InvestigatorsPage';
@@ -80,6 +81,14 @@ export default function App() {
                 element={
                   <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
                     <ViolationsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/violations/new"
+                element={
+                  <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
+                    <CreateViolationPage />
                   </ProtectedRoute>
                 }
               />
