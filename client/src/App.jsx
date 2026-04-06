@@ -24,6 +24,7 @@ import {
   RECALL_PAGE_ROLES,
   USER_ROLES,
   OPERATIONAL_ROLES,
+  INVESTIGATOR_ROLES,
 } from 'shared';
 
 export default function App() {
@@ -87,7 +88,7 @@ export default function App() {
               <Route
                 path="/violations/new"
                 element={
-                  <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
+                  <ProtectedRoute allowedRoles={INVESTIGATOR_ROLES}>
                     <CreateViolationPage />
                   </ProtectedRoute>
                 }
