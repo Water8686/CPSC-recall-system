@@ -232,11 +232,11 @@ export default function RecallDetailPage() {
             <Button
               variant="outlined"
               startIcon={<SearchIcon />}
-              onClick={() => handleSearch('/api/listings/search/zyte')}
+              onClick={() => handleSearch('/api/listings/search/serpapi')}
               disabled={searching}
               sx={{ borderColor: '#ffcc80', color: '#e65100', bgcolor: '#fff3e0' }}
             >
-              Scrape Marketplaces
+              Search Marketplaces
             </Button>
             <Button
               variant="contained"

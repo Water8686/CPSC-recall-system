@@ -4,7 +4,7 @@ import {
   requireInvestigatorOrAdmin,
 } from '../middleware/requireCpscManager.js';
 import { searchEbay } from '../lib/ebayApi.js';
-import { searchZyte } from '../lib/zyteApi.js';
+import { searchSerpApi } from '../lib/serpApi.js';
 
 const router = Router();
 router.use(applyApiMockUser);
@@ -31,25 +31,25 @@ router.post('/search/ebay', requireInvestigatorOrAdmin, async (req, res) => {
   }
 });
 
-/** POST /api/listings/search/zyte */
-router.post('/search/zyte', requireInvestigatorOrAdmin, async (req, res) => {
+/** POST /api/listings/search/serpapi — Google Shopping results across marketplaces */
+router.post('/search/serpapi', requireInvestigatorOrAdmin, async (req, res) => {
   const { query, recall_id } = req.body ?? {};
   if (!query || !String(query).trim()) {
     return res.status(400).json({ error: 'query is required' });
   }
   try {
-    const results = await searchZyte(String(query).trim());
+    const results = await searchSerpApi(String(query).trim());
     return res.json({ recall_id, results });
   } catch (err) {
-    console.error('POST /listings/search/zyte:', err);
-    if (err.message.includes('ZYTE_API_KEY')) {
+    console.error('POST /listings/search/serpapi:', err);
+    if (err.message.includes('SERPAPI_KEY')) {
       return res.json({
         recall_id,
         results: [],
-        warning: 'Zyte API key not configured. Set ZYTE_API_KEY in .env',
+        warning: 'SerpAPI key not configured. Set SERPAPI_KEY in Railway environment variables.',
       });
     }
-    return res.status(502).json({ error: err.message || 'Zyte search failed' });
+    return res.status(502).json({ error: err.message || 'SerpAPI search failed' });
   }
 });
 
