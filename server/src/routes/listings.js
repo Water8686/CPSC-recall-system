@@ -30,7 +30,7 @@ router.get('/', requireRealAuth, async (req, res) => {
 router.post('/', requireRealAuth, async (req, res) => {
   if (!req.supabase) return res.status(503).json({ error: 'Database not available' });
 
-  const { recall_id, url, marketplace, title, price, description } = req.body ?? {};
+  const { recall_id, url, marketplace, title, price, description, source, seller_name, seller_email, listed_at } = req.body ?? {};
 
   if (!recall_id) return res.status(400).json({ error: 'recall_id is required' });
   if (!url || !String(url).trim()) return res.status(400).json({ error: 'url is required' });
@@ -38,12 +38,14 @@ router.post('/', requireRealAuth, async (req, res) => {
   try {
     const userId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);
     const row = await dbCreateListing(req.supabase, {
-      recall_id: Number(recall_id),
+      recall_id: recall_id != null ? Number(recall_id) : null,
       url: String(url).trim(),
       marketplace: marketplace ? String(marketplace).trim() : 'Unknown',
       title: title ? String(title).trim() : null,
       price: price != null ? Number(price) : null,
       description: description ? String(description).trim() : null,
+      source: source || 'Manual',
+      listed_at: listed_at || null,
       added_by: userId,
     });
     return res.status(201).json(row);
