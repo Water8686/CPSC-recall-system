@@ -20,33 +20,19 @@
 const LISTING_SELECT = `
   listing_id, marketplace_id, seller_id, external_listing_id,
   listing_url, listing_title, listing_description, listing_posted_at,
-  listing_snapshot_url, snapshot_captured_at,
+  listing_snapshot_url, snapshot_captured_at, source, recall_id,
   marketplace(marketplace_name),
   seller(seller_name, seller_email)
 `;
 
 export async function dbFetchListings(supabase, { recallId } = {}) {
-  let listingIds = null;
-
-  if (recallId) {
-    // listing has no recall_id column — filter via the violation join
-    const { data: vData, error: vErr } = await supabase
-      .from('violation')
-      .select('listing_id')
-      .eq('recall_id', recallId)
-      .not('listing_id', 'is', null);
-    if (vErr) throw vErr;
-    listingIds = (vData ?? []).map((v) => v.listing_id).filter(Boolean);
-    if (listingIds.length === 0) return [];
-  }
-
   let q = supabase
     .from('listing')
     .select(LISTING_SELECT)
     .order('listing_posted_at', { ascending: false });
 
-  if (listingIds !== null) {
-    q = q.in('listing_id', listingIds);
+  if (recallId) {
+    q = q.eq('recall_id', recallId);
   }
 
   const { data, error } = await q;
@@ -96,7 +82,9 @@ export async function dbCreateListing(supabase, fields) {
       listing_url:         fields.url ?? null,
       listing_title:       fields.title ?? null,
       listing_description: fields.description ?? null,
-      listing_posted_at:   new Date().toISOString(),
+      listing_posted_at:   fields.listed_at ?? new Date().toISOString(),
+      recall_id:           fields.recall_id ?? null,
+      source:              fields.source ?? 'Manual',
     })
     .select(LISTING_SELECT)
     .single();
@@ -129,6 +117,8 @@ function mapListingRow(row) {
     marketplace:         row.marketplace?.marketplace_name ?? null,
     seller_name:         row.seller?.seller_name ?? null,
     listed_at:           row.listing_posted_at ?? null,
+    source:              row.source ?? 'Manual',
+    recall_id:           row.recall_id ?? null,
     snapshot_url:        row.listing_snapshot_url ?? null,
     // annotation stubs — not in current DB schema
     is_true_match:       null,
@@ -143,6 +133,7 @@ function mapListingRow(row) {
 const VIOLATION_SELECT = `
   violation_id, listing_id, recall_id, user_id,
   investigator_commentary, violation_status, violation_noticed_at,
+  violation_type, date_of_violation,
   recall(recall_number, recall_title, product_name),
   investigator:app_users!violation_user_id_fkey(user_id, full_name, email),
   listing(listing_url, listing_title, marketplace_id, marketplace(marketplace_name)),
@@ -166,20 +157,90 @@ export async function dbFetchViolations(supabase, { investigatorId, status } = {
 }
 
 export async function dbCreateViolation(supabase, fields) {
+  const VALID_TYPES = [
+    'Recalled Product Listed for Sale',
+    'Failure to Notify Consumers',
+    'Banned Hazardous Substance',
+    'Misbranded or Mislabeled Product',
+    'Failure to Report',
+    'Counterfeit Safety Certification',
+  ];
+
+  // Server-side validation
+  if (!fields.listing_id) throw new Error('listing_id is required');
+  if (!fields.violation_type || !VALID_TYPES.includes(fields.violation_type)) {
+    throw new Error('violation_type must be one of: ' + VALID_TYPES.join(', '));
+  }
+  if (!fields.date_of_violation) throw new Error('date_of_violation is required');
+  const dov = new Date(fields.date_of_violation);
+  if (isNaN(dov.getTime())) throw new Error('date_of_violation is not a valid date');
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  if (dov > today) throw new Error('Date of Violation cannot be in the future');
+
+  // Verify listing exists
+  const { data: listing, error: listingErr } = await supabase
+    .from('listing')
+    .select('listing_id')
+    .eq('listing_id', fields.listing_id)
+    .maybeSingle();
+  if (listingErr) throw listingErr;
+  if (!listing) throw new Error('Selected listing does not exist');
+
+  // Resolve recall_id from listing if not provided
+  let recallId = fields.recall_id;
+  if (!recallId) {
+    const { data: listingData } = await supabase
+      .from('listing')
+      .select('recall_id')
+      .eq('listing_id', fields.listing_id)
+      .maybeSingle();
+    recallId = listingData?.recall_id ?? null;
+  }
+
+  // Check if violation already exists for this listing (upsert)
+  const { data: existing } = await supabase
+    .from('violation')
+    .select('violation_id')
+    .eq('listing_id', fields.listing_id)
+    .maybeSingle();
+
+  if (existing) {
+    // Update existing violation
+    const { data, error } = await supabase
+      .from('violation')
+      .update({
+        violation_type:          fields.violation_type,
+        date_of_violation:       fields.date_of_violation,
+        investigator_commentary: fields.notes ?? null,
+        violation_noticed_at:    new Date().toISOString(),
+        user_id:                 fields.investigator_id ?? null,
+        recall_id:               recallId,
+      })
+      .eq('violation_id', existing.violation_id)
+      .select(VIOLATION_SELECT)
+      .single();
+    if (error) throw error;
+    return { ...mapViolationRow(data), _updated: true };
+  }
+
+  // Insert new violation
   const { data, error } = await supabase
     .from('violation')
     .insert({
-      listing_id:              fields.listing_id ?? null,
-      recall_id:               fields.recall_id,
+      listing_id:              fields.listing_id,
+      recall_id:               recallId,
       user_id:                 fields.investigator_id ?? null,
       investigator_commentary: fields.notes ?? null,
       violation_noticed_at:    new Date().toISOString(),
       violation_status:        'Open',
+      violation_type:          fields.violation_type,
+      date_of_violation:       fields.date_of_violation,
     })
     .select(VIOLATION_SELECT)
     .single();
   if (error) throw error;
-  return mapViolationRow(data);
+  return { ...mapViolationRow(data), _updated: false };
 }
 
 export async function dbUpdateViolationStatus(supabase, violationId, fields) {
@@ -218,6 +279,8 @@ function mapViolationRow(row) {
     investigator_name:    row.investigator?.full_name ?? row.investigator?.email ?? null,
     violation_noticed_at: row.violation_noticed_at,
     violation_status:     row.violation_status,
+    violation_type:       row.violation_type ?? null,
+    date_of_violation:    row.date_of_violation ?? null,
     notes:                row.investigator_commentary ?? null,
     // notice info derived from contact records
     notice_sent_at:       latestContact?.contact_sent_at ?? null,
