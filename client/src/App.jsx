@@ -21,6 +21,7 @@ import InvestigatorsPage from './pages/InvestigatorsPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminImportPage from './pages/AdminImportPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import {
   RECALL_PAGE_ROLES,
   USER_ROLES,
@@ -127,6 +128,7 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="/analytics" element={<AnalyticsPage />} />
             </Route>
 
             {/* Default redirect */}
