@@ -12,6 +12,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import DashboardPage from './pages/DashboardPage';
 import RecallsPage from './pages/RecallsPage';
+import RecallDetailPage from './pages/RecallDetailPage';
 import ViolationsPage from './pages/ViolationsPage';
 import CreateViolationPage from './pages/CreateViolationPage';
 import ResponsesPage from './pages/ResponsesPage';
@@ -57,6 +58,14 @@ export default function App() {
                 element={
                   <ProtectedRoute allowedRoles={RECALL_PAGE_ROLES}>
                     <RecallsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/recalls/:id"
+                element={
+                  <ProtectedRoute allowedRoles={RECALL_PAGE_ROLES}>
+                    <RecallDetailPage />
                   </ProtectedRoute>
                 }
               />
