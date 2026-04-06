@@ -14,6 +14,7 @@ import assignmentRoutes from './routes/assignments.js';
 import investigatorRoutes from './routes/investigators.js';
 import usersRoutes from './routes/users.js';
 import listingRoutes from './routes/listings.js';
+import listingSearchRoutes from './routes/listingSearch.js';
 import violationRoutes from './routes/violations.js';
 import responseRoutes from './routes/responses.js';
 import adjudicationRoutes from './routes/adjudications.js';
@@ -46,6 +47,7 @@ export function createApp() {
   app.use('/api/assignments', assignmentRoutes);
   app.use('/api/investigators', investigatorRoutes);
   app.use('/api/users', usersRoutes);
+  app.use('/api/listings', listingSearchRoutes);
   app.use('/api/listings', listingRoutes);
   app.use('/api/violations', violationRoutes);
   app.use('/api/responses', responseRoutes);
