@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Button, Chip,
@@ -304,6 +305,7 @@ function NoticeSentDialog({ open, onClose, violation, onSave, session }) {
 
 export default function ViolationsPage() {
   const { session, profile } = useAuth();
+  const navigate = useNavigate();
 
   const [tab, setTab] = useState(0); // 0 = Listings, 1 = Violations
   const [listings, setListings] = useState([]);
@@ -370,15 +372,10 @@ export default function ViolationsPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
-        <Box>
-          <Typography variant="h4" fontWeight={700}>Investigation</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Listings → Annotate → Violation notices → Responses → Adjudication
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddListingOpen(true)}>
-          Add listing
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h4" fontWeight={700}>Violations</Typography>
+        <Button variant="contained" onClick={() => navigate('/violations/new')}>
+          Create Violation
         </Button>
       </Box>
 

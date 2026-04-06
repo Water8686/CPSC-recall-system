@@ -12,17 +12,21 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import DashboardPage from './pages/DashboardPage';
 import RecallsPage from './pages/RecallsPage';
+import RecallDetailPage from './pages/RecallDetailPage';
 import ViolationsPage from './pages/ViolationsPage';
+import CreateViolationPage from './pages/CreateViolationPage';
 import ResponsesPage from './pages/ResponsesPage';
 import AdjudicationsPage from './pages/AdjudicationsPage';
 import InvestigatorsPage from './pages/InvestigatorsPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminImportPage from './pages/AdminImportPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import {
   RECALL_PAGE_ROLES,
   USER_ROLES,
   OPERATIONAL_ROLES,
+  INVESTIGATOR_ROLES,
 } from 'shared';
 
 export default function App() {
@@ -59,6 +63,14 @@ export default function App() {
                 }
               />
               <Route
+                path="/recalls/:id"
+                element={
+                  <ProtectedRoute allowedRoles={RECALL_PAGE_ROLES}>
+                    <RecallDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/admin/users"
                 element={
                   <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
@@ -80,6 +92,14 @@ export default function App() {
                 element={
                   <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
                     <ViolationsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/violations/new"
+                element={
+                  <ProtectedRoute allowedRoles={INVESTIGATOR_ROLES}>
+                    <CreateViolationPage />
                   </ProtectedRoute>
                 }
               />
@@ -108,6 +128,7 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="/analytics" element={<AnalyticsPage />} />
             </Route>
 
             {/* Default redirect */}

@@ -44,6 +44,14 @@ function jwtFallbackRole(user) {
   return user?.user_metadata?.role ?? user?.app_metadata?.role;
 }
 
+/**
+ * Investigator or Admin only — for violation/listing creation.
+ */
+export function requireInvestigatorOrAdmin(req, res, next) {
+  if (req.isApiMockMode) return next();
+  requireAuth(req, res, () => verifyInvestigatorRole(req, res, next));
+}
+
 function verifyManagerRole(req, res, next) {
   const metaRole = jwtFallbackRole(req.user);
   const client = supabaseAdmin || req.supabase;
@@ -83,6 +91,48 @@ function verifyManagerRole(req, res, next) {
       console.error(err);
       res.status(403).json({
         error: 'Unauthorized user. CPSC Manager or Admin role required.',
+      });
+    });
+}
+
+function verifyInvestigatorRole(req, res, next) {
+  const ALLOWED = ['admin', 'investigator'];
+  const metaRole = jwtFallbackRole(req.user);
+  const client = supabaseAdmin || req.supabase;
+
+  if (!client) {
+    return ALLOWED.includes(metaRole)
+      ? next()
+      : res.status(403).json({
+          error: 'Unauthorized. CPSC Investigator or Admin role required.',
+        });
+  }
+
+  const uid = jwtSubToUserId(req.user.id);
+  if (uid == null) {
+    return res.status(403).json({
+      error: 'Unauthorized. CPSC Investigator or Admin role required.',
+    });
+  }
+  client
+    .from('app_users')
+    .select('user_type')
+    .eq('user_id', uid)
+    .maybeSingle()
+    .then(({ data, error }) => {
+      if (error) console.warn('app_users select error:', error.message);
+      const role = normalizeAppRole(data, metaRole);
+      if (!ALLOWED.includes(role)) {
+        return res.status(403).json({
+          error: 'Unauthorized. CPSC Investigator or Admin role required.',
+        });
+      }
+      next();
+    })
+    .catch((err) => {
+      console.error(err);
+      res.status(403).json({
+        error: 'Unauthorized. CPSC Investigator or Admin role required.',
       });
     });
 }
