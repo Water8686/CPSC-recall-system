@@ -18,6 +18,7 @@ import listingSearchRoutes from './routes/listingSearch.js';
 import violationRoutes from './routes/violations.js';
 import responseRoutes from './routes/responses.js';
 import adjudicationRoutes from './routes/adjudications.js';
+import statsRoutes from './routes/stats.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -52,6 +53,7 @@ export function createApp() {
   app.use('/api/violations', violationRoutes);
   app.use('/api/responses', responseRoutes);
   app.use('/api/adjudications', adjudicationRoutes);
+  app.use('/api/stats', statsRoutes);
 
   if (fs.existsSync(clientDist)) {
     app.use(express.static(clientDist));
