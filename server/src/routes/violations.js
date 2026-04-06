@@ -28,25 +28,33 @@ router.get('/', requireRealAuth, async (req, res) => {
   }
 });
 
-/** POST /api/violations */
+/** POST /api/violations — create or update (upsert by listing_id) */
 router.post('/', requireRealAuth, async (req, res) => {
   if (!req.supabase) return res.status(503).json({ error: 'Database not available' });
 
-  const { recall_id, listing_id, notes } = req.body ?? {};
-  if (!recall_id) return res.status(400).json({ error: 'recall_id is required' });
+  const { listing_id, violation_type, date_of_violation, recall_id, notes } = req.body ?? {};
+
+  // Basic required-field check (detailed validation in data layer)
+  if (!listing_id) return res.status(400).json({ error: 'Please select a listing' });
+  if (!violation_type) return res.status(400).json({ error: 'Please select a violation type' });
+  if (!date_of_violation) return res.status(400).json({ error: 'Date of Violation is required' });
 
   try {
     const userId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);
     const row = await dbCreateViolation(req.supabase, {
-      recall_id: Number(recall_id),
-      listing_id: listing_id != null ? Number(listing_id) : null,
+      listing_id: Number(listing_id),
+      violation_type,
+      date_of_violation,
+      recall_id: recall_id != null ? Number(recall_id) : null,
       investigator_id: userId,
       notes: notes ? String(notes).trim() : null,
     });
-    return res.status(201).json(row);
+    const statusCode = row._updated ? 200 : 201;
+    return res.status(statusCode).json(row);
   } catch (err) {
     console.error('POST /violations:', err);
-    return res.status(500).json({ error: err.message || 'Failed to create violation' });
+    const status = err.message?.includes('future') || err.message?.includes('required') || err.message?.includes('must be') || err.message?.includes('does not exist') ? 400 : 500;
+    return res.status(status).json({ error: err.message || 'Failed to create violation' });
   }
 });
 
