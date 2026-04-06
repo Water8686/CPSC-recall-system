@@ -92,3 +92,5 @@ export const ADJUDICATION_STATUS = {
   REJECTED: 'Rejected',
   ESCALATED: 'Escalated',
 };
+
+export { VIOLATION_TYPES, INVESTIGATOR_ROLES } from './violationTypes.js';
