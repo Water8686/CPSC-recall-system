@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -8,6 +8,7 @@ import {
   CircularProgress,
   Alert,
   Link,
+  Button,
 } from '@mui/material';
 import { Chart } from 'react-google-charts';
 import {
@@ -34,6 +35,7 @@ const TYPE_COLORS = ['#0D47A1', '#1565C0', '#1976D2', '#1E88E5', '#42A5F5', '#64
 const MKT_COLORS = ['#e65100', '#f57c00', '#ff9800', '#ffb74d', '#ffe0b2'];
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const { session, profile, user } = useAuth();
   const [prioritizations, setPrioritizations] = useState([]);
   const [stats, setStats] = useState(null);
@@ -199,10 +201,13 @@ export default function DashboardPage() {
         </Grid>
       </Grid>
 
-      <Box sx={{ textAlign: 'center' }}>
-        <Link component={RouterLink} to="/analytics" color="primary">
-          View full analytics dashboard →
-        </Link>
+      <Box sx={{ textAlign: 'center', mt: 3 }}>
+        <Button
+          variant="outlined"
+          onClick={() => navigate('/analytics')}
+        >
+          View Full Analytics
+        </Button>
       </Box>
     </Box>
   );
