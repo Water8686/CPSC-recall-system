@@ -1,22 +1,7 @@
-import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import {
-  Shield,
-  Menu,
-  LayoutDashboard,
-  ListOrdered,
-  AlertTriangle,
-  MessageSquareReply,
-  Gavel,
-  ClipboardList,
-  User,
-  Users,
-  Upload,
-  LogOut,
-} from 'lucide-react';
+import { Shield, Settings, LogOut } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Separator } from './ui/separator';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,14 +10,7 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { useAuth } from '../context/AuthContext';
-import {
-  canViewRecallsPage,
-  canViewOperationalSprintPages,
-  normalizeAppRole,
-  USER_ROLES,
-} from 'shared';
-
-const DRAWER_WIDTH = 256;
+import { normalizeAppRole, USER_ROLES } from 'shared';
 
 const ROLE_LABELS = {
   [USER_ROLES.ADMIN]: 'Admin',
@@ -48,79 +26,18 @@ function roleBadgeClass(role) {
   return 'border-border bg-muted text-muted-foreground';
 }
 
-const NAV_ITEMS = [
-  { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, sprint: 1 },
-  {
-    label: 'Recalls',
-    path: '/recalls',
-    icon: ListOrdered,
-    sprint: 1,
-    requiresManagerAccess: true,
-  },
-  {
-    label: 'Violations',
-    path: '/violations',
-    icon: AlertTriangle,
-    sprint: 2,
-    requiresOperationalRole: true,
-  },
-  {
-    label: 'Responses',
-    path: '/responses',
-    icon: MessageSquareReply,
-    sprint: 3,
-    requiresOperationalRole: true,
-  },
-  {
-    label: 'Adjudications',
-    path: '/adjudications',
-    icon: Gavel,
-    sprint: 3,
-    requiresOperationalRole: true,
-  },
-  {
-    label: 'Investigators',
-    path: '/investigators',
-    icon: ClipboardList,
-    sprint: 2,
-    requiresOperationalRole: true,
-  },
-];
-
-const SETTINGS_NAV_ITEMS = [
-  { label: 'Profile', path: '/profile', icon: User },
-  { label: 'Users & roles', path: '/admin/users', icon: Users, adminOnly: true },
-  { label: 'Batch import', path: '/admin/import', icon: Upload, adminOnly: true },
+const TAB_ITEMS = [
+  { label: 'Dashboard', path: '/dashboard' },
+  { label: 'Recalls', path: '/recalls' },
+  { label: 'Violations', path: '/violations' },
+  { label: 'Responses', path: '/responses' },
 ];
 
 function resolvedRole(profile, user) {
   return normalizeAppRole(profile, user?.user_metadata?.role ?? user?.app_metadata?.role);
 }
 
-function NavLink({ item, onNavigate }) {
-  const location = useLocation();
-  const Icon = item.icon;
-  const selected = location.pathname === item.path;
-  return (
-    <button
-      type="button"
-      onClick={() => onNavigate(item.path)}
-      aria-current={selected ? 'page' : undefined}
-      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
-        selected
-          ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20'
-          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-      }`}
-    >
-      <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
-      <span className="truncate">{item.label}</span>
-      <span className="ml-auto text-[10px] font-normal text-muted-foreground">S{item.sprint}</span>
-    </button>
-  );
-}
-
 export default function Layout() {
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const { signOut, user, profile } = useAuth();
   const avatarSrc = profile?.avatar_url?.trim() || null;
   const avatarLetter = (user?.email || '?')[0].toUpperCase();
@@ -128,94 +45,26 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems = NAV_ITEMS.filter((item) => {
-    if (item.requiresManagerAccess && !canViewRecallsPage(role)) return false;
-    if (item.requiresOperationalRole && !canViewOperationalSprintPages(role)) return false;
-    return true;
-  });
-
-  const settingsNavItems = SETTINGS_NAV_ITEMS.filter(
-    (item) => !item.adminOnly || role === USER_ROLES.ADMIN,
-  );
-
-  const handleNav = (path) => {
-    navigate(path);
-    setDrawerOpen(false);
-  };
-
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
   };
 
-  const sidebarInner = (
-    <div className="flex h-full flex-col gap-1 p-3">
-      <div className="px-1 pb-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Main
-        </p>
-      </div>
-      {navItems.map((item) => (
-        <NavLink key={item.path} item={item} onNavigate={handleNav} />
-      ))}
-      <Separator className="my-3" />
-      <div className="px-1 pb-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Settings
-        </p>
-      </div>
-      {settingsNavItems.map((item) => {
-        const Icon = item.icon;
-        const selected = location.pathname === item.path;
-        return (
-          <button
-            key={item.path}
-            type="button"
-            onClick={() => handleNav(item.path)}
-            aria-current={selected ? 'page' : undefined}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
-              selected
-                ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20'
-                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-            }`}
-          >
-            <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
-            <span className="truncate">{item.label}</span>
-            {item.adminOnly && (
-              <span className="ml-auto text-[10px] text-muted-foreground">Admin</span>
-            )}
-          </button>
-        );
-      })}
-    </div>
+  // Match tab to current path (e.g. /recalls/123 still highlights Recalls)
+  const activeTab = TAB_ITEMS.findIndex(
+    (t) => location.pathname === t.path || location.pathname.startsWith(t.path + '/'),
   );
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Top bar — matches wireframe stakeholder headers */}
+      {/* Top bar */}
       <header className="sticky top-0 z-50 border-b border-border bg-white shadow-sm">
-        <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between gap-4 px-4 md:px-8">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="shrink-0 md:hidden"
-              onClick={() => setDrawerOpen((o) => !o)}
-              aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
-              aria-expanded={drawerOpen}
-            >
-              <Menu className="size-5" />
-            </Button>
-            <Shield className="size-8 shrink-0 text-primary" aria-hidden />
-            <div className="min-w-0">
-              <h1 className="truncate text-lg font-bold leading-tight text-foreground md:text-xl">
-                CPSC Recall Violation Monitoring System
-              </h1>
-              <p className="hidden text-xs text-muted-foreground sm:block">
-                Regulatory monitoring and violation response
-              </p>
-            </div>
+        <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-4 px-4 md:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <Shield className="size-7 shrink-0 text-primary" aria-hidden />
+            <h1 className="truncate text-base font-bold leading-tight text-foreground md:text-lg">
+              CPSC Recall System
+            </h1>
           </div>
           {user && (
             <div className="flex shrink-0 items-center gap-2 md:gap-3">
@@ -225,6 +74,15 @@ export default function Layout() {
               >
                 {ROLE_LABELS[role] ?? role}
               </Badge>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/settings')}
+                aria-label="Settings"
+              >
+                <Settings className="size-5" />
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -235,33 +93,16 @@ export default function Layout() {
                     aria-label="Account menu"
                   >
                     {avatarSrc ? (
-                      <img
-                        src={avatarSrc}
-                        alt=""
-                        className="size-8 rounded-full object-cover"
-                      />
+                      <img src={avatarSrc} alt="" className="size-8 rounded-full object-cover" />
                     ) : (
                       <span className="text-sm font-semibold">{avatarLetter}</span>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuItem onClick={() => navigate('/profile')}>
-                    <User className="size-4" />
-                    Profile
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                    {user?.email}
                   </DropdownMenuItem>
-                  {role === USER_ROLES.ADMIN && (
-                    <>
-                      <DropdownMenuItem onClick={() => navigate('/admin/users')}>
-                        <Users className="size-4" />
-                        Users &amp; roles
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate('/admin/import')}>
-                        <Upload className="size-4" />
-                        Batch import
-                      </DropdownMenuItem>
-                    </>
-                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut} variant="destructive">
                     <LogOut className="size-4" />
@@ -272,46 +113,43 @@ export default function Layout() {
             </div>
           )}
         </div>
+
+        {/* Tab bar */}
+        <nav className="mx-auto max-w-[1600px] px-4 md:px-8">
+          <div className="flex gap-0">
+            {TAB_ITEMS.map((tab, i) => (
+              <button
+                key={tab.path}
+                type="button"
+                onClick={() => navigate(tab.path)}
+                className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
+                  activeTab === i
+                    ? 'text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab.label}
+                {activeTab === i && (
+                  <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary rounded-full" />
+                )}
+              </button>
+            ))}
+          </div>
+        </nav>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        {/* Desktop sidebar */}
-        <aside
-          className="hidden shrink-0 border-r border-border bg-sidebar md:block"
-          style={{ width: DRAWER_WIDTH }}
-        >
-          {sidebarInner}
-        </aside>
-
-        {/* Mobile overlay */}
-        {drawerOpen && (
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-black/40 md:hidden"
-            aria-label="Close menu"
-            onClick={() => setDrawerOpen(false)}
-          />
-        )}
-
-        {/* Mobile drawer */}
-        <aside
-          className={`fixed inset-y-0 left-0 z-50 w-[min(280px,85vw)] border-r border-border bg-sidebar shadow-lg transition-transform duration-200 ease-out md:hidden ${
-            drawerOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
-          }`}
-        >
-          {sidebarInner}
-        </aside>
-
-        <main className="min-h-0 flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+      {/* Main content */}
+      <main className="min-h-0 flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+        <div className="mx-auto max-w-[1600px]">
           <Outlet />
-          <footer className="mt-10 border-t border-border pt-6 text-center">
-            <p className="text-xs text-muted-foreground">
-              Student prototype — not endorsed by or affiliated with the U.S. Consumer Product
-              Safety Commission (CPSC)
-            </p>
-          </footer>
-        </main>
-      </div>
+        </div>
+        <footer className="mt-10 border-t border-border pt-6 text-center">
+          <p className="text-xs text-muted-foreground">
+            Student prototype — not endorsed by or affiliated with the U.S. Consumer Product
+            Safety Commission (CPSC)
+          </p>
+        </footer>
+      </main>
     </div>
   );
 }
