@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS discovery_result (
   discovery_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   recall_id       BIGINT NOT NULL REFERENCES recall(recall_id),
-  user_id         UUID REFERENCES app_users(id),
+  user_id         BIGINT REFERENCES app_users(user_id),
   listing_url     TEXT NOT NULL,
   listing_title   TEXT,
   marketplace     TEXT,
