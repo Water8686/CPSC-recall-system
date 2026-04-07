@@ -1,69 +1,69 @@
-import { Box, Paper, Typography, Chip, Button } from '@mui/material';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import ReportProblemIcon from '@mui/icons-material/ReportProblem';
-import { useNavigate } from 'react-router-dom';
+import { Box, Typography, Paper, Chip, Button } from '@mui/material';
+import { ExternalLink } from 'lucide-react';
 import { MARKETPLACE_COLORS, SOURCE_COLORS } from '../constants/violations';
 
-export default function ListingCard({ listing, showViolationButton = true }) {
-  const navigate = useNavigate();
-  const mktColors = MARKETPLACE_COLORS[listing.marketplace] ?? MARKETPLACE_COLORS.Other;
-  const srcColors = SOURCE_COLORS[listing.source] ?? SOURCE_COLORS.Manual;
+export default function ListingCard({ listing, showViolationButton = true, onCreateViolation }) {
+  const mktColors = MARKETPLACE_COLORS[listing.marketplace] || MARKETPLACE_COLORS.Other || {};
+  const srcColors = SOURCE_COLORS[listing.source] || {};
 
   return (
-    <Paper sx={{ p: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
+    <Paper variant="outlined" sx={{ p: 2, display: 'flex', alignItems: 'flex-start', gap: 2 }}>
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography fontWeight={600} noWrap>
+        <Typography variant="body1" fontWeight={600} noWrap>
           {listing.title || 'Untitled Listing'}
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Chip
-            label={listing.marketplace || 'Unknown'}
-            size="small"
-            sx={{ bgcolor: mktColors.bg, color: mktColors.text, fontWeight: 600, fontSize: 11 }}
-          />
-          <Chip
-            label={listing.source || 'Manual'}
-            size="small"
-            sx={{ bgcolor: srcColors.bg, color: srcColors.text, fontWeight: 600, fontSize: 11 }}
-          />
-          {listing.seller_name && (
-            <Typography variant="caption" color="text.secondary">
-              Seller: {listing.seller_name}
-            </Typography>
+          {listing.marketplace && (
+            <Chip
+              label={listing.marketplace}
+              size="small"
+              sx={{
+                bgcolor: mktColors.bg,
+                color: mktColors.text,
+                fontWeight: 500,
+                fontSize: '0.7rem',
+                height: 20,
+              }}
+            />
           )}
-          {listing.listed_at && (
-            <Typography variant="caption" color="text.secondary">
-              Listed: {new Date(listing.listed_at).toLocaleDateString()}
-            </Typography>
+          {listing.source && (
+            <Chip
+              label={listing.source}
+              size="small"
+              variant="outlined"
+              sx={{
+                color: srcColors.text,
+                borderColor: srcColors.text,
+                fontSize: '0.7rem',
+                height: 20,
+              }}
+            />
           )}
         </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+          {listing.seller_name && <>Seller: {listing.seller_name} &middot; </>}
+          {listing.listed_at && <>Listed: {new Date(listing.listed_at).toLocaleDateString()}</>}
+        </Typography>
         {listing.url && (
           <Typography
             variant="caption"
             component="a"
             href={listing.url}
             target="_blank"
-            rel="noopener noreferrer"
-            color="primary"
-            sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}
+            rel="noreferrer"
+            sx={{ color: 'primary.main', display: 'inline-flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}
           >
-            {listing.url.length > 60
-              ? listing.url.slice(0, 60) + '...'
-              : listing.url}
-            <OpenInNewIcon sx={{ fontSize: 12 }} />
+            <ExternalLink size={12} /> View listing
           </Typography>
         )}
       </Box>
-      {showViolationButton && (
+      {showViolationButton && onCreateViolation && (
         <Button
           variant="contained"
-          color="error"
           size="small"
-          startIcon={<ReportProblemIcon />}
-          onClick={() =>
-            navigate(`/violations/new?listing_id=${listing.listing_id}`)
-          }
-          sx={{ whiteSpace: 'nowrap' }}
+          color="error"
+          onClick={() => onCreateViolation(listing)}
+          sx={{ flexShrink: 0, mt: 0.5 }}
         >
           Create Violation
         </Button>

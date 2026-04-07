@@ -11,6 +11,16 @@ import {
   Alert,
   Chip,
   Grid,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Snackbar,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
@@ -20,6 +30,7 @@ import { apiFetch, getApiErrorMessage } from '../lib/api';
 import ListingCard from '../components/ListingCard';
 import AddListingDialog from '../components/AddListingDialog';
 import { statusColor } from '../constants/violations';
+import { VIOLATION_TYPES } from 'shared';
 
 export default function RecallDetailPage() {
   const { id } = useParams();
@@ -37,6 +48,55 @@ export default function RecallDetailPage() {
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [searchError, setSearchError] = useState(null);
+
+  // Create Violation modal state
+  const [violationModalOpen, setViolationModalOpen] = useState(false);
+  const [violationListing, setViolationListing] = useState(null);
+  const [violationType, setViolationType] = useState('');
+  const [violationDate, setViolationDate] = useState(new Date().toISOString().slice(0, 10));
+  const [violationNotes, setViolationNotes] = useState('');
+  const [violationSaving, setViolationSaving] = useState(false);
+  const [violationError, setViolationError] = useState(null);
+  const [snackbar, setSnackbar] = useState(null);
+
+  function openViolationModal(listing) {
+    setViolationListing(listing);
+    setViolationType('Recalled Product Listed for Sale');
+    setViolationDate(new Date().toISOString().slice(0, 10));
+    setViolationNotes('');
+    setViolationError(null);
+    setViolationModalOpen(true);
+  }
+
+  async function handleCreateViolation() {
+    if (!violationType || !violationDate) {
+      setViolationError('Violation type and date are required.');
+      return;
+    }
+    setViolationSaving(true);
+    setViolationError(null);
+    try {
+      const res = await apiFetch('/api/violations', session, {
+        method: 'POST',
+        body: JSON.stringify({
+          listing_id: violationListing.listing_id,
+          violation_type: violationType,
+          date_of_violation: violationDate,
+          recall_id: recall.recall_id,
+          notes: violationNotes.trim() || null,
+        }),
+      });
+      if (!res.ok) throw new Error(await getApiErrorMessage(res));
+      const newViolation = await res.json();
+      setViolations((prev) => [newViolation, ...prev]);
+      setViolationModalOpen(false);
+      setSnackbar('Violation created successfully');
+    } catch (err) {
+      setViolationError(err.message);
+    } finally {
+      setViolationSaving(false);
+    }
+  }
 
   useEffect(() => {
     async function fetchData() {
@@ -287,7 +347,11 @@ export default function RecallDetailPage() {
           )}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             {listings.map((listing) => (
-              <ListingCard key={listing.listing_id} listing={listing} />
+              <ListingCard
+                  key={listing.listing_id}
+                  listing={listing}
+                  onCreateViolation={openViolationModal}
+                />
             ))}
           </Box>
 
@@ -330,6 +394,74 @@ export default function RecallDetailPage() {
           )}
         </Box>
       )}
+
+      {/* Create Violation Modal */}
+      <Dialog open={violationModalOpen} onClose={() => setViolationModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create Violation</DialogTitle>
+        <DialogContent>
+          {violationListing && (
+            <Paper variant="outlined" sx={{ p: 1.5, mb: 2, mt: 1, bgcolor: 'grey.50' }}>
+              <Typography variant="body2" fontWeight={600}>
+                {violationListing.title || 'Untitled Listing'}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {violationListing.marketplace}
+                {violationListing.seller_name && <> &middot; {violationListing.seller_name}</>}
+              </Typography>
+            </Paper>
+          )}
+          {violationError && <Alert severity="error" sx={{ mb: 2 }}>{violationError}</Alert>}
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>Violation Type</InputLabel>
+            <Select
+              value={violationType}
+              label="Violation Type"
+              onChange={(e) => setViolationType(e.target.value)}
+            >
+              {VIOLATION_TYPES.map((t) => (
+                <MenuItem key={t} value={t}>{t}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            label="Date of Violation"
+            type="date"
+            fullWidth
+            value={violationDate}
+            onChange={(e) => setViolationDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ max: new Date().toISOString().slice(0, 10) }}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            label="Notes (optional)"
+            multiline
+            minRows={2}
+            fullWidth
+            value={violationNotes}
+            onChange={(e) => setViolationNotes(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setViolationModalOpen(false)} disabled={violationSaving}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateViolation}
+            disabled={violationSaving}
+          >
+            {violationSaving ? 'Saving...' : 'Submit'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={!!snackbar}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar(null)}
+        message={snackbar}
+      />
     </Box>
   );
 }
