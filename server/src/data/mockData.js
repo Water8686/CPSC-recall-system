@@ -144,6 +144,7 @@ const RECALL_DETAIL_DEFAULTS = {
   upc: null,
   recall_date: null,
   last_publish_date: null,
+  added_at: null,
 };
 
 export function normalizeRecallDetailShape(recall) {

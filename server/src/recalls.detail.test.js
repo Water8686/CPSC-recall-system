@@ -55,6 +55,7 @@ describe('GET /api/recalls/:recall_number (detail, API_MOCK_MODE)', () => {
       'upc',
       'recall_date',
       'last_publish_date',
+      'added_at',
     ].forEach((k) => expect(res.body).toHaveProperty(k));
   });
 

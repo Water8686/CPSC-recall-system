@@ -51,6 +51,7 @@ export function mapRecallRow(row) {
     hazard: row.hazard ?? '',
     created_at: row.recall_date ?? row.last_publish_date ?? null,
     recall_date: row.recall_date ?? null,
+    added_at: row.added_at ?? null,
     image_url: firstImageUrlFromRow(row),
   };
 }
@@ -77,6 +78,7 @@ export function mapRecallDetailRow(row) {
     upc: row.upc ?? null,
     recall_date: row.recall_date ?? null,
     last_publish_date: row.last_publish_date ?? null,
+    added_at: row.added_at ?? null,
   };
 }
 
@@ -121,6 +123,7 @@ export async function dbFetchRecalls(supabase) {
       hazard,
       recall_date,
       last_publish_date,
+      added_at,
       recall_image ( image_url )
     `,
     )
@@ -153,6 +156,7 @@ export async function dbFetchRecallDetailByRecallNumber(supabase, recallNumber) 
       number_of_units,
       recall_date,
       last_publish_date,
+      added_at,
       recall_url,
       consumer_contact,
       recall_description,
@@ -237,6 +241,7 @@ export async function dbFetchAssignmentQueueRows(supabase) {
         hazard,
         recall_date,
         last_publish_date,
+        added_at,
         recall_image ( image_url )
       )
     `,
@@ -539,6 +544,7 @@ export async function dbUpdateRecall(supabase, recallNumber, patch) {
       hazard,
       recall_date,
       last_publish_date,
+      added_at,
       recall_image ( image_url )
     `,
     )
@@ -566,6 +572,7 @@ export async function dbDeleteRecall(supabase, recallNumber) {
       hazard,
       recall_date,
       last_publish_date,
+      added_at,
       recall_image ( image_url )
     `,
     )
