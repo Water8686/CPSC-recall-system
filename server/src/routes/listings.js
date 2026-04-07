@@ -35,6 +35,15 @@ router.post('/', requireRealAuth, async (req, res) => {
   if (!recall_id) return res.status(400).json({ error: 'recall_id is required' });
   if (!url || !String(url).trim()) return res.status(400).json({ error: 'url is required' });
 
+  // Verify the recall exists
+  const { data: recallRow, error: recallErr } = await req.supabase
+    .from('recall')
+    .select('recall_id')
+    .eq('recall_id', Number(recall_id))
+    .maybeSingle();
+  if (recallErr) return res.status(500).json({ error: recallErr.message });
+  if (!recallRow) return res.status(400).json({ error: 'Recall not found' });
+
   try {
     const userId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);
     const row = await dbCreateListing(req.supabase, {
