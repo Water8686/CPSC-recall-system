@@ -156,15 +156,15 @@ export default function DiscoveryPanel({ recallId, onCreateViolation }) {
         method: 'POST',
         body: JSON.stringify({
           recall_id: recallId,
-          url: result.url,
+          url: result.listing_url,
           marketplace: result.marketplace,
-          title: result.title,
+          title: result.listing_title,
           source: 'Discovery',
         }),
       });
       if (!res.ok) throw new Error(await getApiErrorMessage(res));
       const listing = await res.json();
-      onCreateViolation(listing);
+      if (onCreateViolation) onCreateViolation(listing);
     } catch (err) {
       setError('Failed to create listing: ' + err.message);
     } finally {
@@ -308,13 +308,13 @@ export default function DiscoveryPanel({ recallId, onCreateViolation }) {
                 {/* Title + external link */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                   <Typography variant="body1" fontWeight={600} noWrap sx={{ flex: 1, minWidth: 0 }}>
-                    {result.title || 'Untitled Listing'}
+                    {result.listing_title || 'Untitled Listing'}
                   </Typography>
-                  {result.url && (
+                  {result.listing_url && (
                     <Tooltip title="Open listing">
                       <IconButton
                         component="a"
-                        href={result.url}
+                        href={result.listing_url}
                         target="_blank"
                         rel="noreferrer"
                         size="small"
@@ -333,9 +333,9 @@ export default function DiscoveryPanel({ recallId, onCreateViolation }) {
                 </Typography>
 
                 {/* Scraped brand/model */}
-                {(result.scraped_brand || result.scraped_model) && (
+                {(result.scraped_manufacturer || result.scraped_model_number) && (
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
-                    {[result.scraped_brand, result.scraped_model].filter(Boolean).join(' · ')}
+                    {[result.scraped_manufacturer, result.scraped_model_number].filter(Boolean).join(' · ')}
                   </Typography>
                 )}
 
@@ -415,7 +415,7 @@ export default function DiscoveryPanel({ recallId, onCreateViolation }) {
           {reviewTarget && (
             <Paper variant="outlined" sx={{ p: 1.5, mb: 2, mt: 1, bgcolor: 'grey.50' }}>
               <Typography variant="body2" fontWeight={600} noWrap>
-                {reviewTarget.result.title || 'Untitled Listing'}
+                {reviewTarget.result.listing_title || 'Untitled Listing'}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 {reviewTarget.result.marketplace}
