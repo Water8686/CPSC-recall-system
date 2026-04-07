@@ -50,6 +50,7 @@ export function mapRecallRow(row) {
     product: row.product_name ?? row.product_type ?? '',
     hazard: row.hazard ?? '',
     created_at: row.recall_date ?? row.last_publish_date ?? null,
+    recall_date: row.recall_date ?? null,
     image_url: firstImageUrlFromRow(row),
   };
 }
