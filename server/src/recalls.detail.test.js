@@ -55,6 +55,7 @@ describe('GET /api/recalls/:recall_number (detail, API_MOCK_MODE)', () => {
       'upc',
       'recall_date',
       'last_publish_date',
+      'added_at',
     ].forEach((k) => expect(res.body).toHaveProperty(k));
   });
 
@@ -63,5 +64,16 @@ describe('GET /api/recalls/:recall_number (detail, API_MOCK_MODE)', () => {
 
     expect(res.status).toBe(404);
     expect(res.body).toMatchObject({ error: 'Recall not found' });
+  });
+
+  it('list endpoint includes recall_date on each item', async () => {
+    const res = await request(app).get('/api/recalls');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThan(0);
+    // Every recall object must have recall_date
+    res.body.forEach((r) => {
+      expect(r).toHaveProperty('recall_date');
+    });
   });
 });

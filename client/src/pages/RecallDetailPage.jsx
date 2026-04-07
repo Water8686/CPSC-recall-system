@@ -261,6 +261,7 @@ export default function RecallDetailPage() {
               ['Units', recall.number_of_units],
               ['UPC', recall.upc],
               ['Recall Date', recall.recall_date ? new Date(recall.recall_date).toLocaleDateString() : null],
+              ['Added to System', recall.added_at ? new Date(recall.added_at).toLocaleDateString() : null],
               ['Description', recall.recall_description],
             ]
               .filter(([, v]) => v)
