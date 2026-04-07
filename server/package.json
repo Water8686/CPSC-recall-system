@@ -17,7 +17,8 @@
     "express": "^4.21.0",
     "jose": "^6.2.2",
     "multer": "^2.1.1",
-    "shared": "*"
+    "shared": "*",
+    "string-similarity": "^4.0.4"
   },
   "devDependencies": {
     "eslint": "^9.0.0",
