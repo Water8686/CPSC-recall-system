@@ -93,4 +93,17 @@ export const ADJUDICATION_STATUS = {
   ESCALATED: 'Escalated',
 };
 
+// Discovery — confidence tiers & review statuses (Smart Listing Discovery)
+export const CONFIDENCE_TIERS = {
+  HIGH: 'High',
+  UNCERTAIN: 'Uncertain',
+  NO_MATCH: 'No Match',
+};
+
+export const REVIEW_STATUSES = {
+  PENDING: 'Pending Review',
+  CONFIRMED: 'Confirmed Match',
+  REJECTED: 'Rejected',
+};
+
 export { VIOLATION_TYPES, INVESTIGATOR_ROLES } from './violationTypes.js';
