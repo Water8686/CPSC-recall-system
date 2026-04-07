@@ -1,255 +1,392 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, Paper, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Button, Chip,
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, MenuItem, Select, FormControl, InputLabel,
-  Alert, CircularProgress, Tooltip, IconButton,
-  Link as MuiLink,
+  Box,
+  Typography,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Alert,
+  CircularProgress,
+  Chip,
+  Button,
+  Collapse,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Snackbar,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
+import { statusColor } from '../constants/violations';
 
-const ACTION_LABELS = {
-  listing_removed: 'Listing removed',
-  listing_edited:  'Listing edited',
-  disputed:        'Disputed',
-  no_action:       'No action taken',
-};
-
-function actionColor(a) {
-  switch (a) {
-    case 'listing_removed': return 'success';
-    case 'listing_edited':  return 'info';
-    case 'disputed':        return 'warning';
-    case 'no_action':       return 'error';
-    default: return 'default';
-  }
+function fmtDate(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString();
 }
 
-function fmtDate(v) {
-  if (!v) return '—';
-  return new Date(v).toLocaleDateString();
+function daysElapsed(dateStr) {
+  if (!dateStr) return '—';
+  const sent = new Date(dateStr);
+  const now = new Date();
+  const diff = Math.floor((now - sent) / (1000 * 60 * 60 * 24));
+  return diff;
 }
 
-// ─── Record Response Dialog ───────────────────────────────────────────────────
+const STATUS_FILTERS = ['All', 'Awaiting Response', 'Response Received', 'Closed'];
 
-function RecordResponseDialog({ open, onClose, onSave, session, openViolations }) {
-  const [violationId, setViolationId] = useState('');
-  const [responseText, setResponseText] = useState('');
-  const [actionTaken, setActionTaken] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  function reset() {
-    setViolationId(''); setResponseText(''); setActionTaken(''); setError('');
-  }
-
-  async function handleSave() {
-    if (!violationId) { setError('Select a violation notice'); return; }
-    if (!responseText.trim()) { setError('Response text is required'); return; }
-    setSaving(true); setError('');
-    try {
-      const res = await apiFetch('/api/responses', session, {
-        method: 'POST',
-        body: JSON.stringify({
-          violation_id: violationId,
-          response_text: responseText.trim(),
-          action_taken: actionTaken || null,
-        }),
-      });
-      if (!res.ok) { setError(await getApiErrorMessage(res, 'Failed to record response')); return; }
-      onSave(await res.json());
-      reset();
-      onClose();
-    } catch {
-      setError('Network error');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onClose={() => { reset(); onClose(); }} maxWidth="sm" fullWidth>
-      <DialogTitle>Record Seller Response</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
-        {error && <Alert severity="error">{error}</Alert>}
-        <FormControl fullWidth required>
-          <InputLabel>Violation notice</InputLabel>
-          <Select value={violationId} label="Violation notice" onChange={(e) => setViolationId(e.target.value)}>
-            {openViolations.length === 0 && (
-              <MenuItem value="" disabled>No open violations available</MenuItem>
-            )}
-            {openViolations.map((v) => (
-              <MenuItem key={v.violation_id} value={v.violation_id}>
-                #{v.violation_id} — {v.recall_number} ({v.violation_status})
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <TextField
-          label="Seller response" required multiline rows={4} fullWidth
-          value={responseText} onChange={(e) => setResponseText(e.target.value)}
-          placeholder="Enter the seller's or marketplace's response to the violation notice..."
-        />
-        <FormControl fullWidth>
-          <InputLabel>Action taken by seller</InputLabel>
-          <Select value={actionTaken} label="Action taken by seller" onChange={(e) => setActionTaken(e.target.value)}>
-            <MenuItem value="">(Not specified)</MenuItem>
-            {Object.entries(ACTION_LABELS).map(([k, v]) => (
-              <MenuItem key={k} value={k}>{v}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={() => { reset(); onClose(); }}>Cancel</Button>
-        <Button variant="contained" onClick={handleSave} disabled={saving}>
-          {saving ? <CircularProgress size={18} /> : 'Record response'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
+function mapResponseStatus(violationStatus) {
+  if (violationStatus === 'Notice Sent') return 'Awaiting Response';
+  return violationStatus;
 }
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ResponsesPage() {
   const { session } = useAuth();
-
-  const [responses, setResponses] = useState([]);
-  const [openViolations, setOpenViolations] = useState([]);
+  const navigate = useNavigate();
+  const [violations, setViolations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [search, setSearch] = useState('');
+
+  // Response dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogViolation, setDialogViolation] = useState(null);
+  const [responseNotes, setResponseNotes] = useState('');
+  const [responseSaving, setResponseSaving] = useState(false);
+  const [snackbar, setSnackbar] = useState(null);
+
+  // Expanded rows
+  const [expandedId, setExpandedId] = useState(null);
 
   useEffect(() => {
     async function load() {
-      setLoading(true); setError('');
       try {
-        const [rRes, vRes] = await Promise.all([
-          apiFetch('/api/responses', session),
-          apiFetch('/api/violations', session),
-        ]);
-        if (!rRes.ok) throw new Error(await getApiErrorMessage(rRes, 'Failed to load responses'));
-        if (!vRes.ok) throw new Error(await getApiErrorMessage(vRes, 'Failed to load violations'));
-        const [rData, vData] = await Promise.all([rRes.json(), vRes.json()]);
-        setResponses(rData);
-        // Only show violations that have had a notice sent and aren't yet closed
-        setOpenViolations(vData.filter((v) =>
-          v.violation_status === 'Notice Sent' || v.violation_status === 'Open'
+        const res = await apiFetch('/api/violations', session);
+        if (!res.ok) throw new Error(await getApiErrorMessage(res));
+        const all = await res.json();
+        // Only show violations that have reached "Notice Sent" or beyond
+        setViolations(all.filter((v) =>
+          ['Notice Sent', 'Response Received', 'Closed'].includes(v.violation_status),
         ));
-      } catch (e) {
-        setError(e.message);
+      } catch (err) {
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session]);
 
-  function onResponseRecorded(row) {
-    setResponses((prev) => [row, ...prev]);
-    // Remove the violation from open list if it now has a response
-    setOpenViolations((prev) => prev.filter((v) => v.violation_id !== row.violation_id));
+  const handleMarkReceived = (violation) => {
+    setDialogViolation(violation);
+    setResponseNotes('');
+    setDialogOpen(true);
+  };
+
+  const handleSubmitResponse = async () => {
+    setResponseSaving(true);
+    try {
+      const res = await apiFetch(`/api/violations/${dialogViolation.violation_id}`, session, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          violation_status: 'Response Received',
+          notes: responseNotes.trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error(await getApiErrorMessage(res));
+      const updated = await res.json();
+      setViolations((prev) =>
+        prev.map((v) => (v.violation_id === updated.violation_id ? updated : v)),
+      );
+      setDialogOpen(false);
+      setSnackbar('Response recorded');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResponseSaving(false);
+    }
+  };
+
+  const handleClose = async (violationId) => {
+    try {
+      const res = await apiFetch(`/api/violations/${violationId}`, session, {
+        method: 'PATCH',
+        body: JSON.stringify({ violation_status: 'Closed' }),
+      });
+      if (!res.ok) throw new Error(await getApiErrorMessage(res));
+      const updated = await res.json();
+      setViolations((prev) =>
+        prev.map((v) => (v.violation_id === updated.violation_id ? updated : v)),
+      );
+      setSnackbar('Violation closed');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const filtered = useMemo(() => {
+    let list = violations;
+    if (statusFilter !== 'All') {
+      if (statusFilter === 'Awaiting Response') {
+        list = list.filter((v) => v.violation_status === 'Notice Sent');
+      } else {
+        list = list.filter((v) => v.violation_status === statusFilter);
+      }
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (v) =>
+          (v.listing_title || '').toLowerCase().includes(q) ||
+          (v.seller_name || '').toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [violations, statusFilter, search]);
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
+        <CircularProgress />
+      </Box>
+    );
   }
 
-  if (loading) return <Box sx={{ p: 4, textAlign: 'center' }}><CircularProgress /></Box>;
+  if (error) {
+    return <Alert severity="error">{error}</Alert>;
+  }
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight={700}>Seller Responses</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Record responses from sellers or marketplaces to violation notices.
+      {/* Toolbar */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+        <Typography variant="h5" fontWeight={700}>
+          Responses{' '}
+          <Typography component="span" variant="h5" color="text.secondary" fontWeight={400}>
+            ({filtered.length})
           </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>
-          Record response
-        </Button>
+        </Typography>
+        <TextField
+          size="small"
+          placeholder="Search..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ width: 220 }}
+        />
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {/* Status filter pills */}
+      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+        {STATUS_FILTERS.map((status) => {
+          const count = status === 'All'
+            ? violations.length
+            : status === 'Awaiting Response'
+              ? violations.filter((v) => v.violation_status === 'Notice Sent').length
+              : violations.filter((v) => v.violation_status === status).length;
+          return (
+            <Chip
+              key={status}
+              label={`${status} (${count})`}
+              variant={statusFilter === status ? 'filled' : 'outlined'}
+              color={statusFilter === status ? 'primary' : 'default'}
+              onClick={() => setStatusFilter(status)}
+              sx={{ fontWeight: statusFilter === status ? 600 : 400 }}
+            />
+          );
+        })}
+      </Box>
 
-      {openViolations.length > 0 && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          {openViolations.length} violation notice{openViolations.length > 1 ? 's' : ''} awaiting a response.
-        </Alert>
-      )}
-
-      <TableContainer component={Paper}>
-        <Table size="small">
+      {/* Data Table */}
+      <TableContainer component={Paper} variant="outlined">
+        <Table>
           <TableHead>
-            <TableRow sx={{ '& th': { fontWeight: 700 } }}>
-              <TableCell>Violation #</TableCell>
-              <TableCell>Recall</TableCell>
-              <TableCell>Listing</TableCell>
-              <TableCell>Seller / Contact</TableCell>
-              <TableCell>Response</TableCell>
-              <TableCell>Action taken</TableCell>
-              <TableCell>Date</TableCell>
+            <TableRow sx={{ bgcolor: 'grey.50' }}>
+              <TableCell padding="checkbox" />
+              <TableCell sx={{ fontWeight: 600 }}>Listing</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Seller</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Notice Sent</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Response Date</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Days Elapsed</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {responses.length === 0 && (
+            {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                  No responses recorded yet. Use "Record response" when a seller or marketplace replies to a violation notice.
+                <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                  <Typography color="text.secondary">
+                    No responses to track yet. Violations will appear here once notices are sent.
+                  </Typography>
                 </TableCell>
               </TableRow>
+            ) : (
+              filtered.map((v) => {
+                const isOpen = expandedId === v.violation_id;
+                const days = daysElapsed(v.notice_sent_at);
+                return (
+                  <React.Fragment key={v.violation_id}>
+                    <TableRow
+                      hover
+                      sx={{ cursor: 'pointer', '& > *': { borderBottom: isOpen ? 'none' : undefined } }}
+                      onClick={() => setExpandedId(isOpen ? null : v.violation_id)}
+                    >
+                      <TableCell padding="checkbox">
+                        <IconButton size="small">
+                          {isOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                        </IconButton>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600}>
+                          {v.listing_title || `Violation #${v.violation_id}`}
+                        </Typography>
+                        {v.listing_marketplace && (
+                          <Typography variant="caption" color="text.secondary">
+                            {v.listing_marketplace}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{v.seller_name || '—'}</Typography>
+                        {v.seller_email && (
+                          <Typography variant="caption" color="text.secondary">
+                            {v.seller_email}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{fmtDate(v.notice_sent_at)}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {v.latest_response ? fmtDate(v.latest_response.responded_at) : '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={mapResponseStatus(v.violation_status)}
+                          color={statusColor(v.violation_status)}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography
+                          variant="body2"
+                          fontWeight={600}
+                          color={typeof days === 'number' && days > 14 ? 'error.main' : 'text.primary'}
+                        >
+                          {typeof days === 'number' ? `${days}d` : days}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ py: 0 }} colSpan={7}>
+                        <Collapse in={isOpen} timeout="auto" unmountOnExit>
+                          <Box sx={{ py: 2, px: 1 }}>
+                            <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                              <Typography variant="body2" sx={{ mb: 1 }}>
+                                <strong>Violation Type:</strong> {v.violation_type || '—'}
+                              </Typography>
+                              <Typography variant="body2" sx={{ mb: 1 }}>
+                                <strong>Date of Violation:</strong> {fmtDate(v.date_of_violation)}
+                              </Typography>
+                              {v.notes && (
+                                <Typography variant="body2" sx={{ mb: 1 }}>
+                                  <strong>Notes:</strong> {v.notes}
+                                </Typography>
+                              )}
+                              <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                                {v.violation_status === 'Notice Sent' && (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMarkReceived(v);
+                                    }}
+                                  >
+                                    Mark Response Received
+                                  </Button>
+                                )}
+                                {v.violation_status === 'Response Received' && (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleClose(v.violation_id);
+                                    }}
+                                  >
+                                    Close
+                                  </Button>
+                                )}
+                                {v.recall_id && (
+                                  <Button
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/recalls/${v.recall_id}`);
+                                    }}
+                                  >
+                                    View Recall
+                                  </Button>
+                                )}
+                              </Box>
+                            </Paper>
+                          </Box>
+                        </Collapse>
+                      </TableCell>
+                    </TableRow>
+                  </React.Fragment>
+                );
+              })
             )}
-            {responses.map((r) => (
-              <TableRow key={r.response_id} hover>
-                <TableCell>
-                  <Typography variant="body2" fontWeight={600}>#{r.violation_id}</Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{r.recall_number}</Typography>
-                  <Typography variant="caption" color="text.secondary"
-                    sx={{ display: 'block', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {r.recall_title}
-                  </Typography>
-                </TableCell>
-                <TableCell sx={{ maxWidth: 160 }}>
-                  {r.listing_url ? (
-                    <MuiLink href={r.listing_url} target="_blank" rel="noopener"
-                      sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
-                      {r.listing_marketplace || 'View listing'}
-                    </MuiLink>
-                  ) : <Typography variant="caption" color="text.secondary">—</Typography>}
-                </TableCell>
-                <TableCell>
-                  <Typography variant="caption">{r.seller_name ?? '—'}</Typography>
-                </TableCell>
-                <TableCell sx={{ maxWidth: 220 }}>
-                  <Typography variant="body2"
-                    sx={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
-                          WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                    {r.response_text}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  {r.action_taken
-                    ? <Chip label={ACTION_LABELS[r.action_taken] ?? r.action_taken} size="small" color={actionColor(r.action_taken)} />
-                    : <Typography variant="caption" color="text.secondary">—</Typography>}
-                </TableCell>
-                <TableCell>
-                  <Typography variant="caption">{fmtDate(r.responded_at)}</Typography>
-                </TableCell>
-              </TableRow>
-            ))}
           </TableBody>
         </Table>
       </TableContainer>
 
-      <RecordResponseDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onSave={onResponseRecorded}
-        session={session}
-        openViolations={openViolations}
+      {/* Mark Response Received Dialog */}
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Record Response</DialogTitle>
+        <DialogContent>
+          {dialogViolation && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: 1 }}>
+              Recording response for: <strong>{dialogViolation.listing_title}</strong>
+            </Typography>
+          )}
+          <TextField
+            label="Response Notes"
+            multiline
+            minRows={3}
+            fullWidth
+            value={responseNotes}
+            onChange={(e) => setResponseNotes(e.target.value)}
+            placeholder="What did the seller respond with?"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialogOpen(false)} disabled={responseSaving}>Cancel</Button>
+          <Button variant="contained" onClick={handleSubmitResponse} disabled={responseSaving}>
+            {responseSaving ? 'Saving...' : 'Record Response'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={!!snackbar}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar(null)}
+        message={snackbar}
       />
     </Box>
   );
