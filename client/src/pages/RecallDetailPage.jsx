@@ -28,6 +28,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
 import ListingCard from '../components/ListingCard';
+import DiscoveryPanel from '../components/DiscoveryPanel';
 import AddListingDialog from '../components/AddListingDialog';
 import { statusColor } from '../constants/violations';
 import { VIOLATION_TYPES } from 'shared';
@@ -243,6 +244,7 @@ export default function RecallDetailPage() {
       {/* Tabs */}
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label="Details" />
+        <Tab label="Discovery" />
         <Tab label={`Listings (${listings.length})`} />
         <Tab label={`Violations (${violations.length})`} />
       </Tabs>
@@ -276,8 +278,18 @@ export default function RecallDetailPage() {
         </Paper>
       )}
 
-      {/* Listings tab */}
+      {/* Discovery tab */}
       {tab === 1 && (
+        <Box>
+          <DiscoveryPanel
+            recallId={recall.recall_id}
+            onCreateViolation={openViolationModal}
+          />
+        </Box>
+      )}
+
+      {/* Listings tab */}
+      {tab === 2 && (
         <Box>
           <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
             <Button
@@ -365,7 +377,7 @@ export default function RecallDetailPage() {
       )}
 
       {/* Violations tab */}
-      {tab === 2 && (
+      {tab === 3 && (
         <Box>
           {violations.length === 0 ? (
             <Alert severity="info">
