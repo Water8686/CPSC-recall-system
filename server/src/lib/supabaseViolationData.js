@@ -133,10 +133,12 @@ function mapListingRow(row) {
 const VIOLATION_SELECT = `
   violation_id, listing_id, recall_id, user_id,
   investigator_commentary, violation_status, violation_noticed_at,
-  violation_type, date_of_violation,
+  violation_type, date_of_violation, notice_sent_at,
   recall(recall_number, recall_title, product_name),
   investigator:app_users!violation_user_id_fkey(user_id, full_name, email),
-  listing(listing_url, listing_title, marketplace_id, marketplace(marketplace_name)),
+  listing(listing_url, listing_title, marketplace_id,
+    marketplace(marketplace_name),
+    seller(seller_name, seller_email)),
   contact(contact_id, contact_sent_at, message_summary,
     response(response_id, response_received_at, response_action, response_text,
       adjudication(adjudication_id, outcome, resolution_reason, adjudicated_at)))
@@ -247,6 +249,7 @@ export async function dbUpdateViolationStatus(supabase, violationId, fields) {
   const patch = {};
   if (fields.violation_status !== undefined) patch.violation_status = fields.violation_status;
   if (fields.notes !== undefined) patch.investigator_commentary = fields.notes;
+  if (fields.notice_sent_at !== undefined) patch.notice_sent_at = fields.notice_sent_at;
 
   const { data, error } = await supabase
     .from('violation')
@@ -282,12 +285,14 @@ function mapViolationRow(row) {
     violation_type:       row.violation_type ?? null,
     date_of_violation:    row.date_of_violation ?? null,
     notes:                row.investigator_commentary ?? null,
-    // notice info derived from contact records
-    notice_sent_at:       latestContact?.contact_sent_at ?? null,
+    // notice info — prefer direct column, fall back to contact record
+    notice_sent_at:       row.notice_sent_at ?? latestContact?.contact_sent_at ?? null,
     notice_contact:       latestContact?.message_summary ?? null,
     listing_url:          row.listing?.listing_url ?? null,
     listing_marketplace:  row.listing?.marketplace?.marketplace_name ?? null,
     listing_title:        row.listing?.listing_title ?? null,
+    seller_name:          row.listing?.seller?.seller_name ?? null,
+    seller_email:         row.listing?.seller?.seller_email ?? null,
     response_count:       responses.length,
     latest_response:      latestResponse
       ? {
