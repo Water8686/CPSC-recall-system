@@ -9,25 +9,15 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import ProfilePage from './pages/ProfilePage';
 import DashboardPage from './pages/DashboardPage';
 import RecallsPage from './pages/RecallsPage';
 import RecallDetailPage from './pages/RecallDetailPage';
 import ViolationsPage from './pages/ViolationsPage';
-import CreateViolationPage from './pages/CreateViolationPage';
 import ResponsesPage from './pages/ResponsesPage';
-import AdjudicationsPage from './pages/AdjudicationsPage';
-import InvestigatorsPage from './pages/InvestigatorsPage';
-import UnauthorizedPage from './pages/UnauthorizedPage';
-import AdminUsersPage from './pages/AdminUsersPage';
-import AdminImportPage from './pages/AdminImportPage';
+import SettingsPage from './pages/SettingsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
-import {
-  RECALL_PAGE_ROLES,
-  USER_ROLES,
-  OPERATIONAL_ROLES,
-  INVESTIGATOR_ROLES,
-} from 'shared';
+import UnauthorizedPage from './pages/UnauthorizedPage';
+import { RECALL_PAGE_ROLES, OPERATIONAL_ROLES } from 'shared';
 
 export default function App() {
   return (
@@ -42,7 +32,7 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-            {/* Protected routes — wrapped in Layout (sidebar + topbar) */}
+            {/* Protected routes — wrapped in Layout (top bar + tab bar) */}
             <Route
               element={
                 <ProtectedRoute>
@@ -51,9 +41,9 @@ export default function App() {
               }
             >
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
               <Route path="/unauthorized" element={<UnauthorizedPage />} />
-              {/* Sprint 1 — manager only */}
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
               <Route
                 path="/recalls"
                 element={
@@ -71,23 +61,6 @@ export default function App() {
                 }
               />
               <Route
-                path="/admin/users"
-                element={
-                  <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
-                    <AdminUsersPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/import"
-                element={
-                  <ProtectedRoute allowedRoles={[USER_ROLES.ADMIN]}>
-                    <AdminImportPage />
-                  </ProtectedRoute>
-                }
-              />
-              {/* Sprint 2 — investigators+ (sellers use Dashboard only for these placeholders) */}
-              <Route
                 path="/violations"
                 element={
                   <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
@@ -96,15 +69,6 @@ export default function App() {
                 }
               />
               <Route
-                path="/violations/new"
-                element={
-                  <ProtectedRoute allowedRoles={INVESTIGATOR_ROLES}>
-                    <CreateViolationPage />
-                  </ProtectedRoute>
-                }
-              />
-              {/* Sprint 3 */}
-              <Route
                 path="/responses"
                 element={
                   <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
@@ -112,23 +76,6 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/adjudications"
-                element={
-                  <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
-                    <AdjudicationsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/investigators"
-                element={
-                  <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
-                    <InvestigatorsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="/analytics" element={<AnalyticsPage />} />
             </Route>
 
             {/* Default redirect */}
