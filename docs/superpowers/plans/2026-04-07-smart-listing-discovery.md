@@ -34,7 +34,7 @@
 - Modify: `shared/index.js`
 - Create: `supabase/migrations/20260407160000_discovery_result.sql`
 
-- [ ] **Step 1: Add shared constants to `shared/index.js`**
+- [x] **Step 1: Add shared constants to `shared/index.js`**
 
 Add at the end of the file, before the final re-export line:
 
@@ -53,7 +53,7 @@ export const REVIEW_STATUSES = {
 };
 ```
 
-- [ ] **Step 2: Create the migration file**
+- [x] **Step 2: Create the migration file**
 
 Create `supabase/migrations/20260407160000_discovery_result.sql`:
 
@@ -62,7 +62,7 @@ Create `supabase/migrations/20260407160000_discovery_result.sql`:
 CREATE TABLE IF NOT EXISTS discovery_result (
   discovery_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   recall_id       BIGINT NOT NULL REFERENCES recall(recall_id),
-  user_id         UUID REFERENCES app_users(id),
+  user_id         BIGINT REFERENCES app_users(user_id),
   listing_url     TEXT NOT NULL,
   listing_title   TEXT,
   marketplace     TEXT,
@@ -85,11 +85,11 @@ CREATE INDEX IF NOT EXISTS idx_discovery_recall_searched
   ON discovery_result(recall_id, searched_at DESC);
 ```
 
-- [ ] **Step 3: Apply the migration to Supabase**
+- [x] **Step 3: Apply the migration to Supabase**
 
 Run the migration SQL against the Supabase database using the Supabase MCP tool or directly in the Supabase SQL editor.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add shared/index.js supabase/migrations/20260407160000_discovery_result.sql
@@ -103,19 +103,19 @@ git commit -m "feat: add discovery_result table and shared constants"
 **Files:**
 - Modify: `server/package.json` (via npm install)
 
-- [ ] **Step 1: Install string-similarity for fuzzy matching**
+- [x] **Step 1: Install string-similarity for fuzzy matching**
 
 ```bash
 cd server && npm install string-similarity
 ```
 
-- [ ] **Step 2: Install Firecrawl JS SDK**
+- [x] **Step 2: Install Firecrawl JS SDK**
 
 ```bash
 cd server && npm install @mendable/firecrawl-js
 ```
 
-- [ ] **Step 3: Verify both packages appear in `server/package.json`**
+- [x] **Step 3: Verify both packages appear in `server/package.json`**
 
 ```bash
 grep -E "string-similarity|firecrawl" server/package.json
@@ -123,7 +123,7 @@ grep -E "string-similarity|firecrawl" server/package.json
 
 Expected: both packages listed under `dependencies`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add server/package.json server/package-lock.json
@@ -140,7 +140,7 @@ git commit -m "chore: add string-similarity and firecrawl-js dependencies"
 
 This is pure logic with no external dependencies — ideal for TDD.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `server/src/lib/__tests__/matchScoring.test.js`:
 
@@ -251,7 +251,7 @@ describe('scoreMatch', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd server && npx vitest run src/lib/__tests__/matchScoring.test.js
@@ -259,7 +259,7 @@ cd server && npx vitest run src/lib/__tests__/matchScoring.test.js
 
 Expected: FAIL — module `../matchScoring.js` not found.
 
-- [ ] **Step 3: Implement the scoring module**
+- [x] **Step 3: Implement the scoring module**
 
 Create `server/src/lib/matchScoring.js`:
 
@@ -330,7 +330,7 @@ export function scoreMatch(scraped, recall) {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd server && npx vitest run src/lib/__tests__/matchScoring.test.js
@@ -338,7 +338,7 @@ cd server && npx vitest run src/lib/__tests__/matchScoring.test.js
 
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/src/lib/matchScoring.js server/src/lib/__tests__/matchScoring.test.js
@@ -352,7 +352,7 @@ git commit -m "feat: add weighted fuzzy match scoring module with tests"
 **Files:**
 - Create: `server/src/lib/firecrawlApi.js`
 
-- [ ] **Step 1: Create the Firecrawl extraction module**
+- [x] **Step 1: Create the Firecrawl extraction module**
 
 Create `server/src/lib/firecrawlApi.js`:
 
@@ -422,7 +422,7 @@ export async function scrapeAndExtract(url) {
 }
 ```
 
-- [ ] **Step 2: Manually verify the module loads without syntax errors**
+- [x] **Step 2: Manually verify the module loads without syntax errors**
 
 ```bash
 cd server && node -e "import('./src/lib/firecrawlApi.js').then(() => console.log('OK')).catch(e => console.error(e.message))"
@@ -430,7 +430,7 @@ cd server && node -e "import('./src/lib/firecrawlApi.js').then(() => console.log
 
 Expected: `OK` (or `FIRECRAWL_API_KEY is required` if env var isn't set — both are fine, means the module loads).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add server/src/lib/firecrawlApi.js
@@ -444,7 +444,7 @@ git commit -m "feat: add Firecrawl API module for product extraction"
 **Files:**
 - Create: `server/src/lib/supabaseDiscoveryData.js`
 
-- [ ] **Step 1: Create the discovery data access module**
+- [x] **Step 1: Create the discovery data access module**
 
 Create `server/src/lib/supabaseDiscoveryData.js`:
 
@@ -591,7 +591,7 @@ export async function dbUpdateDiscoveryReview(supabase, discoveryId, fields) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add server/src/lib/supabaseDiscoveryData.js
@@ -606,7 +606,7 @@ git commit -m "feat: add discovery_result data layer (CRUD + cache check)"
 - Create: `server/src/routes/listingDiscovery.js`
 - Modify: `server/src/app.js`
 
-- [ ] **Step 1: Create the discovery route file**
+- [x] **Step 1: Create the discovery route file**
 
 Create `server/src/routes/listingDiscovery.js`:
 
@@ -808,7 +808,7 @@ router.patch('/:discovery_id', requireInvestigatorOrAdmin, async (req, res) => {
 export default router;
 ```
 
-- [ ] **Step 2: Check how `dbResolveAppUserId` is exported**
+- [x] **Step 2: Check how `dbResolveAppUserId` is exported**
 
 Before the route file will work, verify that `dbResolveAppUserId` is exported from the middleware file. Read `server/src/middleware/requireCpscManager.js` and check for the export. If it's not exported from there, find where it lives and update the import in the route file accordingly.
 
@@ -819,7 +819,7 @@ The function resolves the app_users UUID from the JWT user object. If it doesn't
 const userId = req.user?.id ?? null;
 ```
 
-- [ ] **Step 3: Register the route in `server/src/app.js`**
+- [x] **Step 3: Register the route in `server/src/app.js`**
 
 Add the import at the top of `server/src/app.js` with the other route imports:
 
@@ -833,7 +833,7 @@ Add the route registration after the `listingSearchRoutes` line (line 51):
 app.use('/api/discovery', listingDiscoveryRoutes);
 ```
 
-- [ ] **Step 4: Verify the server starts without errors**
+- [x] **Step 4: Verify the server starts without errors**
 
 ```bash
 cd server && node -e "import('./src/app.js').then(m => { const app = m.createApp(); console.log('Server app created OK'); }).catch(e => console.error(e))"
@@ -841,7 +841,7 @@ cd server && node -e "import('./src/app.js').then(m => { const app = m.createApp
 
 Expected: `Server app created OK`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/src/routes/listingDiscovery.js server/src/app.js
@@ -855,7 +855,7 @@ git commit -m "feat: add discovery API routes and register in app"
 **Files:**
 - Create: `client/src/components/DiscoveryPanel.jsx`
 
-- [ ] **Step 1: Create the DiscoveryPanel component**
+- [x] **Step 1: Create the DiscoveryPanel component**
 
 Create `client/src/components/DiscoveryPanel.jsx`:
 
@@ -1219,7 +1219,7 @@ export default function DiscoveryPanel({ recallId, onCreateViolation }) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add client/src/components/DiscoveryPanel.jsx
@@ -1233,7 +1233,7 @@ git commit -m "feat: add DiscoveryPanel component for listing discovery UI"
 **Files:**
 - Modify: `client/src/pages/RecallDetailPage.jsx`
 
-- [ ] **Step 1: Add the DiscoveryPanel import**
+- [x] **Step 1: Add the DiscoveryPanel import**
 
 Add this import at the top of `RecallDetailPage.jsx`, after the existing component imports:
 
@@ -1241,7 +1241,7 @@ Add this import at the top of `RecallDetailPage.jsx`, after the existing compone
 import DiscoveryPanel from '../components/DiscoveryPanel';
 ```
 
-- [ ] **Step 2: Add a Discovery tab**
+- [x] **Step 2: Add a Discovery tab**
 
 Change the Tabs section (around line 244) to add a 4th tab:
 
@@ -1264,7 +1264,7 @@ With:
 </Tabs>
 ```
 
-- [ ] **Step 3: Add the Discovery tab panel**
+- [x] **Step 3: Add the Discovery tab panel**
 
 Insert a new tab panel block after the Details tab (`{tab === 0 && ...}`) and before the Listings tab. Since a new tab was inserted at index 1, update the existing tab indices:
 
@@ -1287,15 +1287,15 @@ Add the Discovery panel between Details and Listings:
 )}
 ```
 
-- [ ] **Step 4: Update the Listings tab index**
+- [x] **Step 4: Update the Listings tab index**
 
 Change `{tab === 1 && (` to `{tab === 2 && (` for the Listings tab section.
 
-- [ ] **Step 5: Update the Violations tab index**
+- [x] **Step 5: Update the Violations tab index**
 
 Change `{tab === 2 && (` to `{tab === 3 && (` for the Violations tab section.
 
-- [ ] **Step 6: Verify the app builds**
+- [x] **Step 6: Verify the app builds**
 
 ```bash
 cd client && npm run build
@@ -1303,7 +1303,7 @@ cd client && npm run build
 
 Expected: Build completes with no errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add client/src/pages/RecallDetailPage.jsx

@@ -25,7 +25,7 @@ Add an automated listing discovery pipeline that combines SerpAPI (marketplace s
 ### Flow
 
 1. Investigator clicks "Search for Listings" on a recall detail page
-2. Frontend sends `POST /api/listing-search/discover` with the recall ID
+2. Frontend sends `POST /api/discovery/search` with the recall ID (JSON body `{ recall_id }`; optional `?force=true` to bypass cache)
 3. Server fetches recall data (product name, manufacturer, model number)
 4. Server checks cache — if this recall was searched within the last 7 days, return cached results (unless `?force=true`)
 5. Server builds a search query and calls SerpAPI (Google Shopping)
@@ -47,7 +47,7 @@ Before calling SerpAPI, check if this recall was already searched within the las
 |---|---|---|
 | `discovery_id` | UUID (PK, default gen_random_uuid()) | Unique result ID |
 | `recall_id` | BIGINT (FK → recall) | Links to the recall being investigated |
-| `user_id` | UUID (FK → app_users) | Investigator who ran the search |
+| `user_id` | BIGINT (FK → app_users.user_id) | Investigator who ran the search |
 | `listing_url` | TEXT NOT NULL | URL of the discovered listing |
 | `listing_title` | TEXT | Title from the marketplace |
 | `marketplace` | TEXT | Detected marketplace (Amazon, eBay, Walmart, etc.) |
@@ -99,21 +99,21 @@ The server sends each candidate URL to Firecrawl's LLM extraction mode with a sc
 
 ### New route file: `server/src/routes/listingDiscovery.js`
 
-#### POST `/api/listing-search/discover`
+#### POST `/api/discovery/search`
 
 - **Auth:** `requireInvestigatorOrAdmin`
 - **Body:** `{ recall_id }`
 - **Query:** `?force=true` bypasses 7-day cache
 - **Behavior:** Checks cache → runs SerpAPI → Firecrawl each URL → scores → saves to `discovery_result` → returns results
-- **Returns:** Array of discovery result objects with confidence tiers
+- **Returns:** JSON with `results` array, plus `cached` / `cached_at` when served from cache
 
-#### GET `/api/listing-search/discover/:recall_id`
+#### GET `/api/discovery/:recall_id`
 
 - **Auth:** `requireInvestigatorOrAdmin`
 - **Returns:** All discovery results for the given recall
 - **Query filters:** `?review_status=Pending Review&confidence_tier=High`
 
-#### PATCH `/api/listing-search/discover/:discovery_id`
+#### PATCH `/api/discovery/:discovery_id`
 
 - **Auth:** `requireInvestigatorOrAdmin`
 - **Body:** `{ review_status, reviewer_notes }`
