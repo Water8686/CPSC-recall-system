@@ -11,6 +11,9 @@ import {
   Alert,
   Chip,
   Grid,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -25,6 +28,7 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
 import ListingCard from '../components/ListingCard';
@@ -39,6 +43,7 @@ export default function RecallDetailPage() {
   const { session } = useAuth();
 
   const [recall, setRecall] = useState(null);
+  const recallPk = recall ? Number(recall.id) : null;
   const [listings, setListings] = useState([]);
   const [violations, setViolations] = useState([]);
   const [tab, setTab] = useState(0);
@@ -83,7 +88,7 @@ export default function RecallDetailPage() {
           listing_id: violationListing.listing_id,
           violation_type: violationType,
           date_of_violation: violationDate,
-          recall_id: recall.recall_id,
+          recall_id: recallPk,
           notes: violationNotes.trim() || null,
         }),
       });
@@ -108,8 +113,11 @@ export default function RecallDetailPage() {
         const recallData = await recallRes.json();
         setRecall(recallData);
 
+        const recallPk = recallData ? Number(recallData.id) : null;
+        if (!Number.isFinite(recallPk)) throw new Error('Invalid recall id');
+
         const listingsRes = await apiFetch(
-          `/api/listings?recall_id=${recallData.recall_id}`,
+          `/api/listings?recall_id=${recallPk}`,
           session,
         );
         if (listingsRes.ok) {
@@ -121,7 +129,7 @@ export default function RecallDetailPage() {
           const allViolations = await violationsRes.json();
           setViolations(
             allViolations.filter(
-              (v) => v.recall_id === recallData.recall_id,
+              (v) => v.recall_id === recallPk,
             ),
           );
         }
@@ -143,7 +151,7 @@ export default function RecallDetailPage() {
       const res = await apiFetch(endpoint, session, {
         method: 'POST',
         body: JSON.stringify({
-          recall_id: recall.recall_id,
+          recall_id: recallPk,
           query: recall.product_name || recall.recall_title,
         }),
       });
@@ -167,7 +175,7 @@ export default function RecallDetailPage() {
       const res = await apiFetch('/api/listings', session, {
         method: 'POST',
         body: JSON.stringify({
-          recall_id: recall.recall_id,
+          recall_id: recallPk,
           url: result.url,
           marketplace: result.marketplace,
           title: result.title,
@@ -244,7 +252,6 @@ export default function RecallDetailPage() {
       {/* Tabs */}
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label="Details" />
-        <Tab label="Discovery" />
         <Tab label={`Listings (${listings.length})`} />
         <Tab label={`Violations (${violations.length})`} />
       </Tabs>
@@ -279,38 +286,18 @@ export default function RecallDetailPage() {
         </Paper>
       )}
 
-      {/* Discovery tab */}
+      {/* Listings tab */}
       {tab === 1 && (
         <Box>
           <DiscoveryPanel
-            recallId={recall.recall_id}
+            recallId={recallPk}
             onCreateViolation={openViolationModal}
           />
-        </Box>
-      )}
 
-      {/* Listings tab */}
-      {tab === 2 && (
-        <Box>
-          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-            <Button
-              variant="outlined"
-              startIcon={<SearchIcon />}
-              onClick={() => handleSearch('/api/listings/search/ebay')}
-              disabled={searching}
-              sx={{ borderColor: '#bbdefb', color: '#0D47A1', bgcolor: '#e3f2fd' }}
-            >
-              Search eBay
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<SearchIcon />}
-              onClick={() => handleSearch('/api/listings/search/serpapi')}
-              disabled={searching}
-              sx={{ borderColor: '#ffcc80', color: '#e65100', bgcolor: '#fff3e0' }}
-            >
-              Search Marketplaces
-            </Button>
+          <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ flex: 1, minWidth: 220 }}>
+              Saved listings
+            </Typography>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -320,38 +307,62 @@ export default function RecallDetailPage() {
             </Button>
           </Box>
 
-          {searchError && <Alert severity="warning" sx={{ mb: 2 }}>{searchError}</Alert>}
-          {searching && <CircularProgress sx={{ display: 'block', mx: 'auto', my: 2 }} />}
-
-          {searchResults.length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-                Search Results — click Add to save
+          <Accordion variant="outlined" sx={{ mb: 2 }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography variant="body2" fontWeight={600}>
+                More search options
               </Typography>
-              {searchResults.map((r, i) => (
-                <Paper
-                  key={r.url || i}
-                  sx={{ p: 2, mb: 1, display: 'flex', alignItems: 'center', gap: 2 }}
+            </AccordionSummary>
+            <AccordionDetails>
+              <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<SearchIcon />}
+                  onClick={() => handleSearch('/api/listings/search/ebay')}
+                  disabled={searching}
+                  sx={{ borderColor: '#bbdefb', color: '#0D47A1', bgcolor: '#e3f2fd' }}
                 >
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography fontWeight={600} noWrap>
-                      {r.title || 'Untitled'}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {r.marketplace} {r.price ? `\u00b7 $${r.price}` : '\u00b7 Price N/A'}
-                    </Typography>
-                  </Box>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => handleAddSearchResult(r)}
-                  >
-                    Add
-                  </Button>
-                </Paper>
-              ))}
-            </Box>
-          )}
+                  Search eBay (API)
+                </Button>
+                <Typography variant="caption" color="text.secondary">
+                  This is optional and does not run verification.
+                </Typography>
+              </Box>
+
+              {searchError && <Alert severity="warning" sx={{ mb: 2 }}>{searchError}</Alert>}
+              {searching && <CircularProgress sx={{ display: 'block', mx: 'auto', my: 2 }} />}
+
+              {searchResults.length > 0 && (
+                <Box sx={{ mb: 1 }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                    Search Results — click Add to save
+                  </Typography>
+                  {searchResults.map((r, i) => (
+                    <Paper
+                      key={r.url || i}
+                      sx={{ p: 2, mb: 1, display: 'flex', alignItems: 'center', gap: 2 }}
+                    >
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography fontWeight={600} noWrap>
+                          {r.title || 'Untitled'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {r.marketplace} {r.price ? `\u00b7 $${r.price}` : '\u00b7 Price N/A'}
+                        </Typography>
+                      </Box>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleAddSearchResult(r)}
+                      >
+                        Add
+                      </Button>
+                    </Paper>
+                  ))}
+                </Box>
+              )}
+            </AccordionDetails>
+          </Accordion>
 
           {listings.length === 0 && !searching && (
             <Alert severity="info">
@@ -371,14 +382,14 @@ export default function RecallDetailPage() {
           <AddListingDialog
             open={addListingOpen}
             onClose={() => setAddListingOpen(false)}
-            recallId={recall.recall_id}
+            recallId={recallPk}
             onListingAdded={handleListingAdded}
           />
         </Box>
       )}
 
       {/* Violations tab */}
-      {tab === 3 && (
+      {tab === 2 && (
         <Box>
           {violations.length === 0 ? (
             <Alert severity="info">
