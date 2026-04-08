@@ -40,7 +40,7 @@ router.post('/search', requireInvestigatorOrAdmin, async (req, res) => {
     // Fetch recall data for building the search query
     const { data: recall, error: recallError } = await req.supabase
       .from('recall')
-      .select('product_name, recall_title, manufacturer, model_number')
+      .select('product_name, recall_title, manufacturer')
       .eq('recall_id', recallId)
       .maybeSingle();
 
@@ -48,7 +48,7 @@ router.post('/search', requireInvestigatorOrAdmin, async (req, res) => {
     if (!recall) return res.status(404).json({ error: `Recall ${recallId} not found` });
 
     // Build search query from recall fields
-    const queryParts = [recall.product_name || recall.recall_title, recall.manufacturer, recall.model_number]
+    const queryParts = [recall.product_name || recall.recall_title, recall.manufacturer]
       .filter(Boolean)
       .map((s) => String(s).trim())
       .filter((s) => s.length > 0);
@@ -78,7 +78,6 @@ router.post('/search', requireInvestigatorOrAdmin, async (req, res) => {
     const recallData = {
       product_name: recall.product_name || recall.recall_title,
       manufacturer: recall.manufacturer,
-      model_number: recall.model_number ?? null,
     };
 
     for (const result of serpResults) {
