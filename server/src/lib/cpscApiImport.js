@@ -97,6 +97,7 @@ export function mapCpscJsonItemToRecallRecord(item) {
     retailer: trimToMax(firstNonEmptyStringFromArray(item.Retailers, 'Name'), V255),
     upc: trimToMax(firstNonEmptyStringFromArray(item.ProductUPCs, 'UPC'), V255),
     product_name: trimToMax(firstNonEmptyStringFromArray(item.Products, 'Name'), V255),
+    model_number: trimToMax(firstNonEmptyStringFromArray(item.Products, 'Model'), V255),
     product_type:
       trimToMax(
         firstNonEmptyStringFromArray(item.Products, 'Type') ??

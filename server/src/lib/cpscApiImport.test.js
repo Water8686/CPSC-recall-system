@@ -23,13 +23,14 @@ describe('mapCpscJsonItemToRecallRecord', () => {
       Title: 'Test recall title',
       RecallDate: '2024-01-25T00:00:00',
       LastPublishDate: '2024-01-25T00:00:00',
-      Products: [{ Name: 'Widget', Type: 'Toys' }],
+      Products: [{ Name: 'Widget', Type: 'Toys', Model: 'GKW70' }],
       Hazards: [{ Name: 'Fire hazard' }],
       Images: [{ URL: 'https://example.com/x.png' }],
     });
     expect(rec.recall_number).toBe('24-090');
     expect(rec.recall_title).toBe('Test recall title');
     expect(rec.product_name).toBe('Widget');
+    expect(rec.model_number).toBe('GKW70');
     expect(rec.hazard).toBe('Fire hazard');
     expect(rec.image_url).toBe('https://example.com/x.png');
   });

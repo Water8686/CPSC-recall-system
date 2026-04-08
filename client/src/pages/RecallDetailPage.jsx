@@ -263,11 +263,14 @@ export default function RecallDetailPage() {
             {[
               ['Product', recall.product_name],
               ['Manufacturer', recall.manufacturer],
+              ['Model Number', recall.model_number],
               ['Hazard', recall.hazard],
               ['Remedy', recall.remedy],
               ['Units', recall.number_of_units],
               ['UPC', recall.upc],
               ['Recall Date', recall.recall_date ? new Date(recall.recall_date).toLocaleDateString() : null],
+              ['Last Publish Date', recall.last_publish_date ? new Date(recall.last_publish_date).toLocaleDateString() : null],
+              ['Recall URL', recall.recall_url],
               ['Added to System', recall.added_at ? new Date(recall.added_at).toLocaleDateString() : null],
               ['Description', recall.recall_description],
             ]
@@ -278,7 +281,13 @@ export default function RecallDetailPage() {
                     {label.toUpperCase()}
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 0.5 }}>
-                    {value}
+                    {label === 'Recall URL' ? (
+                      <a href={String(value)} target="_blank" rel="noreferrer">
+                        {String(value)}
+                      </a>
+                    ) : (
+                      value
+                    )}
                   </Typography>
                 </Grid>
               ))}
