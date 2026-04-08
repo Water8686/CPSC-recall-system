@@ -226,8 +226,28 @@ export default function RecallDetailPage() {
 
       {/* Recall header */}
       <Paper sx={{ p: 3, mb: 2, bgcolor: '#e3f2fd', borderColor: '#bbdefb' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-          <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'start', minWidth: 0 }}>
+            {recall.image_url && (
+              <Box
+                component="img"
+                src={recall.image_url}
+                alt={recall.product_name || recall.recall_title || 'Recall image'}
+                loading="lazy"
+                sx={{
+                  width: 96,
+                  height: 96,
+                  objectFit: 'cover',
+                  borderRadius: 2,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                  flexShrink: 0,
+                }}
+              />
+            )}
+
+            <Box sx={{ minWidth: 0 }}>
             <Typography variant="caption" fontWeight={700} color="primary">
               RECALL #{recall.recall_number || recall.recall_id}
             </Typography>
@@ -237,6 +257,7 @@ export default function RecallDetailPage() {
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               {[recall.manufacturer, recall.number_of_units ? `${recall.number_of_units} units` : null, recall.recall_date ? `Recalled ${new Date(recall.recall_date).toLocaleDateString()}` : null].filter(Boolean).join(' \u00b7 ')}
             </Typography>
+          </Box>
           </Box>
           <Box sx={{ textAlign: 'right' }}>
             <Typography variant="h4" fontWeight={700} color="error.main">
