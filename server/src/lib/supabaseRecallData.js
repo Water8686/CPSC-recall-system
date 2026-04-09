@@ -170,7 +170,48 @@ export async function dbFetchRecallDetailByRecallNumber(supabase, recallNumber) 
 
   if (error) throw new Error(error.message);
   if (!data) return null;
-  return mapRecallDetailRow(data);
+  const base = mapRecallDetailRow(data);
+  const recallPk = data.recall_id;
+
+  const [{ data: prioRow, error: prioErr }, { data: asgRow, error: asgErr }] =
+    await Promise.all([
+      supabase
+        .from('prioritization')
+        .select('priority_rank, prioritized_at')
+        .eq('recall_id', recallPk)
+        .order('prioritized_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('recall_assignment')
+        .select('investigator_user_id, assigned_at')
+        .eq('recall_id', recallPk)
+        .maybeSingle(),
+    ]);
+
+  if (prioErr) console.warn('dbFetchRecallDetailByRecallNumber prioritization:', prioErr.message);
+  if (asgErr) console.warn('dbFetchRecallDetailByRecallNumber assignment:', asgErr.message);
+
+  let investigator_name = null;
+  const invId = asgRow?.investigator_user_id;
+  if (invId != null) {
+    const { data: invUser, error: invErr } = await supabase
+      .from('app_users')
+      .select('full_name, email')
+      .eq('user_id', invId)
+      .maybeSingle();
+    if (invErr) console.warn('dbFetchRecallDetailByRecallNumber app_users:', invErr.message);
+    investigator_name =
+      (invUser?.full_name && String(invUser.full_name).trim()) || invUser?.email || null;
+  }
+
+  return {
+    ...base,
+    priority: prioRow ? priorityLabelFromRank(prioRow.priority_rank) : null,
+    investigator_user_id: invId != null ? Number(invId) : null,
+    investigator_name,
+    assignment_assigned_at: asgRow?.assigned_at ?? null,
+  };
 }
 
 export async function dbFetchPrioritizations(supabase) {

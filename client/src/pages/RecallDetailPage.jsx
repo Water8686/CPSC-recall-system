@@ -35,12 +35,25 @@ import ListingCard from '../components/ListingCard';
 import DiscoveryPanel from '../components/DiscoveryPanel';
 import AddListingDialog from '../components/AddListingDialog';
 import { statusColor } from '../constants/violations';
-import { VIOLATION_TYPES } from 'shared';
+import { getPriorityBgColor } from '../constants/priorities';
+import {
+  VIOLATION_TYPES,
+  PRIORITY_LEVELS,
+  canAccessManagerFeatures,
+  normalizeAppRole,
+} from 'shared';
+
+const ASSIGNABLE_ROLES = new Set(['admin', 'manager', 'investigator']);
 
 export default function RecallDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const { session, profile, user } = useAuth();
+  const role = normalizeAppRole(
+    profile,
+    user?.user_metadata?.role ?? user?.app_metadata?.role,
+  );
+  const canManageTriage = canAccessManagerFeatures(role);
 
   const [recall, setRecall] = useState(null);
   const recallPk = recall ? Number(recall.id) : null;
@@ -64,6 +77,12 @@ export default function RecallDetailPage() {
   const [violationSaving, setViolationSaving] = useState(false);
   const [violationError, setViolationError] = useState(null);
   const [snackbar, setSnackbar] = useState(null);
+
+  const [assignableUsers, setAssignableUsers] = useState([]);
+  const [priorityDraft, setPriorityDraft] = useState('');
+  const [investigatorDraft, setInvestigatorDraft] = useState('');
+  const [triageSaving, setTriageSaving] = useState(false);
+  const [triageError, setTriageError] = useState(null);
 
   function openViolationModal(listing) {
     setViolationListing(listing);
@@ -141,6 +160,112 @@ export default function RecallDetailPage() {
     }
     fetchData();
   }, [id, session]);
+
+  useEffect(() => {
+    if (!recall) return;
+    setPriorityDraft(recall.priority || '');
+    setInvestigatorDraft(
+      recall.investigator_user_id != null ? String(recall.investigator_user_id) : '',
+    );
+    setTriageError(null);
+  }, [recall?.recall_id, recall?.priority, recall?.investigator_user_id]);
+
+  useEffect(() => {
+    if (!canManageTriage || !session) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/users', session);
+        if (!res.ok || cancelled) return;
+        const rows = await res.json();
+        if (cancelled) return;
+        setAssignableUsers(
+          (rows ?? []).filter(
+            (u) => u.approved !== false && ASSIGNABLE_ROLES.has(u.role),
+          ),
+        );
+      } catch {
+        /* non-fatal */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canManageTriage, session]);
+
+  async function handleSaveTriage() {
+    if (!recall) return;
+    const recallNum = recall.recall_id;
+    if (!priorityDraft) {
+      setTriageError('Choose a priority to save triage.');
+      return;
+    }
+    const curPrio = recall.priority || '';
+    const curInv = recall.investigator_user_id;
+    const newInv =
+      investigatorDraft === '' ? null : Number.parseInt(investigatorDraft, 10);
+    if (investigatorDraft === '' && curInv != null) {
+      setTriageError(
+        'Pick an investigator to reassign. Clearing an assignment is not supported yet.',
+      );
+      return;
+    }
+    const needPrio = priorityDraft !== curPrio;
+    const needAsg =
+      newInv != null &&
+      Number.isFinite(newInv) &&
+      newInv !== Number(curInv);
+
+    if (!needPrio && !needAsg) {
+      setSnackbar('No changes to save');
+      return;
+    }
+
+    setTriageSaving(true);
+    setTriageError(null);
+    try {
+      if (needPrio) {
+        const res = await apiFetch('/api/prioritizations', session, {
+          method: 'POST',
+          body: JSON.stringify({ recall_id: recallNum, priority: priorityDraft }),
+        });
+        if (!res.ok) throw new Error(await getApiErrorMessage(res));
+        const p = await res.json();
+        setRecall((prev) => (prev ? { ...prev, priority: p.priority } : prev));
+      }
+      if (needAsg) {
+        const res = await apiFetch('/api/assignments', session, {
+          method: 'POST',
+          body: JSON.stringify({
+            recall_id: recallNum,
+            investigator_user_id: newInv,
+          }),
+        });
+        if (!res.ok) throw new Error(await getApiErrorMessage(res));
+        const a = await res.json();
+        const picked = assignableUsers.find(
+          (u) => Number(u.user_id) === Number(a.investigator_user_id),
+        );
+        setRecall((prev) =>
+          prev
+            ? {
+                ...prev,
+                investigator_user_id: a.investigator_user_id,
+                investigator_name:
+                  (picked?.full_name && String(picked.full_name).trim()) ||
+                  picked?.email ||
+                  prev.investigator_name,
+              }
+            : prev,
+        );
+      }
+      setSnackbar('Priority and assignment updated');
+    } catch (err) {
+      setTriageError(err.message);
+    } finally {
+      setTriageSaving(false);
+    }
+  }
 
   async function handleSearch(endpoint) {
     if (!recall) return;
@@ -259,15 +384,105 @@ export default function RecallDetailPage() {
             </Typography>
           </Box>
           </Box>
-          <Box sx={{ textAlign: 'right' }}>
+          <Box sx={{ textAlign: 'right', minWidth: 140 }}>
             <Typography variant="h4" fontWeight={700} color="error.main">
               {listings.length}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" display="block">
               Active Listings
             </Typography>
+            <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.75 }}>
+              <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                Priority
+              </Typography>
+              {recall.priority ? (
+                <Chip
+                  label={recall.priority}
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    ...getPriorityBgColor(recall.priority),
+                    fontWeight: 600,
+                  }}
+                />
+              ) : (
+                <Typography variant="caption" color="text.secondary">
+                  Not set
+                </Typography>
+              )}
+              <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mt: 0.5 }}>
+                Investigator
+              </Typography>
+              <Typography variant="body2" fontWeight={500} sx={{ maxWidth: 200, textAlign: 'right' }}>
+                {recall.investigator_name ||
+                  (recall.investigator_user_id != null
+                    ? `User #${recall.investigator_user_id}`
+                    : 'Unassigned')}
+              </Typography>
+            </Box>
           </Box>
         </Box>
+
+        {canManageTriage && (
+          <Box
+            sx={{
+              mt: 2,
+              pt: 2,
+              borderTop: '1px solid',
+              borderColor: 'divider',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 2,
+              alignItems: 'flex-end',
+            }}
+          >
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>Set priority</InputLabel>
+              <Select
+                label="Set priority"
+                value={priorityDraft}
+                onChange={(e) => setPriorityDraft(e.target.value)}
+              >
+                <MenuItem value="">
+                  <em>Select priority</em>
+                </MenuItem>
+                <MenuItem value={PRIORITY_LEVELS.HIGH}>{PRIORITY_LEVELS.HIGH}</MenuItem>
+                <MenuItem value={PRIORITY_LEVELS.MEDIUM}>{PRIORITY_LEVELS.MEDIUM}</MenuItem>
+                <MenuItem value={PRIORITY_LEVELS.LOW}>{PRIORITY_LEVELS.LOW}</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 220 }}>
+              <InputLabel>Assign investigator</InputLabel>
+              <Select
+                label="Assign investigator"
+                value={investigatorDraft}
+                onChange={(e) => setInvestigatorDraft(e.target.value)}
+                displayEmpty
+              >
+                <MenuItem value="">
+                  <em>No investigator</em>
+                </MenuItem>
+                {assignableUsers.map((u) => (
+                  <MenuItem key={u.user_id} value={String(u.user_id)}>
+                    {(u.full_name && u.full_name.trim()) || u.email || `User ${u.user_id}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Button
+              variant="contained"
+              onClick={handleSaveTriage}
+              disabled={triageSaving || !priorityDraft}
+            >
+              {triageSaving ? 'Saving…' : 'Save triage'}
+            </Button>
+            {triageError && (
+              <Typography variant="caption" color="error" sx={{ width: '100%' }}>
+                {triageError}
+              </Typography>
+            )}
+          </Box>
+        )}
       </Paper>
 
       {/* Tabs */}

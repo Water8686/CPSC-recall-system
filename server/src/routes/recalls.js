@@ -2,6 +2,8 @@ import { Router } from 'express';
 import {
   getAllRecalls,
   getRecallByRecallId,
+  getPrioritizationByRecallId,
+  getAssignmentByRecallId,
   normalizeRecallDetailShape,
   updateRecallByRecallId,
   deleteRecallByRecallId,
@@ -42,7 +44,15 @@ router.get('/:id', requireRealAuth, async (req, res) => {
     if (!recall) {
       return res.status(404).json({ error: 'Recall not found' });
     }
-    return res.json(normalizeRecallDetailShape(recall));
+    const prior = getPrioritizationByRecallId(id);
+    const asg = getAssignmentByRecallId(id);
+    return res.json({
+      ...normalizeRecallDetailShape(recall),
+      priority: prior?.priority ?? null,
+      investigator_user_id: asg?.investigator_user_id ?? null,
+      investigator_name: asg?.investigator_user_id != null ? `User ${asg.investigator_user_id}` : null,
+      assignment_assigned_at: asg?.assigned_at ?? null,
+    });
   }
   if (!req.supabase) {
     return res.status(503).json({ error: 'Database client not available' });
