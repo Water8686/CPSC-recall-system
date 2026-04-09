@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { applyApiMockUser, requireInvestigatorOrAdmin } from '../middleware/requireCpscManager.js';
-import { searchSerpApi } from '../lib/serpApi.js';
+import { searchSerpApi, searchEbay } from '../lib/serpApi.js';
 import { scrapeAndExtract } from '../lib/firecrawlApi.js';
 import { scoreMatch } from '../lib/matchScoring.js';
 import {
@@ -47,21 +47,54 @@ router.post('/search', requireInvestigatorOrAdmin, async (req, res) => {
     if (recallError) throw recallError;
     if (!recall) return res.status(404).json({ error: `Recall ${recallId} not found` });
 
-    // Build search query from recall fields.
-    // Prefer UPC when available — it's a definitive product identifier and yields
-    // very precise Google Shopping results. Otherwise fall back to text fields.
-    const query = recall.upc
-      ? String(recall.upc).trim()
-      : [recall.product_name || recall.recall_title, recall.manufacturer, recall.model_number]
-          .filter(Boolean)
-          .map((s) => String(s).trim())
-          .filter((s) => s.length > 0)
-          .join(' ');
+    // Build a precise search query.
+    // Priority: UPC (definitive) > quoted brand + model (exact phrase) > quoted brand + name
+    // Quoting ensures Google Shopping anchors to the specific brand/model rather than
+    // matching on generic product-type words like "spiral tower".
+    let shoppingQuery;
+    if (recall.upc) {
+      shoppingQuery = String(recall.upc).trim();
+    } else if (recall.model_number) {
+      const parts = [];
+      if (recall.manufacturer) parts.push(`"${recall.manufacturer}"`);
+      parts.push(`"${recall.model_number}"`);
+      shoppingQuery = parts.join(' ');
+    } else {
+      const name = (recall.product_name || recall.recall_title || '').trim();
+      shoppingQuery = recall.manufacturer ? `"${recall.manufacturer}" ${name}` : name;
+    }
 
-    // Run SerpAPI search
+    // eBay query — recalled products are often removed from Amazon/Walmart but
+    // continue to be listed on eBay. Use model number or brand + name (no quotes;
+    // eBay's keyword search is less sensitive to exact phrase syntax).
+    const ebayQuery = recall.model_number
+      ? `${recall.manufacturer || ''} ${recall.model_number}`.trim()
+      : `${recall.manufacturer || ''} ${recall.product_name || recall.recall_title || ''}`.trim();
+
+    // Run Google Shopping + eBay searches in parallel
     let serpResults;
     try {
-      serpResults = await searchSerpApi(query);
+      const [shoppingResults, ebayResults] = await Promise.allSettled([
+        searchSerpApi(shoppingQuery, 10),
+        searchEbay(ebayQuery, 10),
+      ]);
+
+      const shopping = shoppingResults.status === 'fulfilled' ? shoppingResults.value : [];
+      const ebay    = ebayResults.status    === 'fulfilled' ? ebayResults.value    : [];
+      if (shoppingResults.status === 'rejected') {
+        console.warn('Google Shopping search failed:', shoppingResults.reason?.message);
+      }
+      if (ebayResults.status === 'rejected') {
+        console.warn('eBay search failed:', ebayResults.reason?.message);
+      }
+
+      // Merge + deduplicate by URL
+      const seen = new Set();
+      serpResults = [...shopping, ...ebay].filter((r) => {
+        if (!r.url || seen.has(r.url)) return false;
+        seen.add(r.url);
+        return true;
+      });
     } catch (err) {
       if (err.message?.includes('SERPAPI_KEY')) {
         return res.json({
@@ -73,10 +106,30 @@ router.post('/search', requireInvestigatorOrAdmin, async (req, res) => {
       throw err;
     }
 
+    if (serpResults.length === 0) {
+      return res.json({ recall_id: recallId, cached: false, results: [] });
+    }
+
     // Resolve the user ID for saving results
     const userId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);
 
-    // Scrape each result and score it — up to 5 concurrent Firecrawl requests
+    // Pre-filter: if we know the manufacturer, skip Firecrawl for any result whose
+    // SerpAPI title shares no significant word with the manufacturer name.
+    // This avoids burning Firecrawl credits on obviously wrong results (e.g. a generic
+    // "Kids Stacking Tower" when the brand is "Beestech").
+    const brandWords = recall.manufacturer
+      ? recall.manufacturer.toLowerCase().replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter((w) => w.length > 2)
+      : [];
+
+    function titleLikelyMatchesBrand(title) {
+      if (brandWords.length === 0) return true;
+      const t = title.toLowerCase();
+      return brandWords.some((w) => t.includes(w));
+    }
+
+    // Scrape each result and score it — up to 5 concurrent Firecrawl requests.
+    // Results whose title has no brand overlap are scored from the SerpAPI title alone
+    // (no Firecrawl call) to conserve API credits.
     const SCRAPE_CONCURRENCY = 5;
     const recallData = {
       product_name: recall.product_name || recall.recall_title,
@@ -84,13 +137,21 @@ router.post('/search', requireInvestigatorOrAdmin, async (req, res) => {
       model_number: recall.model_number ?? null,
     };
 
+    // Partition: only scrape results that plausibly mention the brand
+    const toScrape    = serpResults.filter((r) => titleLikelyMatchesBrand(r.title));
+    const skipScrape  = serpResults.filter((r) => !titleLikelyMatchesBrand(r.title));
+
+    if (skipScrape.length > 0) {
+      console.log(`Discovery: skipping Firecrawl for ${skipScrape.length} result(s) with no brand overlap`);
+    }
+
     // Worker-pool pattern: N workers pull from a shared index, preserving result order
-    const scrapeOutcomes = new Array(serpResults.length);
+    const scrapeOutcomes = new Array(toScrape.length);
     let scrapeIdx = 0;
     async function scrapeWorker() {
-      while (scrapeIdx < serpResults.length) {
+      while (scrapeIdx < toScrape.length) {
         const i = scrapeIdx++;
-        const result = serpResults[i];
+        const result = toScrape[i];
         try {
           scrapeOutcomes[i] = { ok: true, data: await scrapeAndExtract(result.url) };
         } catch (err) {
@@ -100,11 +161,13 @@ router.post('/search', requireInvestigatorOrAdmin, async (req, res) => {
       }
     }
     await Promise.all(
-      Array.from({ length: Math.min(SCRAPE_CONCURRENCY, serpResults.length) }, scrapeWorker),
+      Array.from({ length: Math.min(SCRAPE_CONCURRENCY, toScrape.length) }, scrapeWorker),
     );
 
     let scrapeFailures = 0;
-    const scoredResults = serpResults.map((result, i) => {
+
+    // Score scraped results
+    const scoredScraped = toScrape.map((result, i) => {
       const outcome = scrapeOutcomes[i];
       if (!outcome.ok) scrapeFailures++;
       const scraped = outcome.data;
@@ -123,6 +186,27 @@ router.post('/search', requireInvestigatorOrAdmin, async (req, res) => {
         confidence_score: scored.score,
       };
     });
+
+    // Score skipped results using only the SerpAPI title (no Firecrawl data)
+    const scoredSkipped = skipScrape.map((result) => {
+      const scraped = { product_name: result.title || null };
+      const scored = scoreMatch(scraped, recallData);
+      return {
+        recall_id: recallId,
+        user_id: userId,
+        listing_url: result.url,
+        listing_title: result.title ?? null,
+        marketplace: result.marketplace ?? null,
+        price: result.price ?? null,
+        scraped_product_name: scraped.product_name ?? null,
+        scraped_manufacturer: null,
+        scraped_model_number: null,
+        confidence_tier: scored.tier,
+        confidence_score: scored.score,
+      };
+    });
+
+    const scoredResults = [...scoredScraped, ...scoredSkipped];
 
     // Persist all scored results
     const saved = await dbSaveDiscoveryResults(req.supabase, scoredResults);
