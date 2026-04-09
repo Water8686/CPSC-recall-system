@@ -19,6 +19,9 @@ import {
   CircularProgress,
   Chip,
   TableSortLabel,
+  Checkbox,
+  Button,
+  Snackbar,
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
@@ -29,6 +32,13 @@ import {
 import {
   getPriorityBgColor,
 } from '../constants/priorities';
+
+const ASSIGNABLE_ROLES = new Set(['admin', 'manager', 'investigator']);
+
+function formatInvestigatorLabel(users, userId) {
+  const u = users.find((x) => String(x.user_id) === String(userId));
+  return (u?.full_name && String(u.full_name).trim()) || u?.email || `User ${userId}`;
+}
 
 function formatDate(value) {
   if (!value) return '—';
@@ -59,6 +69,13 @@ export default function RecallsPage() {
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
 
+  const [selectedRecallNumbers, setSelectedRecallNumbers] = useState(() => new Set());
+  const [assignableUsers, setAssignableUsers] = useState([]);
+  const [bulkInvestigator, setBulkInvestigator] = useState('');
+  const [bulkAssigning, setBulkAssigning] = useState(false);
+  const [bulkError, setBulkError] = useState(null);
+  const [assignSnackbar, setAssignSnackbar] = useState(null);
+
   useEffect(() => {
     async function fetchData() {
       try {
@@ -82,6 +99,29 @@ export default function RecallsPage() {
     }
     fetchData();
   }, [session]);
+
+  useEffect(() => {
+    if (!canPrioritize || !session) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/users', session);
+        if (!res.ok || cancelled) return;
+        const rows = await res.json();
+        if (cancelled) return;
+        setAssignableUsers(
+          (rows ?? []).filter(
+            (u) => u.approved !== false && ASSIGNABLE_ROLES.has(u.role),
+          ),
+        );
+      } catch {
+        /* non-fatal */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canPrioritize, session]);
 
   const filtered = useMemo(() => {
     let list = recalls;
@@ -132,6 +172,93 @@ export default function RecallsPage() {
       setSortDir('asc');
     }
   };
+
+  const toggleRecallSelected = (recallNumber) => {
+    setSelectedRecallNumbers((prev) => {
+      const next = new Set(prev);
+      if (next.has(recallNumber)) next.delete(recallNumber);
+      else next.add(recallNumber);
+      return next;
+    });
+  };
+
+  const allFilteredSelected =
+    filtered.length > 0 &&
+    filtered.every((r) => selectedRecallNumbers.has(r.recall_id));
+  const someFilteredSelected = filtered.some((r) =>
+    selectedRecallNumbers.has(r.recall_id),
+  );
+
+  const toggleSelectAllFiltered = () => {
+    setSelectedRecallNumbers((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filtered.forEach((r) => next.delete(r.recall_id));
+      } else {
+        filtered.forEach((r) => next.add(r.recall_id));
+      }
+      return next;
+    });
+  };
+
+  async function handleBulkAssign() {
+    const invId = Number.parseInt(bulkInvestigator, 10);
+    if (!Number.isFinite(invId) || invId < 1) {
+      setBulkError('Choose an investigator.');
+      return;
+    }
+    const ids = [...selectedRecallNumbers];
+    if (ids.length === 0) {
+      setBulkError('Select at least one recall.');
+      return;
+    }
+    setBulkError(null);
+    setBulkAssigning(true);
+    const failures = [];
+    try {
+      for (const recall_id of ids) {
+        const res = await apiFetch('/api/assignments', session, {
+          method: 'POST',
+          body: JSON.stringify({
+            recall_id,
+            investigator_user_id: invId,
+          }),
+        });
+        if (!res.ok) {
+          failures.push({
+            recall_id,
+            message: await getApiErrorMessage(res),
+          });
+        }
+      }
+      if (failures.length === 0) {
+        const name = formatInvestigatorLabel(assignableUsers, invId);
+        const n = ids.length;
+        setSelectedRecallNumbers(new Set());
+        setBulkInvestigator('');
+        setAssignSnackbar({
+          severity: 'success',
+          message:
+            n === 1
+              ? `Assigned 1 recall to ${name}.`
+              : `Assigned ${n} recalls to ${name}.`,
+        });
+      } else if (failures.length === ids.length) {
+        setBulkError(failures[0].message);
+      } else {
+        const ok = ids.length - failures.length;
+        setSelectedRecallNumbers(new Set(failures.map((f) => f.recall_id)));
+        setAssignSnackbar({
+          severity: 'warning',
+          message: `Assigned ${ok} of ${ids.length} recalls. ${failures[0].message} Failed recalls stay selected.`,
+        });
+      }
+    } catch (err) {
+      setBulkError(err.message || 'Assignment failed');
+    } finally {
+      setBulkAssigning(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -188,11 +315,76 @@ export default function RecallsPage() {
         </Box>
       </Box>
 
+      {canPrioritize && selectedRecallNumbers.size > 0 && (
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 1.5,
+            mb: 2,
+            py: 1,
+            px: 1.5,
+            borderRadius: 1,
+            bgcolor: 'action.hover',
+            border: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+            {selectedRecallNumbers.size} selected
+          </Typography>
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel>Investigator</InputLabel>
+            <Select
+              label="Investigator"
+              value={bulkInvestigator}
+              onChange={(e) => setBulkInvestigator(e.target.value)}
+              displayEmpty
+            >
+              <MenuItem value="">
+                <em>Select…</em>
+              </MenuItem>
+              {assignableUsers.map((u) => (
+                <MenuItem key={u.user_id} value={String(u.user_id)}>
+                  {(u.full_name && u.full_name.trim()) || u.email || `User ${u.user_id}`}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Button
+            size="small"
+            variant="contained"
+            disabled={bulkAssigning || !bulkInvestigator}
+            onClick={handleBulkAssign}
+          >
+            {bulkAssigning ? 'Assigning…' : 'Assign'}
+          </Button>
+        </Box>
+      )}
+
+      {bulkError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setBulkError(null)}>
+          {bulkError}
+        </Alert>
+      )}
+
       {/* Data Table */}
       <TableContainer component={Paper} variant="outlined">
         <Table>
           <TableHead>
             <TableRow sx={{ bgcolor: 'grey.50' }}>
+              {canPrioritize && (
+                <TableCell padding="checkbox" sx={{ width: 48 }}>
+                  <Checkbox
+                    size="small"
+                    checked={allFilteredSelected}
+                    indeterminate={someFilteredSelected && !allFilteredSelected}
+                    onChange={toggleSelectAllFiltered}
+                    inputProps={{ 'aria-label': 'Select all visible recalls' }}
+                  />
+                </TableCell>
+              )}
               <TableCell sx={{ fontWeight: 600 }}>
                 <TableSortLabel
                   active={sortField === 'title'}
@@ -226,7 +418,11 @@ export default function RecallsPage() {
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                <TableCell
+                  colSpan={canPrioritize ? 5 : 4}
+                  align="center"
+                  sx={{ py: 4 }}
+                >
                   <Typography color="text.secondary">
                     {search || priorityFilter !== 'All'
                       ? 'No recalls match your filters.'
@@ -246,6 +442,21 @@ export default function RecallsPage() {
                     sx={{ cursor: 'pointer' }}
                     onClick={() => navigate(`/recalls/${recall.recall_id}`)}
                   >
+                    {canPrioritize && (
+                      <TableCell
+                        padding="checkbox"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Checkbox
+                          size="small"
+                          checked={selectedRecallNumbers.has(recall.recall_id)}
+                          onChange={() => toggleRecallSelected(recall.recall_id)}
+                          inputProps={{
+                            'aria-label': `Select recall ${recall.recall_id}`,
+                          }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>
                       <Typography variant="body2" fontWeight={600}>
                         {recall.title || recall.product_name || recall.recall_id}
@@ -288,6 +499,22 @@ export default function RecallsPage() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Snackbar
+        open={!!assignSnackbar}
+        autoHideDuration={assignSnackbar?.severity === 'warning' ? 8000 : 5000}
+        onClose={() => setAssignSnackbar(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setAssignSnackbar(null)}
+          severity={assignSnackbar?.severity ?? 'success'}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {assignSnackbar?.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
