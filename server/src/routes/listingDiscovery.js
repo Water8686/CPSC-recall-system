@@ -40,19 +40,23 @@ router.post('/search', requireInvestigatorOrAdmin, async (req, res) => {
     // Fetch recall data for building the search query
     const { data: recall, error: recallError } = await req.supabase
       .from('recall')
-      .select('product_name, recall_title, manufacturer, model_number')
+      .select('product_name, recall_title, manufacturer, model_number, upc')
       .eq('recall_id', recallId)
       .maybeSingle();
 
     if (recallError) throw recallError;
     if (!recall) return res.status(404).json({ error: `Recall ${recallId} not found` });
 
-    // Build search query from recall fields
-    const queryParts = [recall.product_name || recall.recall_title, recall.manufacturer, recall.model_number]
-      .filter(Boolean)
-      .map((s) => String(s).trim())
-      .filter((s) => s.length > 0);
-    const query = queryParts.join(' ');
+    // Build search query from recall fields.
+    // Prefer UPC when available — it's a definitive product identifier and yields
+    // very precise Google Shopping results. Otherwise fall back to text fields.
+    const query = recall.upc
+      ? String(recall.upc).trim()
+      : [recall.product_name || recall.recall_title, recall.manufacturer, recall.model_number]
+          .filter(Boolean)
+          .map((s) => String(s).trim())
+          .filter((s) => s.length > 0)
+          .join(' ');
 
     // Run SerpAPI search
     let serpResults;
@@ -72,27 +76,40 @@ router.post('/search', requireInvestigatorOrAdmin, async (req, res) => {
     // Resolve the user ID for saving results
     const userId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);
 
-    // Scrape each result and score it
-    let scrapeFailures = 0;
-    const scoredResults = [];
+    // Scrape each result and score it — up to 5 concurrent Firecrawl requests
+    const SCRAPE_CONCURRENCY = 5;
     const recallData = {
       product_name: recall.product_name || recall.recall_title,
       manufacturer: recall.manufacturer,
       model_number: recall.model_number ?? null,
     };
 
-    for (const result of serpResults) {
-      let scraped;
-      try {
-        scraped = await scrapeAndExtract(result.url);
-      } catch (err) {
-        console.warn(`Discovery scrape failed for ${result.url}:`, err.message);
-        scrapeFailures++;
-        scraped = { product_name: result.title || null };
+    // Worker-pool pattern: N workers pull from a shared index, preserving result order
+    const scrapeOutcomes = new Array(serpResults.length);
+    let scrapeIdx = 0;
+    async function scrapeWorker() {
+      while (scrapeIdx < serpResults.length) {
+        const i = scrapeIdx++;
+        const result = serpResults[i];
+        try {
+          scrapeOutcomes[i] = { ok: true, data: await scrapeAndExtract(result.url) };
+        } catch (err) {
+          console.warn(`Discovery scrape failed for ${result.url}:`, err.message);
+          scrapeOutcomes[i] = { ok: false, data: { product_name: result.title || null } };
+        }
       }
+    }
+    await Promise.all(
+      Array.from({ length: Math.min(SCRAPE_CONCURRENCY, serpResults.length) }, scrapeWorker),
+    );
 
+    let scrapeFailures = 0;
+    const scoredResults = serpResults.map((result, i) => {
+      const outcome = scrapeOutcomes[i];
+      if (!outcome.ok) scrapeFailures++;
+      const scraped = outcome.data;
       const scored = scoreMatch(scraped, recallData);
-      scoredResults.push({
+      return {
         recall_id: recallId,
         user_id: userId,
         listing_url: result.url,
@@ -104,8 +121,8 @@ router.post('/search', requireInvestigatorOrAdmin, async (req, res) => {
         scraped_model_number: scraped.model_number ?? null,
         confidence_tier: scored.tier,
         confidence_score: scored.score,
-      });
-    }
+      };
+    });
 
     // Persist all scored results
     const saved = await dbSaveDiscoveryResults(req.supabase, scoredResults);

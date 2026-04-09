@@ -9,19 +9,32 @@
 import { compareTwoStrings } from 'string-similarity';
 
 const FIELD_WEIGHTS = [
-  { key: 'model_number',  weight: 50 },
-  { key: 'manufacturer',  weight: 30 },
-  { key: 'product_name',  weight: 20 },
+  { key: 'model_number',  weight: 50, normalize: true },
+  { key: 'manufacturer',  weight: 30, normalize: false },
+  { key: 'product_name',  weight: 20, normalize: false },
 ];
 
 /**
+ * Normalize a model number for comparison: strip all non-alphanumeric chars.
+ * "XB-100" → "xb100", "XB 100" → "xb100", "XB100" → "xb100"
+ */
+function normalizeModel(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/**
  * Compute similarity between two strings (0-1). Case-insensitive.
+ * Pass normalize=true for model numbers to strip dashes, spaces, etc. before comparing.
  * Returns 0 if either value is null/empty.
  */
-export function computeSimilarity(a, b) {
+export function computeSimilarity(a, b, normalize = false) {
   if (!a || !b) return 0;
-  const sa = String(a).trim().toLowerCase();
-  const sb = String(b).trim().toLowerCase();
+  let sa = String(a).trim().toLowerCase();
+  let sb = String(b).trim().toLowerCase();
+  if (normalize) {
+    sa = normalizeModel(sa);
+    sb = normalizeModel(sb);
+  }
   if (!sa || !sb) return 0;
   if (sa === sb) return 1;
   return compareTwoStrings(sa, sb);
@@ -47,7 +60,7 @@ export function scoreMatch(scraped, recall) {
 
   let score = 0;
   for (const f of active) {
-    const sim = computeSimilarity(scraped[f.key], recall[f.key]);
+    const sim = computeSimilarity(scraped[f.key], recall[f.key], f.normalize);
     score += sim * f.weight * scale;
   }
 

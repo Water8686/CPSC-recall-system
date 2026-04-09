@@ -57,67 +57,39 @@ export async function dbCheckDiscoveryCache(supabase, recallId, cacheDays = 7) {
 }
 
 /**
- * Save a batch of discovery results. Upserts by (recall_id, listing_url)
- * to avoid duplicates on re-search.
+ * Save a batch of discovery results using a single upsert on the
+ * (recall_id, listing_url) unique constraint.
+ *
+ * review_status / reviewer_notes / reviewed_at are intentionally excluded
+ * from the upsert payload so that a re-search never resets a reviewer's work.
+ * New rows receive review_status = 'Pending Review' from the column default.
  */
 export async function dbSaveDiscoveryResults(supabase, results) {
   if (!results.length) return [];
 
-  const saved = [];
-  for (const r of results) {
-    // Check for existing result with same recall_id + listing_url
-    const { data: existing } = await supabase
-      .from('discovery_result')
-      .select('discovery_id')
-      .eq('recall_id', r.recall_id)
-      .eq('listing_url', r.listing_url)
-      .maybeSingle();
+  const searchedAt = new Date().toISOString();
+  const rows = results.map((r) => ({
+    recall_id:            r.recall_id,
+    user_id:              r.user_id,
+    listing_url:          r.listing_url,
+    listing_title:        r.listing_title,
+    marketplace:          r.marketplace,
+    price:                r.price,
+    scraped_product_name: r.scraped_product_name,
+    scraped_manufacturer: r.scraped_manufacturer,
+    scraped_model_number: r.scraped_model_number,
+    confidence_tier:      r.confidence_tier,
+    confidence_score:     r.confidence_score,
+    searched_at:          searchedAt,
+  }));
 
-    if (existing) {
-      // Update existing record (re-search refreshes scraped data + scores)
-      const { data, error } = await supabase
-        .from('discovery_result')
-        .update({
-          listing_title:        r.listing_title,
-          marketplace:          r.marketplace,
-          price:                r.price,
-          scraped_product_name: r.scraped_product_name,
-          scraped_manufacturer: r.scraped_manufacturer,
-          scraped_model_number: r.scraped_model_number,
-          confidence_tier:      r.confidence_tier,
-          confidence_score:     r.confidence_score,
-          searched_at:          new Date().toISOString(),
-        })
-        .eq('discovery_id', existing.discovery_id)
-        .select(DISCOVERY_SELECT)
-        .single();
-      if (error) throw error;
-      saved.push(data);
-    } else {
-      const { data, error } = await supabase
-        .from('discovery_result')
-        .insert({
-          recall_id:            r.recall_id,
-          user_id:              r.user_id,
-          listing_url:          r.listing_url,
-          listing_title:        r.listing_title,
-          marketplace:          r.marketplace,
-          price:                r.price,
-          scraped_product_name: r.scraped_product_name,
-          scraped_manufacturer: r.scraped_manufacturer,
-          scraped_model_number: r.scraped_model_number,
-          confidence_tier:      r.confidence_tier,
-          confidence_score:     r.confidence_score,
-          review_status:        'Pending Review',
-          searched_at:          new Date().toISOString(),
-        })
-        .select(DISCOVERY_SELECT)
-        .single();
-      if (error) throw error;
-      saved.push(data);
-    }
-  }
-  return saved;
+  const { data, error } = await supabase
+    .from('discovery_result')
+    .upsert(rows, { onConflict: 'recall_id,listing_url' })
+    .select(DISCOVERY_SELECT);
+
+  if (error) throw error;
+  return data ?? [];
 }
 
 /**
