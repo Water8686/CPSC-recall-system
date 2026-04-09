@@ -5,6 +5,13 @@ import { signAppToken } from '../lib/appJwt.js';
 import { requireAuth } from '../middleware/auth.js';
 import { normalizeAppRole } from '../lib/roles.js';
 import { jwtSubToUserId, mapAppUserRowToApi } from '../lib/appUsers.js';
+import {
+  logLoginAttemptAsync,
+  recordSuccessfulLoginAndSession,
+  isValidSessionUuid,
+  touchAuditSession,
+  endAuditSession,
+} from '../lib/loginAudit.js';
 
 const router = Router();
 
@@ -126,8 +133,11 @@ router.post('/register', async (req, res) => {
     });
   }
 
+  const session_id = await recordSuccessfulLoginAndSession(req, inserted, 'register_auto_login');
+
   return res.status(201).json({
     access_token,
+    session_id,
     user: {
       id: uidStr,
       email: inserted.email,
@@ -160,19 +170,45 @@ router.post('/login', async (req, res) => {
 
   if (error) {
     console.error('login:', error);
+    logLoginAttemptAsync(req, {
+      outcome: 'server_error',
+      emailNormalized: email,
+      appUserId: null,
+      role: null,
+    });
     return res.status(500).json({ error: 'Login failed' });
   }
 
   if (!row) {
+    logLoginAttemptAsync(req, {
+      outcome: 'unknown_user',
+      emailNormalized: email,
+      appUserId: null,
+      role: null,
+    });
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
   const stored = row.password;
   if (stored !== password) {
+    const failRole = normalizeAppRole({ user_type: row.user_type }, null);
+    logLoginAttemptAsync(req, {
+      outcome: 'bad_password',
+      emailNormalized: email,
+      appUserId: row.user_id,
+      role: failRole,
+    });
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
   if (!row.approved) {
+    const pendRole = normalizeAppRole({ user_type: row.user_type }, null);
+    logLoginAttemptAsync(req, {
+      outcome: 'not_approved',
+      emailNormalized: email,
+      appUserId: row.user_id,
+      role: pendRole,
+    });
     return res.status(403).json({
       error:
         'Your account is pending administrator approval. Ask an admin to approve you in Users & roles.',
@@ -192,8 +228,11 @@ router.post('/login', async (req, res) => {
     });
   }
 
+  const session_id = await recordSuccessfulLoginAndSession(req, row, 'success');
+
   return res.json({
     access_token,
+    session_id,
     user: {
       id: uidStr,
       email: row.email,
@@ -201,6 +240,34 @@ router.post('/login', async (req, res) => {
     },
     profile: mapRowToProfile(row),
   });
+});
+
+/** POST /api/auth/session-ping — heartbeat for audit session duration (optional AUDIT_* env). */
+router.post('/session-ping', requireAuth, async (req, res) => {
+  const sessionId = String(req.body?.session_id ?? '').trim();
+  if (!isValidSessionUuid(sessionId)) {
+    return res.status(400).json({ error: 'session_id required' });
+  }
+  const appUserId = jwtSubToUserId(req.user.id);
+  if (!appUserId) {
+    return res.status(400).json({ error: 'Invalid session user id' });
+  }
+  await touchAuditSession(appUserId, sessionId);
+  return res.json({ ok: true });
+});
+
+/** POST /api/auth/session-end — mark audit session ended (sign-out). */
+router.post('/session-end', requireAuth, async (req, res) => {
+  const sessionId = String(req.body?.session_id ?? '').trim();
+  if (!isValidSessionUuid(sessionId)) {
+    return res.status(400).json({ error: 'session_id required' });
+  }
+  const appUserId = jwtSubToUserId(req.user.id);
+  if (!appUserId) {
+    return res.status(400).json({ error: 'Invalid session user id' });
+  }
+  await endAuditSession(appUserId, sessionId);
+  return res.json({ ok: true });
 });
 
 /** GET /api/auth/me */

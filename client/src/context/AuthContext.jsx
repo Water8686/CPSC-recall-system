@@ -4,6 +4,10 @@ import { normalizeAppRole } from 'shared';
 const AuthContext = createContext(null);
 
 const TOKEN_KEY = 'cpsc-app-jwt';
+/** Persists audit session across reload (same tab); cleared on sign-out. */
+const AUDIT_SESSION_ID_KEY = 'cpsc-audit-session-id';
+
+const HEARTBEAT_MS = 3 * 60 * 1000;
 
 const MOCK_USER = {
   id: 'mock-user-id',
@@ -49,6 +53,7 @@ export function AuthProvider({ children }) {
     const res = await authFetch('/api/auth/me');
     if (!res.ok) {
       localStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(AUDIT_SESSION_ID_KEY);
       setUser(null);
       setSession(null);
       setProfile(null);
@@ -106,6 +111,29 @@ export function AuthProvider({ children }) {
     };
   }, [loadProfile]);
 
+  useEffect(() => {
+    if (isMockMode || !user) return undefined;
+
+    const sid = sessionStorage.getItem(AUDIT_SESSION_ID_KEY);
+    if (!sid) return undefined;
+
+    const ping = () => {
+      if (document.visibilityState !== 'visible') return;
+      void authFetch('/api/auth/session-ping', {
+        method: 'POST',
+        body: JSON.stringify({ session_id: sid }),
+      });
+    };
+
+    ping();
+    const intervalId = setInterval(ping, HEARTBEAT_MS);
+    document.addEventListener('visibilitychange', ping);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', ping);
+    };
+  }, [user, isMockMode]);
+
   const signIn = async (email, password) => {
     if (isMockMode) {
       const mockUser = {
@@ -145,6 +173,11 @@ export function AuthProvider({ children }) {
     }
 
     localStorage.setItem(TOKEN_KEY, data.access_token);
+    if (data.session_id) {
+      sessionStorage.setItem(AUDIT_SESSION_ID_KEY, data.session_id);
+    } else {
+      sessionStorage.removeItem(AUDIT_SESSION_ID_KEY);
+    }
     const prof = mapMeToProfile({ profile: data.profile });
     const u = {
       id: data.user.id,
@@ -169,6 +202,18 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('cpsc-mock-session');
       return { error: null };
     }
+    const auditSid = sessionStorage.getItem(AUDIT_SESSION_ID_KEY);
+    if (auditSid) {
+      try {
+        await authFetch('/api/auth/session-end', {
+          method: 'POST',
+          body: JSON.stringify({ session_id: auditSid }),
+        });
+      } catch {
+        /* ignore audit failures */
+      }
+    }
+    sessionStorage.removeItem(AUDIT_SESSION_ID_KEY);
     localStorage.removeItem(TOKEN_KEY);
     setSession(null);
     setUser(null);

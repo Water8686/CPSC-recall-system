@@ -29,6 +29,8 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
  */
 export function createApp() {
   const app = express();
+  // Railway / reverse proxies: req.ip and X-Forwarded-For are wrong without this.
+  app.set('trust proxy', 1);
 
   const clientDist = path.join(__dirname, '../../client/dist');
 
