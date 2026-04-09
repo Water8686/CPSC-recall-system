@@ -242,6 +242,46 @@ router.post('/login', async (req, res) => {
   });
 });
 
+/**
+ * POST /api/auth/audit-session-start — new audit session when JWT exists but tab sessionStorage
+ * was cleared (e.g. user closed the tab). Inserts session_resume event + session row.
+ */
+router.post('/audit-session-start', requireAuth, async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Database not configured' });
+  }
+
+  const userId = jwtSubToUserId(req.user.id);
+  if (!userId) {
+    return res.status(400).json({ error: 'Invalid session user id' });
+  }
+
+  const { data: row, error } = await supabaseAdmin
+    .from('app_users')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+  if (!row) {
+    const { data: rowByEmail } = await supabaseAdmin
+      .from('app_users')
+      .select('*')
+      .eq('email', req.user.email)
+      .maybeSingle();
+    if (!rowByEmail) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const session_id = await recordSuccessfulLoginAndSession(req, rowByEmail, 'session_resume');
+    return res.json({ session_id });
+  }
+
+  const session_id = await recordSuccessfulLoginAndSession(req, row, 'session_resume');
+  return res.json({ session_id });
+});
+
 /** POST /api/auth/session-ping — heartbeat for audit session duration (optional AUDIT_* env). */
 router.post('/session-ping', requireAuth, async (req, res) => {
   const sessionId = String(req.body?.session_id ?? '').trim();

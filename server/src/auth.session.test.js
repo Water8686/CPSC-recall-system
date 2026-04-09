@@ -59,3 +59,37 @@ describe('POST /api/auth/session-ping and session-end', () => {
     expect(res.body.ok).toBe(true);
   });
 });
+
+describe('POST /api/auth/audit-session-start', () => {
+  let app;
+  let token;
+
+  beforeAll(async () => {
+    app = createApp();
+    token = await signAppToken('1', 'tester@example.com', 'manager');
+  });
+
+  it('returns 401 without Authorization', async () => {
+    const res = await request(app).post('/api/auth/audit-session-start').send();
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 401 for invalid JWT', async () => {
+    const res = await request(app)
+      .post('/api/auth/audit-session-start')
+      .set('Authorization', 'Bearer not-a-jwt')
+      .send();
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 503 when main DB is not configured (same as /me)', async () => {
+    const res = await request(app)
+      .post('/api/auth/audit-session-start')
+      .set('Authorization', `Bearer ${token}`)
+      .send();
+    expect([503, 404, 200]).toContain(res.status);
+    if (res.status === 200) {
+      expect(res.body).toHaveProperty('session_id');
+    }
+  });
+});

@@ -55,7 +55,7 @@ export function logLoginAttemptAsync(req, { outcome, emailNormalized, appUserId 
  * Awaits DB so session_id is reliable when audit is configured.
  * @param {import('express').Request} req
  * @param {{ user_id: number, email: string, user_type: string }} row
- * @param {string} outcome 'success' | 'register_auto_login'
+ * @param {string} outcome 'success' | 'register_auto_login' | 'session_resume'
  * @returns {Promise<string | null>}
  */
 export async function recordSuccessfulLoginAndSession(req, row, outcome) {

@@ -48,6 +48,8 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  /** Bumps when audit session_id is stored so heartbeat effect re-subscribes (e.g. after new tab). */
+  const [auditSessionEpoch, setAuditSessionEpoch] = useState(0);
 
   const loadProfile = useCallback(async () => {
     const res = await authFetch('/api/auth/me');
@@ -73,6 +75,15 @@ export function AuthProvider({ children }) {
         access_token: localStorage.getItem(TOKEN_KEY),
         user: u,
       });
+      // Tab closed clears sessionStorage; JWT remains — start a new audit visit.
+      if (!isMockMode && !sessionStorage.getItem(AUDIT_SESSION_ID_KEY)) {
+        const startRes = await authFetch('/api/auth/audit-session-start', { method: 'POST' });
+        const startData = await startRes.json().catch(() => ({}));
+        if (startRes.ok && startData.session_id) {
+          sessionStorage.setItem(AUDIT_SESSION_ID_KEY, startData.session_id);
+          setAuditSessionEpoch((n) => n + 1);
+        }
+      }
     }
   }, []);
 
@@ -132,7 +143,7 @@ export function AuthProvider({ children }) {
       clearInterval(intervalId);
       document.removeEventListener('visibilitychange', ping);
     };
-  }, [user, isMockMode]);
+  }, [user, isMockMode, auditSessionEpoch]);
 
   const signIn = async (email, password) => {
     if (isMockMode) {
@@ -175,6 +186,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem(TOKEN_KEY, data.access_token);
     if (data.session_id) {
       sessionStorage.setItem(AUDIT_SESSION_ID_KEY, data.session_id);
+      setAuditSessionEpoch((n) => n + 1);
     } else {
       sessionStorage.removeItem(AUDIT_SESSION_ID_KEY);
     }

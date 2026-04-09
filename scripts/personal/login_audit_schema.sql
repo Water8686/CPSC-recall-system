@@ -2,6 +2,8 @@
 -- Run in a dedicated Supabase project (or SQL editor), not the team's shared app DB.
 -- Server env: AUDIT_SUPABASE_URL, AUDIT_SUPABASE_SERVICE_ROLE_KEY
 -- Optional: LOGIN_AUDIT_SALT (server secret for fingerprint_hash HMAC)
+-- login_audit_events.outcome includes: success, register_auto_login, session_resume (new tab after JWT restore),
+--   bad_password, unknown_user, not_approved, server_error
 
 create extension if not exists "pgcrypto";
 
