@@ -65,9 +65,9 @@ export default function RecallsPage() {
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('All');
 
-  // Sorting
-  const [sortField, setSortField] = useState(null);
-  const [sortDir, setSortDir] = useState('asc');
+  // Sorting — default newest recall_date first
+  const [sortField, setSortField] = useState('recall_date');
+  const [sortDir, setSortDir] = useState('desc');
 
   const [selectedRecallNumbers, setSelectedRecallNumbers] = useState(() => new Set());
   const [assignableUsers, setAssignableUsers] = useState([]);
@@ -146,11 +146,19 @@ export default function RecallsPage() {
 
     if (sortField) {
       list = [...list].sort((a, b) => {
-        let aVal, bVal;
+        let aVal;
+        let bVal;
         if (sortField === 'priority') {
           const order = { High: 0, Medium: 1, Low: 2 };
           aVal = order[prioritizations[a.recall_id]?.priority] ?? 3;
           bVal = order[prioritizations[b.recall_id]?.priority] ?? 3;
+        } else if (sortField === 'recall_date') {
+          const ts = (row) => {
+            const d = new Date(row.recall_date);
+            return Number.isFinite(d.getTime()) ? d.getTime() : Number.NEGATIVE_INFINITY;
+          };
+          aVal = ts(a);
+          bVal = ts(b);
         } else {
           aVal = a[sortField] ?? '';
           bVal = b[sortField] ?? '';
@@ -320,10 +328,10 @@ export default function RecallsPage() {
           sx={{
             display: 'flex',
             flexWrap: 'wrap',
-            alignItems: 'center',
+            alignItems: 'flex-end',
             gap: 1.5,
             mb: 2,
-            py: 1,
+            py: 1.5,
             px: 1.5,
             borderRadius: 1,
             bgcolor: 'action.hover',
@@ -331,19 +339,36 @@ export default function RecallsPage() {
             borderColor: 'divider',
           }}
         >
-          <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ mr: 0.5, alignSelf: 'center', pb: 0.5 }}
+          >
             {selectedRecallNumbers.size} selected
           </Typography>
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Investigator</InputLabel>
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel id="bulk-investigator-label" shrink>
+              Investigator
+            </InputLabel>
             <Select
+              labelId="bulk-investigator-label"
               label="Investigator"
               value={bulkInvestigator}
               onChange={(e) => setBulkInvestigator(e.target.value)}
               displayEmpty
+              renderValue={(selected) => {
+                if (selected === '' || selected == null) {
+                  return (
+                    <Typography variant="body2" color="text.secondary" component="span">
+                      Select investigator
+                    </Typography>
+                  );
+                }
+                return formatInvestigatorLabel(assignableUsers, selected);
+              }}
             >
               <MenuItem value="">
-                <em>Select…</em>
+                <em>Select investigator</em>
               </MenuItem>
               {assignableUsers.map((u) => (
                 <MenuItem key={u.user_id} value={String(u.user_id)}>
@@ -357,6 +382,7 @@ export default function RecallsPage() {
             variant="contained"
             disabled={bulkAssigning || !bulkInvestigator}
             onClick={handleBulkAssign}
+            sx={{ mb: 0.25 }}
           >
             {bulkAssigning ? 'Assigning…' : 'Assign'}
           </Button>

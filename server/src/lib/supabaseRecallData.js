@@ -128,7 +128,7 @@ export async function dbFetchRecalls(supabase) {
       recall_image ( image_url )
     `,
     )
-    .order('recall_number', { ascending: true });
+    .order('recall_date', { ascending: false, nullsFirst: false });
 
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapRecallRow);
