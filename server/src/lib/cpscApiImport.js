@@ -10,6 +10,49 @@ const DEFAULT_RANGE_DAYS = 30;
 const FETCH_TIMEOUT_MS = 120_000;
 const MAX_RECALLS = 5000;
 
+/** @typedef {'recall' | 'lastPublish'} CpscDateBasis */
+
+/**
+ * Which CPSC field the date range filters (API uses different query param names).
+ * @param {unknown} body
+ * @returns {{ dateBasis: CpscDateBasis } | { error: string }}
+ */
+export function resolveCpscDateBasis(body) {
+  const raw = body?.dateBasis;
+  if (raw == null || String(raw).trim() === '') {
+    return { dateBasis: 'recall' };
+  }
+  const s = String(raw).trim().toLowerCase().replace(/_/g, '');
+  if (s === 'recall') return { dateBasis: 'recall' };
+  if (s === 'lastpublish') return { dateBasis: 'lastPublish' };
+  return { error: 'Invalid dateBasis (use recall or lastPublish)' };
+}
+
+/**
+ * Build query string params for the CPSC Recall JSON endpoint.
+ * @param {{ recallNumber?: string, recallDateStart?: string, recallDateEnd?: string, dateBasis?: CpscDateBasis }} query
+ */
+export function buildCpscRecallApiQuery(query) {
+  const params = new URLSearchParams();
+  params.set('format', 'json');
+
+  const num = query.recallNumber?.trim();
+  if (num) {
+    params.set('RecallNumber', num.replace(/\D/g, ''));
+    return params;
+  }
+
+  const basis = query.dateBasis === 'lastPublish' ? 'lastPublish' : 'recall';
+  if (basis === 'lastPublish') {
+    params.set('LastPublishDateStart', query.recallDateStart ?? '');
+    params.set('LastPublishDateEnd', query.recallDateEnd ?? '');
+  } else {
+    params.set('RecallDateStart', query.recallDateStart ?? '');
+    params.set('RecallDateEnd', query.recallDateEnd ?? '');
+  }
+  return params;
+}
+
 /** Normalize CPSC recall numbers (e.g. "24090" → "24-090") for display/DB consistency. */
 export function normalizeRecallNumber(raw) {
   if (raw == null) return '';
@@ -164,20 +207,10 @@ export function resolveCpscDateWindow(body) {
 
 /**
  * Fetch recalls from CPSC JSON API.
- * @param {{ recallNumber?: string, recallDateStart?: string, recallDateEnd?: string }} query
+ * @param {{ recallNumber?: string, recallDateStart?: string, recallDateEnd?: string, dateBasis?: CpscDateBasis }} query
  */
 export async function fetchCpscRecallsJson(query) {
-  const params = new URLSearchParams();
-  params.set('format', 'json');
-
-  const num = query.recallNumber?.trim();
-  if (num) {
-    params.set('RecallNumber', num.replace(/\D/g, ''));
-  } else {
-    params.set('RecallDateStart', query.recallDateStart);
-    params.set('RecallDateEnd', query.recallDateEnd);
-  }
-
+  const params = buildCpscRecallApiQuery(query);
   const url = `${CPSC_RECALL_API}?${params.toString()}`;
   const res = await fetch(url, {
     redirect: 'follow',

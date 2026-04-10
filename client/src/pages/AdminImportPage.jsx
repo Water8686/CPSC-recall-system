@@ -50,6 +50,8 @@ export default function AdminImportPage() {
   const [csvUrl, setCsvUrl] = useState('');
   const [cpscMode, setCpscMode] = useState('range');
   const [cpscRecallNumber, setCpscRecallNumber] = useState('');
+  /** Matches cpsc.gov “recent” listings: filter by LastPublishDate, not RecallDate. */
+  const [cpscDateBasis, setCpscDateBasis] = useState('lastPublish');
   const [cpscDateStart, setCpscDateStart] = useState('');
   const [cpscDateEnd, setCpscDateEnd] = useState('');
   const [loading, setLoading] = useState(false);
@@ -131,6 +133,7 @@ export default function AdminImportPage() {
         : {
             recallDateStart: cpscDateStart.trim() || undefined,
             recallDateEnd: cpscDateEnd.trim() || undefined,
+            dateBasis: cpscDateBasis,
           };
     const headers = authHeaders();
     headers.set('Content-Type', 'application/json');
@@ -150,6 +153,7 @@ export default function AdminImportPage() {
 
   const applyPreset = (days) => {
     const { start, end } = setRollingDays(days);
+    setCpscDateBasis('lastPublish');
     setCpscDateStart(start);
     setCpscDateEnd(end);
     setCpscMode('range');
@@ -205,6 +209,10 @@ export default function AdminImportPage() {
                 ? ` (${result.upserted} saved after checks)`
                 : ''}
               .
+              {result.dateBasis === 'lastPublish' && (
+                <> Filter: last publish date.</>
+              )}
+              {result.dateBasis === 'recall' && <> Filter: recall date.</>}
             </Typography>
           )}
           {result.source === 'url' && result.csvUrl && (
@@ -359,29 +367,52 @@ export default function AdminImportPage() {
                   </Typography>
                   <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
                     <Chip
-                      label="Last 7 days"
+                      label="Last 7 days (by publish date)"
                       onClick={() => applyPreset(7)}
                       variant="outlined"
                     />
                     <Chip
-                      label="Last 30 days"
+                      label="Last 30 days (by publish date)"
                       onClick={() => applyPreset(30)}
                       variant="outlined"
                     />
                     <Chip
-                      label="Last 90 days"
+                      label="Last 90 days (by publish date)"
                       onClick={() => applyPreset(90)}
                       variant="outlined"
                     />
                     <Chip
                       label="Default (leave dates empty)"
                       onClick={() => {
+                        setCpscDateBasis('lastPublish');
                         setCpscDateStart('');
                         setCpscDateEnd('');
                       }}
                       variant="outlined"
                     />
                   </Stack>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                    Date range applies to
+                  </Typography>
+                  <ToggleButtonGroup
+                    exclusive
+                    fullWidth
+                    size="small"
+                    value={cpscDateBasis}
+                    onChange={(_, v) => {
+                      if (v == null) return;
+                      setCpscDateBasis(v);
+                    }}
+                    sx={{ mb: 2 }}
+                    aria-label="CPSC date field for range filter"
+                  >
+                    <ToggleButton value="lastPublish">Last publish date</ToggleButton>
+                    <ToggleButton value="recall">Recall date</ToggleButton>
+                  </ToggleButtonGroup>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                    CPSC.gov “recent” recalls follow <strong>last publish</strong> timing. Use{' '}
+                    <strong>Recall date</strong> only when you need the statutory recall date field.
+                  </Typography>
                   <Stack spacing={2} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
                     <TextField
                       size="small"
@@ -389,7 +420,11 @@ export default function AdminImportPage() {
                       label="From"
                       InputLabelProps={{ shrink: true }}
                       fullWidth
-                      helperText="Recall date — start"
+                      helperText={
+                        cpscDateBasis === 'lastPublish'
+                          ? 'Last publish date — start'
+                          : 'Recall date — start'
+                      }
                       value={cpscDateStart}
                       onChange={(e) => setCpscDateStart(e.target.value)}
                     />
@@ -399,14 +434,18 @@ export default function AdminImportPage() {
                       label="To"
                       InputLabelProps={{ shrink: true }}
                       fullWidth
-                      helperText="Recall date — end"
+                      helperText={
+                        cpscDateBasis === 'lastPublish'
+                          ? 'Last publish date — end'
+                          : 'Recall date — end'
+                      }
                       value={cpscDateEnd}
                       onChange={(e) => setCpscDateEnd(e.target.value)}
                     />
                   </Stack>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
-                    Leave both dates empty to use the server default (last 30 days, UTC). Maximum
-                    range is about one year.
+                    Leave both dates empty to use the server default (last 30 days, UTC). The filter
+                    above still applies to that window. Maximum range is about one year.
                   </Typography>
                 </>
               )}

@@ -3,6 +3,8 @@ import {
   normalizeRecallNumber,
   mapCpscJsonItemToRecallRecord,
   resolveCpscDateWindow,
+  resolveCpscDateBasis,
+  buildCpscRecallApiQuery,
 } from './cpscApiImport.js';
 
 describe('normalizeRecallNumber', () => {
@@ -50,5 +52,66 @@ describe('resolveCpscDateWindow', () => {
     expect(r.error).toBeUndefined();
     expect(r.recallDateStart).toBe('2024-01-01');
     expect(r.recallDateEnd).toBe('2024-01-31');
+  });
+});
+
+describe('resolveCpscDateBasis', () => {
+  it('defaults to recall', () => {
+    expect(resolveCpscDateBasis({})).toEqual({ dateBasis: 'recall' });
+    expect(resolveCpscDateBasis({ dateBasis: '' })).toEqual({ dateBasis: 'recall' });
+  });
+
+  it('accepts lastPublish variants', () => {
+    expect(resolveCpscDateBasis({ dateBasis: 'lastPublish' })).toEqual({
+      dateBasis: 'lastPublish',
+    });
+    expect(resolveCpscDateBasis({ dateBasis: 'last_publish' })).toEqual({
+      dateBasis: 'lastPublish',
+    });
+  });
+
+  it('rejects unknown', () => {
+    expect(resolveCpscDateBasis({ dateBasis: 'bogus' }).error).toBeDefined();
+  });
+});
+
+describe('buildCpscRecallApiQuery', () => {
+  it('uses RecallDate params for recall basis', () => {
+    const q = buildCpscRecallApiQuery({
+      recallDateStart: '2024-01-01',
+      recallDateEnd: '2024-01-31',
+      dateBasis: 'recall',
+    });
+    expect(q.get('format')).toBe('json');
+    expect(q.get('RecallDateStart')).toBe('2024-01-01');
+    expect(q.get('RecallDateEnd')).toBe('2024-01-31');
+    expect(q.get('LastPublishDateStart')).toBeNull();
+  });
+
+  it('uses LastPublishDate params for lastPublish basis', () => {
+    const q = buildCpscRecallApiQuery({
+      recallDateStart: '2024-01-01',
+      recallDateEnd: '2024-01-31',
+      dateBasis: 'lastPublish',
+    });
+    expect(q.get('LastPublishDateStart')).toBe('2024-01-01');
+    expect(q.get('LastPublishDateEnd')).toBe('2024-01-31');
+    expect(q.get('RecallDateStart')).toBeNull();
+  });
+
+  it('uses RecallNumber when set', () => {
+    const q = buildCpscRecallApiQuery({ recallNumber: '24-090', dateBasis: 'lastPublish' });
+    expect(q.get('RecallNumber')).toBe('24090');
+    expect(q.get('RecallDateStart')).toBeNull();
+    expect(q.get('LastPublishDateStart')).toBeNull();
+  });
+
+  it('defaults to RecallDate when dateBasis omitted', () => {
+    const q = buildCpscRecallApiQuery({
+      recallDateStart: '2024-06-01',
+      recallDateEnd: '2024-06-07',
+    });
+    expect(q.get('RecallDateStart')).toBe('2024-06-01');
+    expect(q.get('LastPublishDateStart')).toBeNull();
   });
 });

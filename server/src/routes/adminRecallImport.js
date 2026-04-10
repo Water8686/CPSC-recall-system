@@ -5,6 +5,7 @@ import { supabaseAdmin } from '../lib/supabase.js';
 import { parseRecallCsv, upsertRecallRecords } from '../lib/csvRecallImport.js';
 import {
   resolveCpscDateWindow,
+  resolveCpscDateBasis,
   fetchCpscRecallsJson,
   cpscItemsToRecallRecords,
 } from '../lib/cpscApiImport.js';
@@ -124,8 +125,8 @@ router.post('/recalls/import-csv-url', requireAdmin, async (req, res) => {
 
 /**
  * POST /api/admin/recalls/import-cpsc — JSON body
- * { recallNumber?: string } OR { recallDateStart?: string, recallDateEnd?: string }
- * If no recall number and no dates: defaults to last 30 days (UTC).
+ * { recallNumber?: string } OR { recallDateStart?: string, recallDateEnd?: string, dateBasis?: 'recall' | 'lastPublish' }
+ * If no recall number and no dates: defaults to last 30 days (UTC). dateBasis defaults to recall when omitted.
  */
 router.post('/recalls/import-cpsc', requireAdmin, async (req, res) => {
   if (!supabaseAdmin) {
@@ -135,9 +136,15 @@ router.post('/recalls/import-cpsc', requireAdmin, async (req, res) => {
   const recallNumber = String(req.body?.recallNumber ?? '').trim();
 
   let query;
+  let dateBasisForResponse;
   if (recallNumber) {
     query = { recallNumber };
   } else {
+    const basisRes = resolveCpscDateBasis(req.body);
+    if (basisRes.error) {
+      return res.status(400).json({ error: basisRes.error });
+    }
+    dateBasisForResponse = basisRes.dateBasis;
     const window = resolveCpscDateWindow(req.body);
     if (window.error) {
       return res.status(400).json({ error: window.error });
@@ -145,6 +152,7 @@ router.post('/recalls/import-cpsc', requireAdmin, async (req, res) => {
     query = {
       recallDateStart: window.recallDateStart,
       recallDateEnd: window.recallDateEnd,
+      dateBasis: basisRes.dateBasis,
     };
   }
 
@@ -156,6 +164,7 @@ router.post('/recalls/import-cpsc', requireAdmin, async (req, res) => {
       return res.json({
         ok: true,
         source: 'cpsc',
+        ...(dateBasisForResponse != null ? { dateBasis: dateBasisForResponse } : {}),
         cpscRequestUrl: url,
         fetched: items.length,
         upserted: 0,
@@ -171,6 +180,7 @@ router.post('/recalls/import-cpsc', requireAdmin, async (req, res) => {
     return res.json({
       ok: true,
       source: 'cpsc',
+      ...(dateBasisForResponse != null ? { dateBasis: dateBasisForResponse } : {}),
       cpscRequestUrl: url,
       fetched: items.length,
       upserted,
