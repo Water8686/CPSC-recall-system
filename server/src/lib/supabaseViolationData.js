@@ -158,6 +158,155 @@ export async function dbFetchViolations(supabase, { investigatorId, status } = {
   return (data ?? []).map(mapViolationRow);
 }
 
+const VIOLATION_DETAIL_BASE = `
+  violation_id, listing_id, recall_id, user_id,
+  investigator_commentary, violation_status, violation_noticed_at,
+  violation_type, date_of_violation, notice_sent_at,
+  recall(recall_number, recall_title, product_name),
+  investigator:app_users!violation_user_id_fkey(user_id, full_name, email),
+  listing(listing_url, listing_title, marketplace_id,
+    marketplace(marketplace_name),
+    seller(seller_name, seller_email))
+`;
+
+function sortByTimeAsc(rows, key) {
+  return [...(rows ?? [])].sort((a, b) => {
+    const ta = a?.[key] ? new Date(a[key]).getTime() : 0;
+    const tb = b?.[key] ? new Date(b[key]).getTime() : 0;
+    return ta - tb;
+  });
+}
+
+function mapAdjudicationDetail(adj) {
+  if (adj == null) return null;
+  const row = Array.isArray(adj) ? adj[0] : adj;
+  if (!row) return null;
+  return {
+    adjudication_id: row.adjudication_id,
+    status: row.outcome,
+    reason: row.resolution_reason ?? null,
+    notes: row.adjudication_notes ?? null,
+    adjudicated_at: row.adjudicated_at ?? null,
+  };
+}
+
+function mapResponseDetail(row) {
+  if (!row) return null;
+  return {
+    response_id: row.response_id,
+    contact_id: row.contact_id,
+    user_id: row.user_id ?? null,
+    responder_type: row.responder_type ?? null,
+    response_text: row.response_text ?? null,
+    action_taken: row.response_action ?? null,
+    responded_at: row.response_received_at ?? null,
+    adjudication: mapAdjudicationDetail(row.adjudication),
+  };
+}
+
+function mapContactDetail(row) {
+  if (!row) return null;
+  const rawResponses = Array.isArray(row.response) ? row.response : row.response ? [row.response] : [];
+  const responses = sortByTimeAsc(rawResponses, 'response_received_at').map(mapResponseDetail).filter(Boolean);
+  return {
+    contact_id: row.contact_id,
+    violation_id: row.violation_id,
+    user_id: row.user_id ?? null,
+    contacted_party_type: row.contacted_party_type ?? null,
+    contact_channel: row.contact_channel ?? null,
+    message_summary: row.message_summary ?? null,
+    contact_sent_at: row.contact_sent_at ?? null,
+    responses,
+  };
+}
+
+/**
+ * Full violation record: list-shaped summary fields plus ordered contacts → responses → adjudication.
+ */
+export async function dbFetchViolationDetail(supabase, violationId) {
+  const { data: vRow, error: vErr } = await supabase
+    .from('violation')
+    .select(VIOLATION_DETAIL_BASE)
+    .eq('violation_id', violationId)
+    .maybeSingle();
+
+  if (vErr) throw vErr;
+  if (!vRow) return null;
+
+  const { data: contactRows, error: cErr } = await supabase
+    .from('contact')
+    .select(
+      `
+      contact_id, violation_id, user_id, contacted_party_type, contact_channel, message_summary, contact_sent_at,
+      response (
+        response_id, contact_id, user_id, responder_type, response_text, response_action, response_received_at,
+        adjudication (
+          adjudication_id, response_id, user_id, outcome, resolution_reason, adjudication_notes, adjudicated_at
+        )
+      )
+    `,
+    )
+    .eq('violation_id', violationId)
+    .order('contact_sent_at', { ascending: true });
+
+  if (cErr) throw cErr;
+
+  const contacts = (contactRows ?? []).map(mapContactDetail).filter(Boolean);
+
+  const base = mapViolationRow({ ...vRow, contact: [] });
+  const allResponses = contacts.flatMap((c) => c.responses ?? []);
+  const latestResponse = allResponses.reduce((best, r) => {
+    if (!r?.responded_at) return best;
+    if (!best || new Date(r.responded_at) > new Date(best.responded_at)) return r;
+    return best;
+  }, null);
+  const latestAdj = latestResponse?.adjudication ?? null;
+  const latestContact = [...contacts].sort((a, b) => {
+    const ta = a.contact_sent_at ? new Date(a.contact_sent_at).getTime() : 0;
+    const tb = b.contact_sent_at ? new Date(b.contact_sent_at).getTime() : 0;
+    return tb - ta;
+  })[0] ?? null;
+
+  const summary = {
+    ...base,
+    notice_sent_at: vRow.notice_sent_at ?? latestContact?.contact_sent_at ?? base.notice_sent_at,
+    notice_contact: latestContact?.message_summary ?? base.notice_contact,
+    response_count: allResponses.length,
+    latest_response: latestResponse
+      ? {
+          response_id: latestResponse.response_id,
+          responded_at: latestResponse.responded_at,
+          action_taken: latestResponse.action_taken,
+          response_text: latestResponse.response_text,
+        }
+      : null,
+    adjudication: latestAdj
+      ? {
+          adjudication_id: latestAdj.adjudication_id,
+          status: latestAdj.status,
+          reason: latestAdj.reason,
+          adjudicated_at: latestAdj.adjudicated_at,
+        }
+      : null,
+  };
+
+  return {
+    ...summary,
+    contacts,
+  };
+}
+
+/** Minimal row for auth checks (owner user_id). */
+export async function dbFetchViolationAuthMeta(supabase, violationId) {
+  const { data, error } = await supabase
+    .from('violation')
+    .select('violation_id, user_id')
+    .eq('violation_id', violationId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function dbCreateViolation(supabase, fields) {
   const VALID_TYPES = [
     'Recalled Product Listed for Sale',
@@ -259,6 +408,64 @@ export async function dbUpdateViolationStatus(supabase, violationId, fields) {
     .single();
   if (error) throw error;
   return mapViolationRow(data);
+}
+
+/**
+ * Log seller outreach on the contact table. Optionally mark the violation Notice Sent in the same call.
+ */
+export async function dbCreateContact(supabase, fields) {
+  const violationId = fields.violation_id;
+  if (violationId == null || !Number.isFinite(Number(violationId))) {
+    throw new Error('violation_id is required');
+  }
+  const summary = fields.message_summary != null ? String(fields.message_summary).trim() : '';
+  if (!summary) throw new Error('message_summary is required');
+
+  const { data: vRow, error: vErr } = await supabase
+    .from('violation')
+    .select('violation_id')
+    .eq('violation_id', violationId)
+    .maybeSingle();
+  if (vErr) throw vErr;
+  if (!vRow) throw new Error('Violation not found');
+
+  const sentAt = fields.contact_sent_at
+    ? String(fields.contact_sent_at)
+    : new Date().toISOString();
+
+  const { data: contactRow, error: cErr } = await supabase
+    .from('contact')
+    .insert({
+      violation_id: violationId,
+      user_id: fields.user_id ?? null,
+      contacted_party_type: 'seller',
+      contact_channel: fields.contact_channel != null ? String(fields.contact_channel).trim() || null : null,
+      message_summary: summary,
+      contact_sent_at: sentAt,
+    })
+    .select(
+      'contact_id, violation_id, user_id, contacted_party_type, contact_channel, message_summary, contact_sent_at',
+    )
+    .single();
+  if (cErr) throw cErr;
+
+  if (fields.mark_notice_sent) {
+    const noticeAt =
+      fields.notice_sent_at != null ? String(fields.notice_sent_at) : sentAt;
+    const { error: upErr } = await supabase
+      .from('violation')
+      .update({
+        violation_status: 'Notice Sent',
+        notice_sent_at: noticeAt,
+      })
+      .eq('violation_id', violationId);
+    if (upErr) throw upErr;
+  }
+
+  return mapContactDetail({
+    ...contactRow,
+    response: [],
+  });
 }
 
 function mapViolationRow(row) {

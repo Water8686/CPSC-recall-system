@@ -7,8 +7,11 @@ import {
   dbFetchViolations,
   dbCreateViolation,
   dbUpdateViolationStatus,
+  dbFetchViolationDetail,
+  dbFetchViolationAuthMeta,
 } from '../lib/supabaseViolationData.js';
 import { dbResolveAppUserId } from '../lib/supabaseRecallData.js';
+import { assertViolationAccess } from '../lib/violationAccess.js';
 
 const router = Router();
 router.use(applyApiMockUser);
@@ -58,14 +61,73 @@ router.post('/', requireRealAuth, async (req, res) => {
   }
 });
 
-/** PATCH /api/violations/:id — update status, notice_sent_at, notice_contact, notes */
+/** GET /api/violations/:id — full record with contacts, responses, adjudications */
+router.get('/:id', requireRealAuth, async (req, res) => {
+  const violationId = Number(req.params.id);
+  if (!Number.isFinite(violationId)) {
+    return res.status(400).json({ error: 'Invalid violation id' });
+  }
+
+  if (req.isApiMockMode) {
+    if (violationId === 99999) {
+      return res.status(404).json({ error: 'Violation not found' });
+    }
+    return res.json({
+      violation_id: violationId,
+      listing_id: 1,
+      recall_id: 1,
+      recall_number: '24-001',
+      recall_title: 'Mock recall',
+      investigator_id: 1,
+      investigator_name: 'Mock Manager',
+      violation_noticed_at: new Date().toISOString(),
+      violation_status: 'Open',
+      violation_type: 'Recalled Product Listed for Sale',
+      date_of_violation: '2024-01-01',
+      notes: null,
+      notice_sent_at: null,
+      notice_contact: null,
+      listing_url: 'https://example.com/listing',
+      listing_marketplace: 'eBay',
+      listing_title: 'Mock listing',
+      seller_name: 'Mock Seller',
+      seller_email: null,
+      response_count: 0,
+      latest_response: null,
+      adjudication: null,
+      contacts: [],
+    });
+  }
+
+  if (!req.supabase) return res.status(503).json({ error: 'Database not available' });
+
+  try {
+    const meta = await dbFetchViolationAuthMeta(req.supabase, violationId);
+    if (!meta) {
+      return res.status(404).json({ error: 'Violation not found' });
+    }
+    const allowed = await assertViolationAccess(req, res, req.supabase, meta.user_id);
+    if (!allowed) return;
+
+    const detail = await dbFetchViolationDetail(req.supabase, violationId);
+    if (!detail) {
+      return res.status(404).json({ error: 'Violation not found' });
+    }
+    return res.json(detail);
+  } catch (err) {
+    console.error('GET /violations/:id:', err);
+    return res.status(500).json({ error: err.message || 'Failed to load violation' });
+  }
+});
+
+/** PATCH /api/violations/:id — update status, notice_sent_at, notes */
 router.patch('/:id', requireRealAuth, async (req, res) => {
   if (!req.supabase) return res.status(503).json({ error: 'Database not available' });
 
   const violationId = Number(req.params.id);
   if (!Number.isFinite(violationId)) return res.status(400).json({ error: 'Invalid violation id' });
 
-  const { violation_status, notice_sent_at, notice_contact, notes } = req.body ?? {};
+  const { violation_status, notice_sent_at, notes } = req.body ?? {};
 
   if (violation_status && !VALID_STATUSES.includes(violation_status)) {
     return res.status(400).json({
@@ -74,10 +136,18 @@ router.patch('/:id', requireRealAuth, async (req, res) => {
   }
 
   try {
+    if (!req.isApiMockMode) {
+      const meta = await dbFetchViolationAuthMeta(req.supabase, violationId);
+      if (!meta) {
+        return res.status(404).json({ error: 'Violation not found' });
+      }
+      const allowed = await assertViolationAccess(req, res, req.supabase, meta.user_id);
+      if (!allowed) return;
+    }
+
     const row = await dbUpdateViolationStatus(req.supabase, violationId, {
       violation_status,
       notice_sent_at: notice_sent_at ?? undefined,
-      notice_contact: notice_contact ?? undefined,
       notes: notes ?? undefined,
     });
     return res.json(row);

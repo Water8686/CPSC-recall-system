@@ -17,6 +17,7 @@ import listingRoutes from './routes/listings.js';
 import listingSearchRoutes from './routes/listingSearch.js';
 import listingDiscoveryRoutes from './routes/listingDiscovery.js';
 import violationRoutes from './routes/violations.js';
+import contactRoutes from './routes/contacts.js';
 import responseRoutes from './routes/responses.js';
 import adjudicationRoutes from './routes/adjudications.js';
 import statsRoutes from './routes/stats.js';
@@ -55,6 +56,7 @@ export function createApp() {
   app.use('/api/listings', listingRoutes);
   app.use('/api/discovery', listingDiscoveryRoutes);
   app.use('/api/violations', violationRoutes);
+  app.use('/api/contacts', contactRoutes);
   app.use('/api/responses', responseRoutes);
   app.use('/api/adjudications', adjudicationRoutes);
   app.use('/api/stats', statsRoutes);

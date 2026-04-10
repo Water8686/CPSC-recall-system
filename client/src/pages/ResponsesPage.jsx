@@ -22,6 +22,10 @@ import {
   DialogContent,
   DialogActions,
   Snackbar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
@@ -62,6 +66,7 @@ export default function ResponsesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogViolation, setDialogViolation] = useState(null);
   const [responseNotes, setResponseNotes] = useState('');
+  const [responseAction, setResponseAction] = useState('no_action');
   const [responseSaving, setResponseSaving] = useState(false);
   const [snackbar, setSnackbar] = useState(null);
 
@@ -90,24 +95,39 @@ export default function ResponsesPage() {
   const handleMarkReceived = (violation) => {
     setDialogViolation(violation);
     setResponseNotes('');
+    setResponseAction('no_action');
     setDialogOpen(true);
   };
 
+  async function reloadViolations() {
+    const res = await apiFetch('/api/violations', session);
+    if (!res.ok) return;
+    const all = await res.json();
+    setViolations(
+      all.filter((v) =>
+        ['Notice Sent', 'Response Received', 'Closed'].includes(v.violation_status),
+      ),
+    );
+  }
+
   const handleSubmitResponse = async () => {
+    if (!dialogViolation || !responseNotes.trim()) {
+      setError('Response text is required.');
+      return;
+    }
     setResponseSaving(true);
+    setError(null);
     try {
-      const res = await apiFetch(`/api/violations/${dialogViolation.violation_id}`, session, {
-        method: 'PATCH',
+      const res = await apiFetch('/api/responses', session, {
+        method: 'POST',
         body: JSON.stringify({
-          violation_status: 'Response Received',
-          notes: responseNotes.trim() || undefined,
+          violation_id: dialogViolation.violation_id,
+          response_text: responseNotes.trim(),
+          action_taken: responseAction,
         }),
       });
       if (!res.ok) throw new Error(await getApiErrorMessage(res));
-      const updated = await res.json();
-      setViolations((prev) =>
-        prev.map((v) => (v.violation_id === updated.violation_id ? updated : v)),
-      );
+      await reloadViolations();
       setDialogOpen(false);
       setSnackbar('Response recorded');
     } catch (err) {
@@ -124,10 +144,7 @@ export default function ResponsesPage() {
         body: JSON.stringify({ violation_status: 'Closed' }),
       });
       if (!res.ok) throw new Error(await getApiErrorMessage(res));
-      const updated = await res.json();
-      setViolations((prev) =>
-        prev.map((v) => (v.violation_id === updated.violation_id ? updated : v)),
-      );
+      await reloadViolations();
       setSnackbar('Violation closed');
     } catch (err) {
       setError(err.message);
@@ -304,22 +321,32 @@ export default function ResponsesPage() {
                                   <strong>Notes:</strong> {v.notes}
                                 </Typography>
                               )}
-                              <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
+                                <Button
+                                  variant="contained"
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/violations/${v.violation_id}`);
+                                  }}
+                                >
+                                  Open record
+                                </Button>
                                 {v.violation_status === 'Notice Sent' && (
                                   <Button
-                                    variant="contained"
+                                    variant="outlined"
                                     size="small"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleMarkReceived(v);
                                     }}
                                   >
-                                    Mark Response Received
+                                    Quick log response
                                   </Button>
                                 )}
                                 {v.violation_status === 'Response Received' && (
                                   <Button
-                                    variant="contained"
+                                    variant="outlined"
                                     size="small"
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -329,13 +356,13 @@ export default function ResponsesPage() {
                                     Close
                                   </Button>
                                 )}
-                                {v.recall_id && (
+                                {v.recall_number && (
                                   <Button
                                     variant="outlined"
                                     size="small"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      navigate(`/recalls/${v.recall_id}`);
+                                      navigate(`/recalls/${encodeURIComponent(String(v.recall_number).trim())}`);
                                     }}
                                   >
                                     View Recall
@@ -365,14 +392,28 @@ export default function ResponsesPage() {
             </Typography>
           )}
           <TextField
-            label="Response Notes"
+            label="Response text"
             multiline
             minRows={3}
             fullWidth
             value={responseNotes}
             onChange={(e) => setResponseNotes(e.target.value)}
             placeholder="What did the seller respond with?"
+            sx={{ mb: 2 }}
           />
+          <FormControl fullWidth size="small">
+            <InputLabel>Action taken</InputLabel>
+            <Select
+              label="Action taken"
+              value={responseAction}
+              onChange={(e) => setResponseAction(e.target.value)}
+            >
+              <MenuItem value="listing_removed">Listing removed</MenuItem>
+              <MenuItem value="listing_edited">Listing edited</MenuItem>
+              <MenuItem value="disputed">Disputed</MenuItem>
+              <MenuItem value="no_action">No action</MenuItem>
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)} disabled={responseSaving}>Cancel</Button>

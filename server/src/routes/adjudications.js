@@ -6,8 +6,10 @@ import {
 import {
   dbFetchAdjudications,
   dbCreateAdjudication,
+  dbFetchViolationAuthMeta,
 } from '../lib/supabaseViolationData.js';
 import { dbResolveAppUserId } from '../lib/supabaseRecallData.js';
+import { assertViolationAccess } from '../lib/violationAccess.js';
 
 const router = Router();
 router.use(applyApiMockUser);
@@ -53,13 +55,21 @@ router.post('/', requireRealAuth, async (req, res) => {
   }
 
   try {
+    const vid = Number(violation_id);
+    if (!req.isApiMockMode) {
+      const meta = await dbFetchViolationAuthMeta(req.supabase, vid);
+      if (!meta) return res.status(404).json({ error: 'Violation not found' });
+      const allowed = await assertViolationAccess(req, res, req.supabase, meta.user_id);
+      if (!allowed) return;
+    }
+
     const userId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);
     const row = await dbCreateAdjudication(req.supabase, {
-      violation_id:    Number(violation_id),
+      violation_id: vid,
       investigator_id: userId,
       status,
-      reason:          reason ?? null,
-      notes:           notes ? String(notes).trim() : null,
+      reason: reason ?? null,
+      notes: notes ? String(notes).trim() : null,
     });
     return res.status(201).json(row);
   } catch (err) {
