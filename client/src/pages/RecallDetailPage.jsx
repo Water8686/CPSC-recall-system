@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -24,8 +24,10 @@ import {
   Select,
   MenuItem,
   Snackbar,
+  IconButton,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -85,6 +87,13 @@ export default function RecallDetailPage() {
   const [investigatorDraft, setInvestigatorDraft] = useState('');
   const [triageSaving, setTriageSaving] = useState(false);
   const [triageError, setTriageError] = useState(null);
+
+  const goToViolation = useCallback(
+    (violationId) => {
+      navigate(`/violations/${violationId}`);
+    },
+    [navigate],
+  );
 
   function openViolationModal(listing) {
     setViolationListing(listing);
@@ -540,6 +549,8 @@ export default function RecallDetailPage() {
             recallId={recallPk}
             onCreateViolation={openViolationModal}
             canCreateViolation={investigatorCanFile}
+            savedListings={listings}
+            onOpenManualAdd={() => setAddListingOpen(true)}
           />
 
           <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -652,21 +663,53 @@ export default function RecallDetailPage() {
             </Alert>
           ) : (
             violations.map((v) => (
-              <Paper key={v.violation_id} sx={{ p: 2, mb: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Box>
+              <Paper
+                key={v.violation_id}
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  mb: 1,
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: 'action.hover' },
+                }}
+                role="button"
+                tabIndex={0}
+                onClick={() => goToViolation(v.violation_id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    goToViolation(v.violation_id);
+                  }
+                }}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
                     <Typography fontWeight={600}>
                       {v.listing_title || `Violation #${v.violation_id}`}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {v.violation_type ?? 'No type'} {'\u00b7'} {v.date_of_violation ? new Date(v.date_of_violation).toLocaleDateString() : 'No date'} {'\u00b7'} {v.investigator_name || 'Unknown investigator'}
+                      {v.violation_type ?? 'No type'} {'\u00b7'}{' '}
+                      {v.date_of_violation ? new Date(v.date_of_violation).toLocaleDateString() : 'No date'}{' '}
+                      {'\u00b7'} {v.investigator_name || 'Unknown investigator'}
                     </Typography>
                   </Box>
-                  <Chip
-                    label={v.violation_status}
-                    color={statusColor(v.violation_status)}
-                    size="small"
-                  />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                    <Chip
+                      label={v.violation_status}
+                      color={statusColor(v.violation_status)}
+                      size="small"
+                    />
+                    <IconButton
+                      size="small"
+                      aria-label="Open violation"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goToViolation(v.violation_id);
+                      }}
+                    >
+                      <ChevronRightIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
                 </Box>
               </Paper>
             ))

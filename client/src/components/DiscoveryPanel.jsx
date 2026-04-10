@@ -38,7 +38,34 @@ const STATUS_COLORS = {
   [REVIEW_STATUSES.REJECTED]: 'error',
 };
 
-export default function DiscoveryPanel({ recallId, onCreateViolation, canCreateViolation = true }) {
+function normalizeListingUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const t = url.trim();
+  if (!t) return '';
+  try {
+    const u = new URL(t);
+    u.hash = '';
+    let out = u.href;
+    if (out.endsWith('/')) out = out.slice(0, -1);
+    return out.toLowerCase();
+  } catch {
+    return t.replace(/\/$/, '').toLowerCase();
+  }
+}
+
+function findSavedListingByUrl(listings, url) {
+  const n = normalizeListingUrl(url);
+  if (!n) return null;
+  return listings.find((l) => normalizeListingUrl(l.url) === n) ?? null;
+}
+
+export default function DiscoveryPanel({
+  recallId,
+  onCreateViolation,
+  canCreateViolation = true,
+  savedListings = [],
+  onOpenManualAdd,
+}) {
   const { session } = useAuth();
 
   const [results, setResults] = useState([]);
@@ -150,6 +177,12 @@ export default function DiscoveryPanel({ recallId, onCreateViolation, canCreateV
   }
 
   async function handleCreateViolation(result) {
+    const existing = findSavedListingByUrl(savedListings, result.listing_url);
+    if (existing) {
+      if (onCreateViolation) onCreateViolation(existing);
+      return;
+    }
+
     setCreatingViolation((prev) => ({ ...prev, [result.discovery_id]: true }));
     try {
       const res = await apiFetch('/api/listings', session, {
@@ -183,6 +216,14 @@ export default function DiscoveryPanel({ recallId, onCreateViolation, canCreateV
 
   return (
     <Box>
+      {!canCreateViolation && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Only <strong>Investigator</strong> accounts can file violations from discovery results. If you
+          are a manager or admin, use triage on the recall to assign an investigator, or sign in with an
+          investigator profile.
+        </Alert>
+      )}
+
       {/* Header row */}
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
         <Button
@@ -193,6 +234,12 @@ export default function DiscoveryPanel({ recallId, onCreateViolation, canCreateV
         >
           {searching ? 'Searching...' : 'Discover & Verify Listings'}
         </Button>
+
+        {typeof onOpenManualAdd === 'function' && (
+          <Button variant="outlined" size="small" onClick={onOpenManualAdd}>
+            Add listing manually
+          </Button>
+        )}
 
         {hasResults && (
           <Tooltip title="Re-run search (ignore cache)">
@@ -219,6 +266,11 @@ export default function DiscoveryPanel({ recallId, onCreateViolation, canCreateV
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
+          {typeof onOpenManualAdd === 'function' && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              If search keeps failing, you can still add a listing manually.
+            </Typography>
+          )}
         </Alert>
       )}
 
@@ -281,8 +333,15 @@ export default function DiscoveryPanel({ recallId, onCreateViolation, canCreateV
       {/* Empty state */}
       {!loading && !searching && !hasResults && (
         <Alert severity="info">
-          No discovery results yet. Click "Discover & Verify Listings" to search for marketplace
-          listings matching this recall.
+          <Typography variant="body2" component="span" display="block" gutterBottom>
+            No discovery results yet. Click &quot;Discover & Verify Listings&quot; to search for marketplace
+            listings matching this recall.
+          </Typography>
+          {typeof onOpenManualAdd === 'function' && (
+            <Button variant="outlined" size="small" sx={{ mt: 0.5 }} onClick={onOpenManualAdd}>
+              Add listing manually
+            </Button>
+          )}
         </Alert>
       )}
 
@@ -385,15 +444,26 @@ export default function DiscoveryPanel({ recallId, onCreateViolation, canCreateV
                 )}
 
                 {result.review_status === REVIEW_STATUSES.CONFIRMED && canCreateViolation && (
-                  <Button
-                    variant="contained"
-                    size="small"
-                    color="error"
-                    onClick={() => handleCreateViolation(result)}
-                    disabled={!!creatingViolation[result.discovery_id]}
-                  >
-                    {creatingViolation[result.discovery_id] ? 'Creating...' : 'Create Violation'}
-                  </Button>
+                  <>
+                    {findSavedListingByUrl(savedListings, result.listing_url) && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                        Listing already saved for this recall — opens violation flow for that listing.
+                      </Typography>
+                    )}
+                    <Button
+                      variant="contained"
+                      size="small"
+                      color="error"
+                      onClick={() => handleCreateViolation(result)}
+                      disabled={!!creatingViolation[result.discovery_id]}
+                    >
+                      {creatingViolation[result.discovery_id]
+                        ? 'Creating...'
+                        : findSavedListingByUrl(savedListings, result.listing_url)
+                          ? 'Create violation'
+                          : 'Create Violation'}
+                    </Button>
+                  </>
                 )}
               </Box>
             </Box>

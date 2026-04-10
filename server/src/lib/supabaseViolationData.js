@@ -577,12 +577,17 @@ export async function dbCreateResponse(supabase, fields) {
     contactId = newContact.contact_id;
   }
 
+  const responderType =
+    fields.responder_type && String(fields.responder_type).trim() === 'investigator'
+      ? 'investigator'
+      : 'seller';
+
   const { data, error } = await supabase
     .from('response')
     .insert({
       contact_id:           contactId,
       user_id:              fields.user_id ?? null,
-      responder_type:       'seller',
+      responder_type:       responderType,
       seller_id:            null,
       response_text:        fields.response_text,
       response_action:      fields.action_taken ?? null,

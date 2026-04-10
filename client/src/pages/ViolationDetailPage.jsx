@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -17,6 +17,14 @@ import {
   Divider,
   FormControlLabel,
   Checkbox,
+  Stepper,
+  Step,
+  StepLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Link,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useAuth } from '../context/AuthContext';
@@ -76,6 +84,11 @@ export default function ViolationDetailPage() {
   const [adjReason, setAdjReason] = useState('listing_removed');
   const [adjNotes, setAdjNotes] = useState('');
   const [adjSaving, setAdjSaving] = useState(false);
+
+  const [noResponseDialogOpen, setNoResponseDialogOpen] = useState(false);
+  const [noResponseSaving, setNoResponseSaving] = useState(false);
+
+  const sellerResponseSectionRef = useRef(null);
 
   const loadViolation = useCallback(async () => {
     setLoading(true);
@@ -166,6 +179,36 @@ export default function ViolationDetailPage() {
     }
   }
 
+  function scrollToSellerResponse() {
+    sellerResponseSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function submitNoSellerResponse() {
+    if (!violation) return;
+    setNoResponseSaving(true);
+    try {
+      const recordedAt = new Date().toISOString();
+      const text = `No response received from seller as of ${recordedAt}. Recorded by investigator.`;
+      const res = await apiFetch('/api/responses', session, {
+        method: 'POST',
+        body: JSON.stringify({
+          violation_id: violation.violation_id,
+          response_text: text,
+          action_taken: 'no_action',
+          responder_type: 'investigator',
+        }),
+      });
+      if (!res.ok) throw new Error(await getApiErrorMessage(res));
+      setNoResponseDialogOpen(false);
+      setSnackbar('No-response record saved; you can submit a final decision when ready');
+      await loadViolation();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setNoResponseSaving(false);
+    }
+  }
+
   async function submitAdjudication() {
     if (!violation) return;
     setAdjSaving(true);
@@ -221,6 +264,20 @@ export default function ViolationDetailPage() {
     !violation.adjudication &&
     violation.violation_status !== 'Closed';
 
+  const noticeComplete = Boolean(violation.notice_sent_at);
+  const responseComplete = violation.response_count > 0;
+  const decisionComplete = Boolean(violation.adjudication) || violation.violation_status === 'Closed';
+  let activeWorkflowStep = 0;
+  if (!noticeComplete) activeWorkflowStep = 0;
+  else if (!responseComplete) activeWorkflowStep = 1;
+  else if (!decisionComplete) activeWorkflowStep = 2;
+  else activeWorkflowStep = 3;
+
+  const canRecordNoSellerResponse =
+    !responseComplete &&
+    violation.violation_status !== 'Closed' &&
+    !violation.adjudication;
+
   return (
     <Box>
       <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/violations')} sx={{ mb: 2 }}>
@@ -275,6 +332,37 @@ export default function ViolationDetailPage() {
             </Button>
           )}
         </Box>
+      </Paper>
+
+      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>
+          Investigation workflow
+        </Typography>
+        <Stepper activeStep={activeWorkflowStep} alternativeLabel>
+          <Step completed={noticeComplete}>
+            <StepLabel>Notice sent</StepLabel>
+          </Step>
+          <Step completed={responseComplete}>
+            <StepLabel>Seller response</StepLabel>
+          </Step>
+          <Step completed={decisionComplete}>
+            <StepLabel>Final decision</StepLabel>
+          </Step>
+        </Stepper>
+        {!responseComplete && !decisionComplete && (
+          <Typography variant="body2" color="text.secondary">
+            Waiting on a response record before you can submit a final decision.{' '}
+            <Link
+              component="button"
+              type="button"
+              variant="body2"
+              onClick={scrollToSellerResponse}
+              sx={{ cursor: 'pointer', verticalAlign: 'baseline' }}
+            >
+              Go to response section
+            </Link>
+          </Typography>
+        )}
       </Paper>
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
@@ -370,7 +458,8 @@ export default function ViolationDetailPage() {
               {(c.responses ?? []).map((r) => (
                 <Box key={r.response_id} sx={{ mt: 1, ml: 1 }}>
                   <Typography variant="caption" color="text.secondary">
-                    Response · {fmtDate(r.responded_at)}
+                    {r.responder_type === 'investigator' ? 'Investigator record' : 'Response'} ·{' '}
+                    {fmtDate(r.responded_at)}
                     {r.action_taken && ` · ${r.action_taken}`}
                   </Typography>
                   <Typography variant="body2">{r.response_text || '—'}</Typography>
@@ -397,7 +486,7 @@ export default function ViolationDetailPage() {
         )}
       </Paper>
 
-      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+      <Paper ref={sellerResponseSectionRef} variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
           Log seller response
         </Typography>
@@ -427,7 +516,7 @@ export default function ViolationDetailPage() {
             ))}
           </Select>
         </FormControl>
-        <Box>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
           <Button
             variant="contained"
             size="small"
@@ -435,6 +524,14 @@ export default function ViolationDetailPage() {
             disabled={responseSaving || !responseText.trim()}
           >
             {responseSaving ? 'Saving…' : 'Save response'}
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => setNoResponseDialogOpen(true)}
+            disabled={responseSaving || !canRecordNoSellerResponse}
+          >
+            Record no response from seller
           </Button>
         </Box>
       </Paper>
@@ -447,7 +544,21 @@ export default function ViolationDetailPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {violation.adjudication || violation.violation_status === 'Closed'
               ? 'This violation already has a final decision or is closed.'
-              : 'Log at least one seller response before submitting a final decision.'}
+              : 'Log at least one response (seller reply or “no response from seller”) before submitting a final decision.'}{' '}
+            {!decisionComplete && !responseComplete && (
+              <>
+                <Link
+                  component="button"
+                  type="button"
+                  variant="body2"
+                  onClick={scrollToSellerResponse}
+                  sx={{ cursor: 'pointer', verticalAlign: 'baseline' }}
+                >
+                  Go to response section
+                </Link>
+                .
+              </>
+            )}
           </Typography>
         )}
         {canAdjudicate && (
@@ -511,6 +622,30 @@ export default function ViolationDetailPage() {
           </Box>
         )}
       </Paper>
+
+      <Dialog
+        open={noResponseDialogOpen}
+        onClose={() => !noResponseSaving && setNoResponseDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Record no seller response</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            This adds an investigator-typed response to the timeline so you can close the case when
+            the seller never replied. Use the standard form above if you received an actual seller
+            message.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNoResponseDialogOpen(false)} disabled={noResponseSaving}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={submitNoSellerResponse} disabled={noResponseSaving}>
+            {noResponseSaving ? 'Saving…' : 'Confirm'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={!!snackbar}

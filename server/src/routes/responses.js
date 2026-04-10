@@ -15,6 +15,7 @@ const router = Router();
 router.use(applyApiMockUser);
 
 const VALID_ACTIONS = ['listing_removed', 'listing_edited', 'disputed', 'no_action'];
+const VALID_RESPONDER_TYPES = ['seller', 'investigator'];
 
 /** GET /api/responses */
 router.get('/', requireRealAuth, async (req, res) => {
@@ -32,7 +33,7 @@ router.get('/', requireRealAuth, async (req, res) => {
 router.post('/', requireRealAuth, async (req, res) => {
   if (!req.supabase) return res.status(503).json({ error: 'Database not available' });
 
-  const { violation_id, response_text, action_taken } = req.body ?? {};
+  const { violation_id, response_text, action_taken, responder_type } = req.body ?? {};
 
   if (!violation_id) return res.status(400).json({ error: 'violation_id is required' });
   if (!response_text || !String(response_text).trim()) {
@@ -41,6 +42,12 @@ router.post('/', requireRealAuth, async (req, res) => {
   if (action_taken && !VALID_ACTIONS.includes(action_taken)) {
     return res.status(400).json({
       error: `action_taken must be one of: ${VALID_ACTIONS.join(', ')}`,
+    });
+  }
+  const rt = responder_type ? String(responder_type).trim() : null;
+  if (rt && !VALID_RESPONDER_TYPES.includes(rt)) {
+    return res.status(400).json({
+      error: `responder_type must be one of: ${VALID_RESPONDER_TYPES.join(', ')}`,
     });
   }
 
@@ -59,6 +66,7 @@ router.post('/', requireRealAuth, async (req, res) => {
       user_id: userId,
       response_text: String(response_text).trim(),
       action_taken: action_taken ?? null,
+      responder_type: rt ?? undefined,
     });
     return res.status(201).json(row);
   } catch (err) {
