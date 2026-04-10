@@ -48,6 +48,11 @@ export function canViewOperationalSprintPages(role) {
   return OPERATIONAL_ROLES.includes(role);
 }
 
+/** Only CPSC Investigators may create violations (BIT 4454 Sprint 2 test cases). */
+export function canFileViolations(role) {
+  return role === USER_ROLES.INVESTIGATOR;
+}
+
 /**
  * Map profiles.user_type (ERD) or legacy profiles.role + JWT metadata to canonical USER_ROLES.*.
  */

@@ -76,9 +76,11 @@ Set `VITE_*` and `SUPABASE_*` plus `APP_JWT_SECRET` so the client bundle and the
 
 | Sprint | Feature | Status |
 |--------|---------|--------|
-| 1 | Prioritize Recall (Manager login, recall list, priority assignment) | In Progress |
-| 2 | Create Violation (Investigator logs violations from listings) | Not Started |
-| 3 | Respond to Violation + Adjudicate (Seller responses, investigator decisions) | Not Started |
+| 1 | Prioritize Recall (Manager login, recall list, priority assignment, investigator assignment, batch import) | Done |
+| 2 | Listings & violations (manual add, eBay search API, discovery pipeline, investigator-only create violation, listing annotation) | Done |
+| 3 | Respond + adjudicate (contacts, responses, adjudication on violation detail; dashboard & analytics) | Done |
+
+**Listing sources for demos:** manual entry, optional eBay API search (`/api/listings/search/ebay`), and the discovery workflow (`/api/discovery`). See [docs/BIT4454_SUBMISSION_NOTES.md](docs/BIT4454_SUBMISSION_NOTES.md) for grading, Zapier/BI, and Canvas checklist.
 
 ## API
 

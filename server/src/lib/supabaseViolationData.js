@@ -21,6 +21,7 @@ const LISTING_SELECT = `
   listing_id, marketplace_id, seller_id, external_listing_id,
   listing_url, listing_title, listing_description, listing_posted_at,
   listing_snapshot_url, snapshot_captured_at, source, recall_id,
+  is_true_match, annotation_notes, annotated_by, annotated_at,
   marketplace(marketplace_name),
   seller(seller_name, seller_email)
 `;
@@ -92,15 +93,21 @@ export async function dbCreateListing(supabase, fields) {
   return mapListingRow(data);
 }
 
-export async function dbAnnotateListing(supabase, listingId, _fields) {
-  // is_true_match / annotation columns do not exist in the current DB schema.
-  // Return the listing unchanged so the frontend continues to function.
+export async function dbAnnotateListing(supabase, listingId, fields) {
+  const patch = {
+    is_true_match: Boolean(fields.is_true_match),
+    annotation_notes: fields.annotation_notes != null ? String(fields.annotation_notes).trim() || null : null,
+    annotated_by: fields.annotated_by ?? null,
+    annotated_at: new Date().toISOString(),
+  };
   const { data, error } = await supabase
     .from('listing')
-    .select(LISTING_SELECT)
+    .update(patch)
     .eq('listing_id', listingId)
-    .maybeSingle();
+    .select(LISTING_SELECT)
+    .single();
   if (error) throw error;
+  if (!data) throw new Error('Listing not found');
   return mapListingRow(data);
 }
 
@@ -120,11 +127,10 @@ function mapListingRow(row) {
     source:              row.source ?? 'Manual',
     recall_id:           row.recall_id ?? null,
     snapshot_url:        row.listing_snapshot_url ?? null,
-    // annotation stubs — not in current DB schema
-    is_true_match:       null,
-    annotation_notes:    null,
-    annotated_by:        null,
-    annotated_at:        null,
+    is_true_match:       row.is_true_match ?? null,
+    annotation_notes:    row.annotation_notes ?? null,
+    annotated_by:        row.annotated_by ?? null,
+    annotated_at:        row.annotated_at ?? null,
   };
 }
 

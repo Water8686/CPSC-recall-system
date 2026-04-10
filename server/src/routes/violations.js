@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   applyApiMockUser,
   requireRealAuth,
+  requireInvestigatorOnly,
 } from '../middleware/requireCpscManager.js';
 import {
   dbFetchViolations,
@@ -31,8 +32,8 @@ router.get('/', requireRealAuth, async (req, res) => {
   }
 });
 
-/** POST /api/violations — create or update (upsert by listing_id) */
-router.post('/', requireRealAuth, async (req, res) => {
+/** POST /api/violations — create or update (upsert by listing_id); investigator only */
+router.post('/', requireRealAuth, requireInvestigatorOnly, async (req, res) => {
   if (!req.supabase) return res.status(503).json({ error: 'Database not available' });
 
   const { listing_id, violation_type, date_of_violation, recall_id, notes } = req.body ?? {};

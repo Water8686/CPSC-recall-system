@@ -6,6 +6,8 @@
 
 ## Production URL
 
+**Before grading submission:** Replace the placeholder below with your team’s **public Railway URL** (Railway project → your service → **Settings** → **Networking** → generate or copy the domain). Deploy steps: [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ```
 https://YOUR-APP.up.railway.app
 ```

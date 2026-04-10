@@ -11,5 +11,5 @@ export const VIOLATION_TYPES = [
   'Counterfeit Safety Certification',
 ];
 
-/** Roles allowed to create violations and manage listings. */
-export const INVESTIGATOR_ROLES = ['admin', 'investigator'];
+/** Roles allowed to file violations (`POST /api/violations`). Admins use user management, not violation filing. */
+export const INVESTIGATOR_ROLES = ['investigator'];

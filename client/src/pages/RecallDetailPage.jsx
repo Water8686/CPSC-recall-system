@@ -40,6 +40,7 @@ import {
   VIOLATION_TYPES,
   PRIORITY_LEVELS,
   canAccessManagerFeatures,
+  canFileViolations,
   normalizeAppRole,
 } from 'shared';
 
@@ -54,6 +55,7 @@ export default function RecallDetailPage() {
     user?.user_metadata?.role ?? user?.app_metadata?.role,
   );
   const canManageTriage = canAccessManagerFeatures(role);
+  const investigatorCanFile = canFileViolations(role);
 
   const [recall, setRecall] = useState(null);
   const recallPk = recall ? Number(recall.id) : null;
@@ -537,6 +539,7 @@ export default function RecallDetailPage() {
           <DiscoveryPanel
             recallId={recallPk}
             onCreateViolation={openViolationModal}
+            canCreateViolation={investigatorCanFile}
           />
 
           <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -617,10 +620,17 @@ export default function RecallDetailPage() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             {listings.map((listing) => (
               <ListingCard
-                  key={listing.listing_id}
-                  listing={listing}
-                  onCreateViolation={openViolationModal}
-                />
+                key={listing.listing_id}
+                listing={listing}
+                showViolationButton={investigatorCanFile}
+                investigatorActions={investigatorCanFile}
+                onCreateViolation={openViolationModal}
+                onListingUpdated={(u) =>
+                  setListings((prev) =>
+                    prev.map((l) => (l.listing_id === u.listing_id ? { ...l, ...u } : l)),
+                  )
+                }
+              />
             ))}
           </Box>
 

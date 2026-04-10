@@ -64,6 +64,10 @@ export default function LoginPage() {
           <Typography variant="body2" color="text.secondary" mb={3}>
             Use your registered email and password.
           </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+            Student prototype for BIT 4454 — not endorsed by or affiliated with the U.S. Consumer Product
+            Safety Commission (CPSC). Access is restricted for course grading.
+          </Typography>
 
           <div role="alert" aria-live="assertive">
             {error && (

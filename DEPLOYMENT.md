@@ -63,6 +63,8 @@ Apply migrations in the Supabase SQL editor (or CLI) so `app_users` exists and `
 
 You do **not** need Supabase **Authentication → Users** for this app’s login flow.
 
+**Listing annotation (match / false positive):** if `PATCH /api/listings/:id/annotate` errors on missing columns, run [`supabase/20260410130000_listing_annotation.sql`](supabase/20260410130000_listing_annotation.sql) in the SQL editor.
+
 ## 5. Health check
 
 `railway.toml` uses `GET /api/health` for the deploy health check.

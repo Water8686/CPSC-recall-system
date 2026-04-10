@@ -38,7 +38,7 @@ const STATUS_COLORS = {
   [REVIEW_STATUSES.REJECTED]: 'error',
 };
 
-export default function DiscoveryPanel({ recallId, onCreateViolation }) {
+export default function DiscoveryPanel({ recallId, onCreateViolation, canCreateViolation = true }) {
   const { session } = useAuth();
 
   const [results, setResults] = useState([]);
@@ -384,7 +384,7 @@ export default function DiscoveryPanel({ recallId, onCreateViolation }) {
                   </>
                 )}
 
-                {result.review_status === REVIEW_STATUSES.CONFIRMED && (
+                {result.review_status === REVIEW_STATUSES.CONFIRMED && canCreateViolation && (
                   <Button
                     variant="contained"
                     size="small"

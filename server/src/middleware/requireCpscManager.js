@@ -52,6 +52,14 @@ export function requireInvestigatorOrAdmin(req, res, next) {
   requireAuth(req, res, () => verifyInvestigatorRole(req, res, next));
 }
 
+/**
+ * CPSC Investigator only — POST /api/violations (Sprint 2 RA test cases; managers use triage only).
+ */
+export function requireInvestigatorOnly(req, res, next) {
+  if (req.isApiMockMode) return next();
+  requireAuth(req, res, () => verifyInvestigatorOnly(req, res, next));
+}
+
 function verifyManagerRole(req, res, next) {
   const metaRole = jwtFallbackRole(req.user);
   const client = supabaseAdmin || req.supabase;
@@ -133,6 +141,47 @@ function verifyInvestigatorRole(req, res, next) {
       console.error(err);
       res.status(403).json({
         error: 'Unauthorized. CPSC Investigator or Admin role required.',
+      });
+    });
+}
+
+function verifyInvestigatorOnly(req, res, next) {
+  const metaRole = jwtFallbackRole(req.user);
+  const client = supabaseAdmin || req.supabase;
+
+  if (!client) {
+    return metaRole === USER_ROLES.INVESTIGATOR
+      ? next()
+      : res.status(403).json({
+          error: 'Unauthorized. CPSC Investigator role required to create violations.',
+        });
+  }
+
+  const uid = jwtSubToUserId(req.user.id);
+  if (uid == null) {
+    return res.status(403).json({
+      error: 'Unauthorized. CPSC Investigator role required to create violations.',
+    });
+  }
+  client
+    .from('app_users')
+    .select('user_type')
+    .eq('user_id', uid)
+    .maybeSingle()
+    .then(({ data, error }) => {
+      if (error) console.warn('app_users select error:', error.message);
+      const role = normalizeAppRole(data, metaRole);
+      if (role !== USER_ROLES.INVESTIGATOR) {
+        return res.status(403).json({
+          error: 'Unauthorized. CPSC Investigator role required to create violations.',
+        });
+      }
+      next();
+    })
+    .catch((err) => {
+      console.error(err);
+      res.status(403).json({
+        error: 'Unauthorized. CPSC Investigator role required to create violations.',
       });
     });
 }
