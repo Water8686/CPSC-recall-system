@@ -3,12 +3,16 @@ import {
   applyApiMockUser,
   requireRealAuth,
 } from '../middleware/requireCpscManager.js';
+import { USER_ROLES } from '../lib/roles.js';
 
 const router = Router();
 router.use(applyApiMockUser);
 
 /** GET /api/stats/dashboard */
 router.get('/dashboard', requireRealAuth, async (req, res) => {
+  if (!req.isApiMockMode && req.user?.user_metadata?.role === USER_ROLES.SELLER) {
+    return res.status(403).json({ error: 'Sellers do not have access to dashboard statistics.' });
+  }
   if (!req.supabase) return res.status(503).json({ error: 'Database not available' });
 
   try {

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link as RouterLink } from 'react-router-dom';
+import { USER_ROLES } from 'shared';
 import {
   Box,
   Card,
@@ -44,13 +45,15 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
 
-    const { error } = await signIn(email, password);
+    const { data, error } = await signIn(email, password);
 
     if (error) {
       setError(error.message);
       setLoading(false);
     } else {
-      navigate('/dashboard');
+      // data.session is the raw login API response; profile.role holds the normalised role.
+      const role = data?.session?.profile?.role ?? data?.session?.user?.role;
+      navigate(role === USER_ROLES.SELLER ? '/violations' : '/dashboard');
     }
   };
 

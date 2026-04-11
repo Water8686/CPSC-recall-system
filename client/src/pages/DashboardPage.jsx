@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, Navigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -22,7 +22,7 @@ import {
 } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
-import { canAccessManagerFeatures, normalizeAppRole } from 'shared';
+import { canAccessManagerFeatures, normalizeAppRole, USER_ROLES } from 'shared';
 
 const KPI_CARDS = [
   { key: 'open_violations', label: 'Open Violations', color: '#0D47A1', bg: '#e3f2fd' },
@@ -46,6 +46,12 @@ export default function DashboardPage() {
     profile,
     user?.user_metadata?.role ?? user?.app_metadata?.role,
   );
+
+  // Sellers do not have a dashboard — redirect them to their violations list.
+  if (role === USER_ROLES.SELLER) {
+    return <Navigate to="/violations" replace />;
+  }
+
   const managerUi = canAccessManagerFeatures(role);
   const displayName = profile?.full_name || user?.email || 'User';
 

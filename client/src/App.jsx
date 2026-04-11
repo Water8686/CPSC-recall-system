@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material';
 import { theme } from './theme';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import DocumentTitle from './components/DocumentTitle';
 import Layout from './components/Layout';
@@ -18,7 +18,16 @@ import ResponsesPage from './pages/ResponsesPage';
 import SettingsPage from './pages/SettingsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
-import { RECALL_PAGE_ROLES, OPERATIONAL_ROLES } from 'shared';
+import { RECALL_PAGE_ROLES, OPERATIONAL_ROLES, VIOLATION_WORKFLOW_ROLES, USER_ROLES, normalizeAppRole } from 'shared';
+
+/** Redirect unauthenticated users to /login; authenticated sellers to /violations; others to /dashboard. */
+function DefaultRedirect() {
+  const { user, profile, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  const role = normalizeAppRole(profile, user?.user_metadata?.role);
+  return <Navigate to={role === USER_ROLES.SELLER ? '/violations' : '/dashboard'} replace />;
+}
 
 export default function App() {
   return (
@@ -44,7 +53,14 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/unauthorized" element={<UnauthorizedPage />} />
               <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route
+                path="/analytics"
+                element={
+                  <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
+                    <AnalyticsPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/recalls"
                 element={
@@ -64,7 +80,7 @@ export default function App() {
               <Route
                 path="/violations"
                 element={
-                  <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
+                  <ProtectedRoute allowedRoles={VIOLATION_WORKFLOW_ROLES}>
                     <ViolationsPage />
                   </ProtectedRoute>
                 }
@@ -72,7 +88,7 @@ export default function App() {
               <Route
                 path="/violations/:id"
                 element={
-                  <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
+                  <ProtectedRoute allowedRoles={VIOLATION_WORKFLOW_ROLES}>
                     <ViolationDetailPage />
                   </ProtectedRoute>
                 }
@@ -87,8 +103,8 @@ export default function App() {
               />
             </Route>
 
-            {/* Default redirect */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            {/* Default redirect — role-aware */}
+            <Route path="*" element={<DefaultRedirect />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

@@ -13,6 +13,7 @@ import {
   dbUpsertPrioritization,
   dbResolveAppUserId,
 } from '../lib/supabaseRecallData.js';
+import { USER_ROLES } from '../lib/roles.js';
 
 const router = Router();
 
@@ -21,6 +22,9 @@ const VALID_PRIORITIES = ['High', 'Medium', 'Low'];
 router.use(applyApiMockUser);
 
 router.get('/', requireRealAuth, async (req, res) => {
+  if (!req.isApiMockMode && req.user?.user_metadata?.role === USER_ROLES.SELLER) {
+    return res.status(403).json({ error: 'Sellers do not have access to prioritizations.' });
+  }
   if (req.isApiMockMode) {
     return res.json(getAllPrioritizations());
   }

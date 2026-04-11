@@ -302,15 +302,64 @@ export async function dbFetchViolationDetail(supabase, violationId) {
   };
 }
 
-/** Minimal row for auth checks (owner user_id). */
+/** Minimal row for auth checks — returns violation owner (user_id) and listing seller (seller_id). */
 export async function dbFetchViolationAuthMeta(supabase, violationId) {
   const { data, error } = await supabase
     .from('violation')
-    .select('violation_id, user_id')
+    .select('violation_id, user_id, listing(seller_id)')
     .eq('violation_id', violationId)
     .maybeSingle();
   if (error) throw error;
-  return data;
+  if (!data) return null;
+  return {
+    violation_id: data.violation_id,
+    user_id: data.user_id,
+    seller_id: data.listing?.seller_id ?? null,
+  };
+}
+
+/**
+ * Resolve the marketplace seller_id for an app_users row.
+ * Prefers the explicit seller_id column; falls back to matching email against seller.seller_email.
+ */
+export async function resolveSellerIdForAppUser(supabase, appUserId) {
+  const { data: userRow } = await supabase
+    .from('app_users')
+    .select('seller_id, email')
+    .eq('user_id', appUserId)
+    .maybeSingle();
+
+  if (!userRow) return null;
+  if (userRow.seller_id != null) return userRow.seller_id;
+  if (!userRow.email) return null;
+
+  const { data: sellerRow } = await supabase
+    .from('seller')
+    .select('seller_id')
+    .ilike('seller_email', userRow.email)
+    .maybeSingle();
+
+  return sellerRow?.seller_id ?? null;
+}
+
+/** Fetch violations whose listing belongs to the given seller. */
+export async function dbFetchViolationsForSeller(supabase, sellerId) {
+  const { data: listings } = await supabase
+    .from('listing')
+    .select('listing_id')
+    .eq('seller_id', sellerId);
+
+  const listingIds = (listings ?? []).map((l) => l.listing_id);
+  if (listingIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('violation')
+    .select(VIOLATION_SELECT)
+    .in('listing_id', listingIds)
+    .order('violation_noticed_at', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map(mapViolationRow);
 }
 
 export async function dbCreateViolation(supabase, fields) {

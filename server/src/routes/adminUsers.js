@@ -54,6 +54,10 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
   if (req.body?.full_name !== undefined) {
     patch.full_name = String(req.body.full_name).trim() || null;
   }
+  if (req.body?.seller_id !== undefined) {
+    const sid = req.body.seller_id;
+    patch.seller_id = sid == null || sid === '' ? null : Number(sid) || null;
+  }
 
   if (Object.keys(patch).length <= 1) {
     return res.status(400).json({ error: 'No valid fields to update' });

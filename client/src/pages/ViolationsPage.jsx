@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
+import { normalizeAppRole, USER_ROLES } from 'shared';
 import {
   VIOLATION_STATUS_TABS,
   statusColor,
@@ -29,7 +30,7 @@ function fmtDate(value) {
   return new Date(value).toLocaleDateString();
 }
 
-function ViolationRow({ violation }) {
+function ViolationRow({ violation, isSeller }) {
   const navigate = useNavigate();
   const mktColors = MARKETPLACE_COLORS[violation.listing_marketplace] || {};
 
@@ -65,9 +66,11 @@ function ViolationRow({ violation }) {
       <TableCell>
         <Typography variant="body2">{fmtDate(violation.date_of_violation)}</Typography>
       </TableCell>
-      <TableCell>
-        <Typography variant="body2">{violation.investigator_name || '—'}</Typography>
-      </TableCell>
+      {!isSeller && (
+        <TableCell>
+          <Typography variant="body2">{violation.investigator_name || '—'}</Typography>
+        </TableCell>
+      )}
       <TableCell>
         <Chip
           label={violation.violation_status}
@@ -81,7 +84,7 @@ function ViolationRow({ violation }) {
           variant="outlined"
           onClick={() => navigate(`/violations/${violation.violation_id}`)}
         >
-          Open
+          {isSeller ? 'View' : 'Open'}
         </Button>
       </TableCell>
     </TableRow>
@@ -89,7 +92,9 @@ function ViolationRow({ violation }) {
 }
 
 export default function ViolationsPage() {
-  const { session } = useAuth();
+  const { session, user, profile } = useAuth();
+  const role = normalizeAppRole(profile, user?.user_metadata?.role ?? user?.app_metadata?.role);
+  const isSeller = role === USER_ROLES.SELLER;
   const [violations, setViolations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -145,7 +150,7 @@ export default function ViolationsPage() {
       {/* Toolbar */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
         <Typography variant="h5" fontWeight={700}>
-          Violations{' '}
+          {isSeller ? 'My Violations' : 'Violations'}{' '}
           <Typography component="span" variant="h5" color="text.secondary" fontWeight={400}>
             ({filtered.length})
           </Typography>
@@ -186,7 +191,7 @@ export default function ViolationsPage() {
               <TableCell sx={{ fontWeight: 600 }}>Listing</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Violation Type</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Investigator</TableCell>
+              {!isSeller && <TableCell sx={{ fontWeight: 600 }}>Investigator</TableCell>}
               <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
               <TableCell align="right" sx={{ fontWeight: 600 }}> </TableCell>
             </TableRow>
@@ -200,7 +205,7 @@ export default function ViolationsPage() {
               </TableRow>
             ) : (
               filtered.map((v) => (
-                <ViolationRow key={v.violation_id} violation={v} />
+                <ViolationRow key={v.violation_id} violation={v} isSeller={isSeller} />
               ))
             )}
           </TableBody>

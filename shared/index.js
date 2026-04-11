@@ -48,6 +48,18 @@ export function canViewOperationalSprintPages(role) {
   return OPERATIONAL_ROLES.includes(role);
 }
 
+/** All roles that may access the violations/responses workflow (staff + sellers). */
+export const VIOLATION_WORKFLOW_ROLES = [
+  USER_ROLES.ADMIN,
+  USER_ROLES.MANAGER,
+  USER_ROLES.INVESTIGATOR,
+  USER_ROLES.SELLER,
+];
+
+export function canAccessViolationWorkflow(role) {
+  return VIOLATION_WORKFLOW_ROLES.includes(role);
+}
+
 /** Only CPSC Investigators may create violations (BIT 4454 Sprint 2 test cases). */
 export function canFileViolations(role) {
   return role === USER_ROLES.INVESTIGATOR;

@@ -30,6 +30,253 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
 import { statusColor } from '../constants/violations';
+import { normalizeAppRole, USER_ROLES } from 'shared';
+
+const SELLER_RESPONSE_ACTIONS = [
+  { value: 'listing_removed', label: 'Listing removed' },
+  { value: 'listing_edited', label: 'Listing edited' },
+  { value: 'disputed', label: 'I dispute this violation' },
+  { value: 'no_action', label: 'No specific action' },
+];
+
+function SellerViolationView({ violation, session, onReload }) {
+  const navigate = useNavigate();
+  const [replyText, setReplyText] = useState('');
+  const [replyAction, setReplyAction] = useState('no_action');
+  const [replySaving, setReplySaving] = useState(false);
+  const [replyError, setReplyError] = useState(null);
+  const [snackbar, setSnackbar] = useState(null);
+
+  const canReply = !['Closed'].includes(violation.violation_status);
+
+  async function submitReply() {
+    if (!replyText.trim()) return;
+    setReplySaving(true);
+    setReplyError(null);
+    try {
+      const res = await apiFetch('/api/responses', session, {
+        method: 'POST',
+        body: JSON.stringify({
+          violation_id: violation.violation_id,
+          response_text: replyText.trim(),
+          action_taken: replyAction,
+          responder_type: 'seller',
+        }),
+      });
+      if (!res.ok) throw new Error(await getApiErrorMessage(res));
+      setReplyText('');
+      setReplyAction('no_action');
+      setSnackbar('Reply sent successfully');
+      await onReload();
+    } catch (err) {
+      setReplyError(err.message);
+    } finally {
+      setReplySaving(false);
+    }
+  }
+
+  return (
+    <Box>
+      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/violations')} sx={{ mb: 2 }}>
+        Back to my violations
+      </Button>
+
+      {/* Violation summary */}
+      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Typography variant="h5" fontWeight={700}>
+            Violation #{violation.violation_id}
+          </Typography>
+          <Chip
+            label={violation.violation_status}
+            color={statusColor(violation.violation_status)}
+            size="small"
+          />
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          {violation.violation_type || '—'} · Reported{' '}
+          {violation.violation_noticed_at
+            ? new Date(violation.violation_noticed_at).toLocaleDateString()
+            : '—'}
+        </Typography>
+        {(violation.listing_url || violation.listing_title) && (
+          <Typography variant="body2" sx={{ mb: 0.5 }}>
+            <strong>Listing:</strong>{' '}
+            {violation.listing_url ? (
+              <a href={violation.listing_url} target="_blank" rel="noreferrer">
+                {violation.listing_title || violation.listing_url}
+              </a>
+            ) : (
+              violation.listing_title || '—'
+            )}
+            {violation.listing_marketplace && ` · ${violation.listing_marketplace}`}
+          </Typography>
+        )}
+        {violation.adjudication && (
+          <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+            <Typography variant="body2" fontWeight={600}>
+              CPSC Decision: {violation.adjudication.status}
+            </Typography>
+            {violation.adjudication.reason && (
+              <Typography variant="caption" color="text.secondary">
+                {violation.adjudication.reason} ·{' '}
+                {violation.adjudication.adjudicated_at
+                  ? new Date(violation.adjudication.adjudicated_at).toLocaleDateString()
+                  : ''}
+              </Typography>
+            )}
+          </Box>
+        )}
+      </Paper>
+
+      {/* Message thread */}
+      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+        <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
+          Correspondence
+        </Typography>
+        {(violation.contacts ?? []).length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No messages yet. The CPSC investigator assigned to this case will contact you here.
+          </Typography>
+        ) : (
+          (violation.contacts ?? []).map((contact) => (
+            <Box key={contact.contact_id} sx={{ mb: 3 }}>
+              {/* Investigator notice */}
+              <Box
+                sx={{
+                  pl: 2,
+                  py: 1.5,
+                  borderLeft: '4px solid',
+                  borderColor: 'primary.main',
+                  bgcolor: 'primary.50',
+                  borderRadius: '0 4px 4px 0',
+                  mb: 1,
+                }}
+              >
+                <Typography variant="caption" color="primary.main" fontWeight={600}>
+                  CPSC Investigator ·{' '}
+                  {contact.contact_sent_at
+                    ? new Date(contact.contact_sent_at).toLocaleDateString()
+                    : '—'}
+                  {contact.contact_channel && ` · via ${contact.contact_channel}`}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  {contact.message_summary || '—'}
+                </Typography>
+              </Box>
+
+              {/* Responses to this contact */}
+              {(contact.responses ?? []).map((resp) => {
+                const isSeller = resp.responder_type === 'seller';
+                return (
+                  <Box
+                    key={resp.response_id}
+                    sx={{
+                      ml: 3,
+                      pl: 2,
+                      py: 1.5,
+                      borderLeft: '4px solid',
+                      borderColor: isSeller ? 'warning.main' : 'text.disabled',
+                      bgcolor: isSeller ? 'warning.50' : 'action.hover',
+                      borderRadius: '0 4px 4px 0',
+                      mb: 1,
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      color={isSeller ? 'warning.dark' : 'text.secondary'}
+                      fontWeight={600}
+                    >
+                      {isSeller ? 'You (Seller)' : 'CPSC Investigator'} ·{' '}
+                      {resp.responded_at
+                        ? new Date(resp.responded_at).toLocaleDateString()
+                        : '—'}
+                      {resp.action_taken && resp.action_taken !== 'no_action'
+                        ? ` · ${resp.action_taken.replace('_', ' ')}`
+                        : ''}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5 }}>
+                      {resp.response_text || '—'}
+                    </Typography>
+                    {resp.adjudication && (
+                      <Box
+                        sx={{ mt: 1, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+                      >
+                        <Typography variant="caption" fontWeight={600}>
+                          CPSC Decision: {resp.adjudication.status}
+                          {resp.adjudication.reason && ` · ${resp.adjudication.reason}`}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
+          ))
+        )}
+      </Paper>
+
+      {/* Reply form */}
+      {canReply && (
+        <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+          <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+            Submit a Reply
+          </Typography>
+          {replyError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setReplyError(null)}>
+              {replyError}
+            </Alert>
+          )}
+          <TextField
+            fullWidth
+            multiline
+            minRows={3}
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            placeholder="Describe the action you've taken or your response to this notice…"
+            sx={{ mb: 2 }}
+          />
+          <FormControl size="small" sx={{ minWidth: 240, mb: 2 }}>
+            <InputLabel>Action taken</InputLabel>
+            <Select
+              label="Action taken"
+              value={replyAction}
+              onChange={(e) => setReplyAction(e.target.value)}
+            >
+              {SELLER_RESPONSE_ACTIONS.map((o) => (
+                <MenuItem key={o.value} value={o.value}>
+                  {o.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Box>
+            <Button
+              variant="contained"
+              onClick={submitReply}
+              disabled={replySaving || !replyText.trim()}
+            >
+              {replySaving ? 'Sending…' : 'Send Reply'}
+            </Button>
+          </Box>
+        </Paper>
+      )}
+
+      {violation.violation_status === 'Closed' && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          This case is closed. No further replies can be submitted.
+        </Alert>
+      )}
+
+      <Snackbar
+        open={!!snackbar}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(null)}
+        message={snackbar}
+      />
+    </Box>
+  );
+}
 
 const RESPONSE_ACTIONS = [
   { value: 'listing_removed', label: 'Listing removed' },
@@ -61,7 +308,8 @@ function fmtDate(value) {
 export default function ViolationDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const { session, user, profile } = useAuth();
+  const role = normalizeAppRole(profile, user?.user_metadata?.role ?? user?.app_metadata?.role);
 
   const [violation, setViolation] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -253,6 +501,13 @@ export default function ViolationDetailPage() {
   }
 
   if (!violation) return null;
+
+  // Sellers get a read-only conversation view with a reply form.
+  if (role === USER_ROLES.SELLER) {
+    return (
+      <SellerViolationView violation={violation} session={session} onReload={loadViolation} />
+    );
+  }
 
   const recallPath =
     violation.recall_number != null && String(violation.recall_number).trim()

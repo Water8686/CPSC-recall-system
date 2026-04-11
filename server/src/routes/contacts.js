@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   applyApiMockUser,
   requireRealAuth,
+  requireOperationalStaff,
 } from '../middleware/requireCpscManager.js';
 import {
   dbCreateContact,
@@ -13,8 +14,8 @@ import { assertViolationAccess } from '../lib/violationAccess.js';
 const router = Router();
 router.use(applyApiMockUser);
 
-/** POST /api/contacts — log seller outreach; optional mark_notice_sent updates violation */
-router.post('/', requireRealAuth, async (req, res) => {
+/** POST /api/contacts — log seller outreach; optional mark_notice_sent updates violation; staff only */
+router.post('/', requireRealAuth, requireOperationalStaff, async (req, res) => {
   const {
     violation_id,
     message_summary,
@@ -47,7 +48,7 @@ router.post('/', requireRealAuth, async (req, res) => {
   try {
     const meta = await dbFetchViolationAuthMeta(req.supabase, vid);
     if (!meta) return res.status(404).json({ error: 'Violation not found' });
-    const allowed = await assertViolationAccess(req, res, req.supabase, meta.user_id);
+    const allowed = await assertViolationAccess(req, res, req.supabase, meta.user_id, meta.seller_id);
     if (!allowed) return;
 
     const userId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);

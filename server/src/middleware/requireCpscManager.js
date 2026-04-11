@@ -60,6 +60,49 @@ export function requireInvestigatorOnly(req, res, next) {
   requireAuth(req, res, () => verifyInvestigatorOnly(req, res, next));
 }
 
+/**
+ * Operational staff only (admin, manager, investigator) — blocks sellers from write operations
+ * such as PATCH /api/violations, POST /api/contacts, POST /api/adjudications.
+ */
+export function requireOperationalStaff(req, res, next) {
+  if (req.isApiMockMode) return next();
+  requireAuth(req, res, () => verifyOperationalStaff(req, res, next));
+}
+
+function verifyOperationalStaff(req, res, next) {
+  const ALLOWED = ['admin', 'manager', 'investigator'];
+  const metaRole = jwtFallbackRole(req.user);
+  const client = supabaseAdmin || req.supabase;
+
+  if (!client) {
+    return ALLOWED.includes(metaRole)
+      ? next()
+      : res.status(403).json({ error: 'Unauthorized. CPSC staff role required.' });
+  }
+
+  const uid = jwtSubToUserId(req.user.id);
+  if (uid == null) {
+    return res.status(403).json({ error: 'Unauthorized. CPSC staff role required.' });
+  }
+  client
+    .from('app_users')
+    .select('user_type')
+    .eq('user_id', uid)
+    .maybeSingle()
+    .then(({ data, error }) => {
+      if (error) console.warn('app_users select error:', error.message);
+      const role = normalizeAppRole(data, metaRole);
+      if (!ALLOWED.includes(role)) {
+        return res.status(403).json({ error: 'Unauthorized. CPSC staff role required.' });
+      }
+      next();
+    })
+    .catch((err) => {
+      console.error(err);
+      res.status(403).json({ error: 'Unauthorized. CPSC staff role required.' });
+    });
+}
+
 function verifyManagerRole(req, res, next) {
   const metaRole = jwtFallbackRole(req.user);
   const client = supabaseAdmin || req.supabase;

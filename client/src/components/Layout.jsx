@@ -23,15 +23,23 @@ function roleBadgeClass(role) {
   if (role === USER_ROLES.ADMIN) return 'border-red-200 bg-red-50 text-red-800';
   if (role === USER_ROLES.MANAGER) return 'border-blue-200 bg-blue-50 text-blue-800';
   if (role === USER_ROLES.INVESTIGATOR) return 'border-emerald-200 bg-emerald-50 text-emerald-800';
-  return 'border-border bg-muted text-muted-foreground';
+  return 'border-orange-200 bg-orange-50 text-orange-800';
 }
 
-const TAB_ITEMS = [
+const STAFF_TABS = [
   { label: 'Dashboard', path: '/dashboard' },
   { label: 'Recalls', path: '/recalls' },
   { label: 'Violations', path: '/violations' },
   { label: 'Responses', path: '/responses' },
 ];
+
+const SELLER_TABS = [
+  { label: 'My Violations', path: '/violations' },
+];
+
+function tabsForRole(role) {
+  return role === USER_ROLES.SELLER ? SELLER_TABS : STAFF_TABS;
+}
 
 function resolvedRole(profile, user) {
   return normalizeAppRole(profile, user?.user_metadata?.role ?? user?.app_metadata?.role);
@@ -49,6 +57,8 @@ export default function Layout() {
     await signOut();
     navigate('/login');
   };
+
+  const TAB_ITEMS = tabsForRole(role);
 
   // Match tab to current path (e.g. /recalls/123 still highlights Recalls)
   const activeTab = TAB_ITEMS.findIndex(

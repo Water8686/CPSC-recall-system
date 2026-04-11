@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   applyApiMockUser,
   requireRealAuth,
+  requireOperationalStaff,
 } from '../middleware/requireCpscManager.js';
 import {
   dbFetchAdjudications,
@@ -36,8 +37,8 @@ router.get('/', requireRealAuth, async (req, res) => {
   }
 });
 
-/** POST /api/adjudications */
-router.post('/', requireRealAuth, async (req, res) => {
+/** POST /api/adjudications — staff only */
+router.post('/', requireRealAuth, requireOperationalStaff, async (req, res) => {
   if (!req.supabase) return res.status(503).json({ error: 'Database not available' });
 
   const { violation_id, status, reason, notes } = req.body ?? {};
@@ -59,7 +60,7 @@ router.post('/', requireRealAuth, async (req, res) => {
     if (!req.isApiMockMode) {
       const meta = await dbFetchViolationAuthMeta(req.supabase, vid);
       if (!meta) return res.status(404).json({ error: 'Violation not found' });
-      const allowed = await assertViolationAccess(req, res, req.supabase, meta.user_id);
+      const allowed = await assertViolationAccess(req, res, req.supabase, meta.user_id, meta.seller_id);
       if (!allowed) return;
     }
 
