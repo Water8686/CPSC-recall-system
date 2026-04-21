@@ -362,6 +362,47 @@ export async function dbFetchViolationsForSeller(supabase, sellerId) {
   return (data ?? []).map(mapViolationRow);
 }
 
+export async function dbFetchViolationWorkflowMeta(supabase, violationId) {
+  const { data, error } = await supabase
+    .from('violation')
+    .select(
+      `
+      violation_id,
+      violation_status,
+      listing:listing_id(
+        seller_id,
+        seller(seller_email)
+      )
+    `,
+    )
+    .eq('violation_id', violationId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function dbHasResponseForViolation(supabase, violationId) {
+  const { data, error } = await supabase
+    .from('response')
+    .select('response_id, contact!inner(violation_id)')
+    .eq('contact.violation_id', violationId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data?.response_id);
+}
+
+export async function dbHasAdjudicationForViolation(supabase, violationId) {
+  const { data, error } = await supabase
+    .from('adjudication')
+    .select('adjudication_id, response!inner(contact!inner(violation_id))')
+    .eq('response.contact.violation_id', violationId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data?.adjudication_id);
+}
+
 export async function dbCreateViolation(supabase, fields) {
   const VALID_TYPES = [
     'Recalled Product Listed for Sale',
@@ -587,11 +628,14 @@ const RESPONSE_SELECT = `
       listing(listing_url, listing_title, marketplace(marketplace_name))))
 `;
 
-export async function dbFetchResponses(supabase) {
-  const { data, error } = await supabase
+export async function dbFetchResponses(supabase, { violationId, userId } = {}) {
+  let q = supabase
     .from('response')
     .select(RESPONSE_SELECT)
     .order('response_received_at', { ascending: false });
+  if (violationId != null) q = q.eq('contact.violation_id', violationId);
+  if (userId != null) q = q.eq('user_id', userId);
+  const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(mapResponseRow);
 }
@@ -637,7 +681,7 @@ export async function dbCreateResponse(supabase, fields) {
       contact_id:           contactId,
       user_id:              fields.user_id ?? null,
       responder_type:       responderType,
-      seller_id:            null,
+      seller_id:            fields.seller_id ?? null,
       response_text:        fields.response_text,
       response_action:      fields.action_taken ?? null,
       response_received_at: new Date().toISOString(),
@@ -646,14 +690,26 @@ export async function dbCreateResponse(supabase, fields) {
     .single();
   if (error) throw error;
 
-  // Auto-advance violation status to "Response Received" if still open
-  await supabase
-    .from('violation')
-    .update({ violation_status: 'Response Received' })
-    .eq('violation_id', violationId)
-    .in('violation_status', ['Open', 'Notice Sent']);
-
   return mapResponseRow(data);
+}
+
+export async function dbCreateSellerResponseAtomic(supabase, fields) {
+  const row = await dbCreateResponse(supabase, {
+    ...fields,
+    responder_type: 'seller',
+  });
+
+  const { error: statusErr } = await supabase
+    .from('violation')
+    .update({ violation_status: 'RESPONSE SUBMITTED' })
+    .eq('violation_id', fields.violation_id);
+
+  if (statusErr) {
+    await supabase.from('response').delete().eq('response_id', row.response_id);
+    throw statusErr;
+  }
+
+  return row;
 }
 
 function mapResponseRow(row) {
@@ -665,6 +721,7 @@ function mapResponseRow(row) {
     violation_id:        row.contact?.violation_id ?? null,
     seller_id:           row.seller_id ?? null,
     seller_name:         row.seller?.seller_name ?? null,
+    seller_email:        row.seller?.seller_email ?? null,
     responded_at:        row.response_received_at,
     response_text:       row.response_text,
     action_taken:        row.response_action ?? null,
@@ -689,11 +746,14 @@ const ADJUDICATION_SELECT = `
         listing(listing_url, listing_title, marketplace(marketplace_name)))))
 `;
 
-export async function dbFetchAdjudications(supabase) {
-  const { data, error } = await supabase
+export async function dbFetchAdjudications(supabase, { violationId, investigatorId } = {}) {
+  let q = supabase
     .from('adjudication')
     .select(ADJUDICATION_SELECT)
     .order('adjudicated_at', { ascending: false });
+  if (violationId != null) q = q.eq('response.contact.violation_id', violationId);
+  if (investigatorId != null) q = q.eq('user_id', investigatorId);
+  const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(mapAdjudicationRow);
 }
@@ -739,13 +799,49 @@ export async function dbCreateAdjudication(supabase, fields) {
     .single();
   if (error) throw error;
 
-  // Close the violation after adjudication
-  await supabase
-    .from('violation')
-    .update({ violation_status: 'Closed' })
-    .eq('violation_id', violationId);
-
   return mapAdjudicationRow(data);
+}
+
+export async function dbCreateAdjudicationAtomic(supabase, fields) {
+  const row = await dbCreateAdjudication(supabase, fields);
+
+  const mappedStatus =
+    fields.status === 'Approved'
+      ? 'APPROVED'
+      : fields.status === 'Rejected'
+        ? 'REJECTED'
+        : 'ESCALATED';
+
+  const { error: statusErr } = await supabase
+    .from('violation')
+    .update({ violation_status: mappedStatus })
+    .eq('violation_id', fields.violation_id);
+
+  if (statusErr) {
+    await supabase.from('adjudication').delete().eq('adjudication_id', row.adjudication_id);
+    throw statusErr;
+  }
+
+  if (fields.status === 'Escalated') {
+    const { error: escErr } = await supabase
+      .from('escalation_notification')
+      .insert({
+        violation_id: fields.violation_id,
+        investigator_id: fields.investigator_id,
+        notes: fields.notes,
+        created_at: new Date().toISOString(),
+      });
+    if (escErr) {
+      await supabase.from('adjudication').delete().eq('adjudication_id', row.adjudication_id);
+      await supabase
+        .from('violation')
+        .update({ violation_status: 'RESPONSE SUBMITTED' })
+        .eq('violation_id', fields.violation_id);
+      throw escErr;
+    }
+  }
+
+  return row;
 }
 
 function mapAdjudicationRow(row) {

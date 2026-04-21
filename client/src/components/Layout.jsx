@@ -26,19 +26,26 @@ function roleBadgeClass(role) {
   return 'border-orange-200 bg-orange-50 text-orange-800';
 }
 
-const STAFF_TABS = [
-  { label: 'Dashboard', path: '/dashboard' },
-  { label: 'Recalls', path: '/recalls' },
-  { label: 'Violations', path: '/violations' },
-  { label: 'Responses', path: '/responses' },
-];
-
-const SELLER_TABS = [
-  { label: 'My Violations', path: '/violations' },
-];
-
-function tabsForRole(role) {
-  return role === USER_ROLES.SELLER ? SELLER_TABS : STAFF_TABS;
+function tabItemsForRole(role) {
+  const base = [{ label: 'Dashboard', path: '/dashboard' }];
+  if (role === USER_ROLES.SELLER) {
+    return [...base, { label: 'Respond', path: '/seller/responses' }];
+  }
+  if (role === USER_ROLES.INVESTIGATOR) {
+    return [
+      ...base,
+      { label: 'Recalls', path: '/recalls' },
+      { label: 'Violations', path: '/violations' },
+      { label: 'Responses', path: '/responses' },
+      { label: 'Adjudications', path: '/investigator/adjudications' },
+    ];
+  }
+  return [
+    ...base,
+    { label: 'Recalls', path: '/recalls' },
+    { label: 'Violations', path: '/violations' },
+    { label: 'Responses', path: '/responses' },
+  ];
 }
 
 function resolvedRole(profile, user) {
@@ -50,6 +57,7 @@ export default function Layout() {
   const avatarSrc = profile?.avatar_url?.trim() || null;
   const avatarLetter = (user?.email || '?')[0].toUpperCase();
   const role = resolvedRole(profile, user);
+  const tabItems = tabItemsForRole(role);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -58,10 +66,8 @@ export default function Layout() {
     navigate('/login');
   };
 
-  const TAB_ITEMS = tabsForRole(role);
-
   // Match tab to current path (e.g. /recalls/123 still highlights Recalls)
-  const activeTab = TAB_ITEMS.findIndex(
+  const activeTab = tabItems.findIndex(
     (t) => location.pathname === t.path || location.pathname.startsWith(t.path + '/'),
   );
 
@@ -127,7 +133,7 @@ export default function Layout() {
         {/* Tab bar */}
         <nav className="mx-auto max-w-[1600px] px-4 md:px-8">
           <div className="flex gap-0">
-            {TAB_ITEMS.map((tab, i) => (
+            {tabItems.map((tab, i) => (
               <button
                 key={tab.path}
                 type="button"

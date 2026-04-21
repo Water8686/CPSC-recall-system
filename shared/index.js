@@ -110,6 +110,15 @@ export const ADJUDICATION_STATUS = {
   ESCALATED: 'Escalated',
 };
 
+export const SPRINT3_VIOLATION_STATUS = {
+  OPEN: 'Open',
+  NOTICE_SENT: 'Notice Sent',
+  RESPONSE_SUBMITTED: 'RESPONSE SUBMITTED',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  ESCALATED: 'ESCALATED',
+};
+
 // Discovery — confidence tiers & review statuses (Smart Listing Discovery)
 export const CONFIDENCE_TIERS = {
   HIGH: 'High',

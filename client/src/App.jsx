@@ -15,6 +15,8 @@ import RecallDetailPage from './pages/RecallDetailPage';
 import ViolationsPage from './pages/ViolationsPage';
 import ViolationDetailPage from './pages/ViolationDetailPage';
 import ResponsesPage from './pages/ResponsesPage';
+import SellerResponsesPage from './pages/SellerResponsesPage';
+import InvestigatorAdjudicationsPage from './pages/InvestigatorAdjudicationsPage';
 import SettingsPage from './pages/SettingsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
@@ -98,6 +100,22 @@ export default function App() {
                 element={
                   <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
                     <ResponsesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/seller/responses"
+                element={
+                  <ProtectedRoute allowedRoles={[USER_ROLES.SELLER]}>
+                    <SellerResponsesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/investigator/adjudications"
+                element={
+                  <ProtectedRoute allowedRoles={[USER_ROLES.INVESTIGATOR]}>
+                    <InvestigatorAdjudicationsPage />
                   </ProtectedRoute>
                 }
               />
