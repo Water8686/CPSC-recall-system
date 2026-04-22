@@ -28,8 +28,12 @@ function roleBadgeClass(role) {
 
 function tabItemsForRole(role) {
   if (role === USER_ROLES.SELLER) {
-    // Sellers don't have access to /dashboard stats; land them directly on Respond.
-    return [{ label: 'Respond', path: '/seller/responses' }];
+    // Sellers don't have access to /dashboard stats; surface Violations (demo
+    // seller can browse all) + Respond.
+    return [
+      { label: 'Violations', path: '/violations' },
+      { label: 'Respond', path: '/seller/responses' },
+    ];
   }
   const base = [{ label: 'Dashboard', path: '/dashboard' }];
   return [

@@ -53,7 +53,7 @@ export default function LoginPage() {
     } else {
       // data.session is the raw login API response; profile.role holds the normalised role.
       const role = data?.session?.profile?.role ?? data?.session?.user?.role;
-      navigate(role === USER_ROLES.SELLER ? '/seller/responses' : '/dashboard');
+      navigate(role === USER_ROLES.SELLER ? '/violations' : '/dashboard');
     }
   };
 

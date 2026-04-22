@@ -74,9 +74,10 @@ export default function DashboardPage() {
     return () => controller.abort();
   }, [session, isSeller]);
 
-  // Sellers do not have a dashboard — redirect them to their responses page.
-  // (Hook order must stay stable, so this happens after the effect above.)
-  if (isSeller) return <Navigate to="/seller/responses" replace />;
+  // Sellers do not have a dashboard — redirect them to the violations list
+  // (demo seller can browse all; real seller sees their own).
+  // Hook order must stay stable, so this happens after the effect above.
+  if (isSeller) return <Navigate to="/violations" replace />;
 
   const counts = { High: 0, Medium: 0, Low: 0 };
   prioritizations.forEach((p) => {

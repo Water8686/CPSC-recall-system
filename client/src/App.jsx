@@ -21,7 +21,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import { RECALL_PAGE_ROLES, OPERATIONAL_ROLES, VIOLATION_WORKFLOW_ROLES, USER_ROLES, normalizeAppRole } from 'shared';
 
-/** Redirect unauthenticated users to /login; sellers to /seller/responses; others to /dashboard. */
+/** Redirect unauthenticated users to /login; sellers to /violations (demo browse); others to /dashboard. */
 function DefaultRedirect() {
   const { user, profile, loading } = useAuth();
   if (loading) return null;
@@ -29,7 +29,7 @@ function DefaultRedirect() {
   const role = normalizeAppRole(profile, user?.user_metadata?.role);
   return (
     <Navigate
-      to={role === USER_ROLES.SELLER ? '/seller/responses' : '/dashboard'}
+      to={role === USER_ROLES.SELLER ? '/violations' : '/dashboard'}
       replace
     />
   );
