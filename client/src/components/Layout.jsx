@@ -27,19 +27,11 @@ function roleBadgeClass(role) {
 }
 
 function tabItemsForRole(role) {
-  const base = [{ label: 'Dashboard', path: '/dashboard' }];
   if (role === USER_ROLES.SELLER) {
-    return [...base, { label: 'Respond', path: '/seller/responses' }];
+    // Sellers don't have access to /dashboard stats; land them directly on Respond.
+    return [{ label: 'Respond', path: '/seller/responses' }];
   }
-  if (role === USER_ROLES.INVESTIGATOR) {
-    return [
-      ...base,
-      { label: 'Recalls', path: '/recalls' },
-      { label: 'Violations', path: '/violations' },
-      { label: 'Responses', path: '/responses' },
-      { label: 'Adjudications', path: '/investigator/adjudications' },
-    ];
-  }
+  const base = [{ label: 'Dashboard', path: '/dashboard' }];
   return [
     ...base,
     { label: 'Recalls', path: '/recalls' },

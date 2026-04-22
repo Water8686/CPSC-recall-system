@@ -46,39 +46,53 @@ export default function DashboardPage() {
     profile,
     user?.user_metadata?.role ?? user?.app_metadata?.role,
   );
-
-  // Sellers do not have a dashboard — redirect them to their violations list.
-  if (role === USER_ROLES.SELLER) {
-    return <Navigate to="/violations" replace />;
-  }
-
+  const isSeller = role === USER_ROLES.SELLER;
   const managerUi = canAccessManagerFeatures(role);
   const displayName = profile?.full_name || user?.email || 'User';
 
   useEffect(() => {
+    if (isSeller) {
+      setLoading(false);
+      return;
+    }
+    const controller = new AbortController();
     async function fetchData() {
       try {
         const [prioRes, statsRes] = await Promise.all([
-          apiFetch('/api/prioritizations', session),
-          apiFetch('/api/stats/dashboard', session),
+          apiFetch('/api/prioritizations', session, { signal: controller.signal }),
+          apiFetch('/api/stats/dashboard', session, { signal: controller.signal }),
         ]);
         if (prioRes.ok) setPrioritizations(await prioRes.json());
         if (statsRes.ok) setStats(await statsRes.json());
       } catch (err) {
-        setError(err.message);
+        if (err.name !== 'AbortError') setError(err.message);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     fetchData();
-  }, [session]);
+    return () => controller.abort();
+  }, [session, isSeller]);
+
+  // Sellers do not have a dashboard — redirect them to their responses page.
+  // (Hook order must stay stable, so this happens after the effect above.)
+  if (isSeller) return <Navigate to="/seller/responses" replace />;
 
   const counts = { High: 0, Medium: 0, Low: 0 };
   prioritizations.forEach((p) => {
     if (counts[p.priority] !== undefined) counts[p.priority]++;
   });
-  const barChartData = [['Priority', 'Count'], ['High', counts.High], ['Medium', counts.Medium], ['Low', counts.Low]];
-  const pieChartData = [['Priority', 'Count'], ['High', counts.High], ['Medium', counts.Medium], ['Low', counts.Low]];
+  const priorityRows = [
+    ['High', counts.High],
+    ['Medium', counts.Medium],
+    ['Low', counts.Low],
+  ];
+  const barChartData = [['Priority', 'Count'], ...priorityRows];
+  // Pie charts look broken with all-zero slices; filter empties so Google Charts
+  // renders an accurate chart (or falls back to the empty-state message below).
+  const nonZeroPieRows = priorityRows.filter(([, count]) => count > 0);
+  const pieChartData =
+    nonZeroPieRows.length > 0 ? [['Priority', 'Count'], ...nonZeroPieRows] : null;
 
   if (loading) {
     return (
@@ -201,8 +215,25 @@ export default function DashboardPage() {
         </Grid>
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 3 }}>
-            <Chart chartType="PieChart" width="100%" height="300px" data={pieChartData}
-              options={{ title: 'Percentage by Priority', pieHole: 0.4, sliceVisibilityThreshold: 0 }} />
+            {pieChartData ? (
+              <Chart
+                chartType="PieChart"
+                width="100%"
+                height="300px"
+                data={pieChartData}
+                options={{
+                  title: 'Percentage by Priority',
+                  pieHole: 0.4,
+                  sliceVisibilityThreshold: 0,
+                }}
+              />
+            ) : (
+              <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  No prioritized recalls yet.
+                </Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
       </Grid>
