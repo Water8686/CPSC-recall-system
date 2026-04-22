@@ -11,7 +11,25 @@ import {
   Checkbox,
 } from '@mui/material';
 
+const STORAGE_URLS_KEY = 'cpsc-analytics-embed-urls';
+const LEGACY_STORAGE_URL_KEY = 'cpsc-analytics-embed-url';
 const GRAFANA_IFRAME_PREF_KEY = 'cpsc-analytics-show-grafana-iframe';
+
+function readStoredEmbedUrls() {
+  try {
+    const raw = localStorage.getItem(STORAGE_URLS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.map((u) => String(u).trim()).filter(Boolean);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  const legacy = localStorage.getItem(LEGACY_STORAGE_URL_KEY)?.trim();
+  return legacy ? [legacy] : [];
+}
 
 /** Hosted Grafana uses CSP frame-ancestors; public-dashboard URLs often ship frame-ancestors 'none'. */
 function isGrafanaHostedUrl(url) {
@@ -38,23 +56,30 @@ function iframeHeightForUrl(url) {
 }
 
 export default function AnalyticsPage() {
-  const [embedUrl, setEmbedUrl] = useState(
-    () => localStorage.getItem('cpsc-analytics-embed-url') || '',
-  );
-  const [inputUrl, setInputUrl] = useState(embedUrl);
+  const [embedUrls, setEmbedUrls] = useState(readStoredEmbedUrls);
+  const [inputText, setInputText] = useState(() => readStoredEmbedUrls().join('\n'));
   const [saved, setSaved] = useState(false);
   const [showGrafanaIframe, setShowGrafanaIframe] = useState(
     () => localStorage.getItem(GRAFANA_IFRAME_PREF_KEY) === 'true',
   );
 
-  const iframeHeight = useMemo(() => iframeHeightForUrl(embedUrl), [embedUrl]);
-  const grafanaUrl = useMemo(() => isGrafanaHostedUrl(embedUrl), [embedUrl]);
-  const renderIframe = Boolean(embedUrl && (!grafanaUrl || showGrafanaIframe));
+  const hasGrafana = useMemo(
+    () => embedUrls.some((u) => isGrafanaHostedUrl(u)),
+    [embedUrls],
+  );
+  function shouldRenderIframeForUrl(url) {
+    if (!isGrafanaHostedUrl(url)) return true;
+    return showGrafanaIframe;
+  }
 
   function handleSave() {
-    const url = inputUrl.trim();
-    setEmbedUrl(url);
-    localStorage.setItem('cpsc-analytics-embed-url', url);
+    const urls = inputText
+      .split(/\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    setEmbedUrls(urls);
+    localStorage.setItem(STORAGE_URLS_KEY, JSON.stringify(urls));
+    localStorage.removeItem(LEGACY_STORAGE_URL_KEY);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -65,38 +90,54 @@ export default function AnalyticsPage() {
         Analytics Dashboard
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        Embed a Looker Studio report, or link to Grafana Cloud. Hosted Grafana often
-        blocks in-app frames (browser security); for Grafana, use{' '}
-        <strong>Open in Grafana</strong> unless your admin enables embedding.
+        Add one embed URL per line. For <strong>live</strong> Grafana graphs, use{' '}
+        <strong>Share</strong> on each <em>panel</em> (not the whole dashboard) →{' '}
+        <strong>Embed</strong>, and paste each <code>src</code> URL here — those use{' '}
+        <code>/d-solo/</code> and refresh with your panel interval. Looker Studio: one
+        report URL per line if needed. Hosted Grafana may still block iframes unless
+        embedding is allowed on your stack.
       </Typography>
 
-      {embedUrl && grafanaUrl ? (
+      {embedUrls.length > 0 && hasGrafana ? (
         <Alert severity="warning" sx={{ mb: 2 }}>
           <Typography variant="body2" component="div" sx={{ mb: 1 }}>
-            Grafana pages often cannot be embedded in another site: the response includes a
-            Content-Security-Policy directive <code>frame-ancestors &apos;none&apos;</code>,
-            which the browser enforces (this app cannot override it). Use{' '}
-            <strong>Open in Grafana</strong> below, or ask a Grafana admin to enable embedding
-            for your stack and use a Share → Embed URL — see{' '}
+            Grafana may refuse iframes (<code>frame-ancestors &apos;none&apos;</code>) —
+            the browser enforces this. Use <strong>Open panel</strong> links below, or
+            enable embedding for your Grafana stack. See{' '}
+            <Link
+              href="https://grafana.com/blog/how-to-embed-grafana-dashboards-into-web-applications/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Grafana: embedding dashboards in web apps
+            </Link>{' '}
+            and{' '}
             <Link
               href="https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/configure-security-hardening/"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Grafana security / embedding docs
+              security / embedding docs
             </Link>
             .
           </Typography>
-          <Button
-            variant="contained"
-            href={embedUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            component="a"
-            sx={{ mr: 2 }}
-          >
-            Open in Grafana
-          </Button>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mb: 1 }}>
+            {embedUrls.map((url, i) =>
+              isGrafanaHostedUrl(url) ? (
+                <Button
+                  key={`${url}-${i}`}
+                  size="small"
+                  variant="contained"
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  component="a"
+                >
+                  Open panel {i + 1}
+                </Button>
+              ) : null,
+            )}
+          </Box>
           <FormControlLabel
             control={
               <Checkbox
@@ -107,57 +148,74 @@ export default function AnalyticsPage() {
                 }}
               />
             }
-            label="Try embedded preview anyway (only if embedding is enabled)"
+            label="Try embedded iframes anyway (only if Grafana allows embedding)"
           />
         </Alert>
       ) : null}
 
-      {embedUrl && renderIframe ? (
-        <Paper sx={{ overflow: 'hidden', mb: 3 }}>
-          <iframe
-            src={embedUrl}
-            width="100%"
-            height={iframeHeight}
-            style={{ border: 'none', display: 'block', maxWidth: '100%' }}
-            title="Analytics Dashboard"
-            allowFullScreen
-            loading="lazy"
-          />
-        </Paper>
+      {embedUrls.some((url) => shouldRenderIframeForUrl(url)) ? (
+        <Box
+          sx={{
+            display: 'grid',
+            gap: 2,
+            mb: 3,
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(auto-fill, minmax(min(100%, 420px), 1fr))',
+            },
+          }}
+        >
+          {embedUrls.map((url, i) =>
+            shouldRenderIframeForUrl(url) ? (
+              <Paper key={`${url}-${i}`} sx={{ overflow: 'hidden' }}>
+                <iframe
+                  src={url}
+                  width="100%"
+                  height={iframeHeightForUrl(url)}
+                  style={{ border: 'none', display: 'block', maxWidth: '100%' }}
+                  title={`Embedded panel ${i + 1}`}
+                  allowFullScreen
+                  loading="lazy"
+                />
+              </Paper>
+            ) : null,
+          )}
+        </Box>
       ) : null}
 
-      {!embedUrl && (
+      {embedUrls.length === 0 && (
         <Alert severity="info" sx={{ mb: 3 }}>
-          No embed URL configured. Paste the iframe <strong>src</strong> URL below
-          (for Grafana: from Share → Embed). This is saved in your browser only.
+          No embed URLs yet. Paste one URL per line — for Grafana live panels, use Share →
+          Embed on each panel. Stored only in this browser.
         </Alert>
       )}
 
       <Paper sx={{ p: 3 }}>
         <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-          Configure embed URL
+          Configure embed URLs (one per line)
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          <strong>Grafana Cloud:</strong> paste a public dashboard URL or the{' '}
-          <code>src</code> from Share → Embed if embedding is enabled.{' '}
-          <strong>Looker Studio:</strong> Sharing → Embed report → copy the iframe{' '}
-          <code>src</code>. The URL is stored only in this browser.
+          <strong>Grafana (live panels):</strong> open the dashboard, use the panel title
+          menu → <strong>Share</strong> → <strong>Embed</strong> → copy the iframe{' '}
+          <code>src</code> (contains <code>/d-solo/</code>). Repeat for each graph.{' '}
+          <strong>Looker Studio:</strong> one embed <code>src</code> per line.
         </Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <TextField
-            fullWidth
-            size="small"
-            aria-label="Analytics dashboard embed URL"
-            placeholder="https://….grafana.net/… or https://lookerstudio.google.com/embed/…"
-            value={inputUrl}
-            onChange={(e) => setInputUrl(e.target.value)}
-          />
-          <Button variant="contained" onClick={handleSave}>
-            Save
-          </Button>
-        </Box>
+        <TextField
+          fullWidth
+          multiline
+          minRows={4}
+          size="small"
+          aria-label="Analytics embed URLs, one per line"
+          placeholder={`https://your-stack.grafana.net/d-solo/…panelId=…\nhttps://your-stack.grafana.net/d-solo/…`}
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          sx={{ mb: 1 }}
+        />
+        <Button variant="contained" onClick={handleSave}>
+          Save
+        </Button>
         {saved && (
-          <Typography variant="caption" color="success.main" sx={{ mt: 1, display: 'block' }}>
+          <Typography variant="caption" color="success.main" sx={{ mt: 1, ml: 2 }}>
             Saved!
           </Typography>
         )}
