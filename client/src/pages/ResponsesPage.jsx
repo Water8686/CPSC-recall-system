@@ -32,6 +32,21 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
 import { statusColor } from '../constants/violations';
+import { SPRINT3_VIOLATION_STATUS } from 'shared';
+
+const POST_NOTICE_STATUSES = [
+  SPRINT3_VIOLATION_STATUS.NOTICE_SENT,
+  SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED,
+  SPRINT3_VIOLATION_STATUS.APPROVED,
+  SPRINT3_VIOLATION_STATUS.REJECTED,
+  SPRINT3_VIOLATION_STATUS.ESCALATED,
+];
+
+const CLOSED_STATUSES = [
+  SPRINT3_VIOLATION_STATUS.APPROVED,
+  SPRINT3_VIOLATION_STATUS.REJECTED,
+  SPRINT3_VIOLATION_STATUS.ESCALATED,
+];
 
 function fmtDate(value) {
   if (!value) return '—';
@@ -49,7 +64,9 @@ function daysElapsed(dateStr) {
 const STATUS_FILTERS = ['All', 'Awaiting Response', 'Response Received', 'Closed'];
 
 function mapResponseStatus(violationStatus) {
-  if (violationStatus === 'Notice Sent') return 'Awaiting Response';
+  if (violationStatus === SPRINT3_VIOLATION_STATUS.NOTICE_SENT) return 'Awaiting Response';
+  if (violationStatus === SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED) return 'Response Received';
+  if (CLOSED_STATUSES.includes(violationStatus)) return 'Closed';
   return violationStatus;
 }
 
@@ -74,22 +91,23 @@ export default function ResponsesPage() {
   const [expandedId, setExpandedId] = useState(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     async function load() {
       try {
-        const res = await apiFetch('/api/violations', session);
+        const res = await apiFetch('/api/violations', session, { signal: controller.signal });
         if (!res.ok) throw new Error(await getApiErrorMessage(res));
         const all = await res.json();
+        if (controller.signal.aborted) return;
         // Only show violations that have reached "Notice Sent" or beyond
-        setViolations(all.filter((v) =>
-          ['Notice Sent', 'Response Received', 'Closed'].includes(v.violation_status),
-        ));
+        setViolations(all.filter((v) => POST_NOTICE_STATUSES.includes(v.violation_status)));
       } catch (err) {
-        setError(err.message);
+        if (err.name !== 'AbortError') setError(err.message);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     load();
+    return () => controller.abort();
   }, [session]);
 
   const handleMarkReceived = (violation) => {
@@ -103,11 +121,7 @@ export default function ResponsesPage() {
     const res = await apiFetch('/api/violations', session);
     if (!res.ok) return;
     const all = await res.json();
-    setViolations(
-      all.filter((v) =>
-        ['Notice Sent', 'Response Received', 'Closed'].includes(v.violation_status),
-      ),
-    );
+    setViolations(all.filter((v) => POST_NOTICE_STATUSES.includes(v.violation_status)));
   }
 
   const handleSubmitResponse = async () => {
@@ -137,27 +151,19 @@ export default function ResponsesPage() {
     }
   };
 
-  const handleClose = async (violationId) => {
-    try {
-      const res = await apiFetch(`/api/violations/${violationId}`, session, {
-        method: 'PATCH',
-        body: JSON.stringify({ violation_status: 'Closed' }),
-      });
-      if (!res.ok) throw new Error(await getApiErrorMessage(res));
-      await reloadViolations();
-      setSnackbar('Violation closed');
-    } catch (err) {
-      setError(err.message);
-    }
-  };
+  // Closing a violation now requires an adjudication record — users navigate to the detail page.
 
   const filtered = useMemo(() => {
     let list = violations;
     if (statusFilter !== 'All') {
       if (statusFilter === 'Awaiting Response') {
-        list = list.filter((v) => v.violation_status === 'Notice Sent');
-      } else {
-        list = list.filter((v) => v.violation_status === statusFilter);
+        list = list.filter((v) => v.violation_status === SPRINT3_VIOLATION_STATUS.NOTICE_SENT);
+      } else if (statusFilter === 'Response Received') {
+        list = list.filter(
+          (v) => v.violation_status === SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED,
+        );
+      } else if (statusFilter === 'Closed') {
+        list = list.filter((v) => CLOSED_STATUSES.includes(v.violation_status));
       }
     }
     if (search.trim()) {
@@ -205,11 +211,18 @@ export default function ResponsesPage() {
       {/* Status filter pills */}
       <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
         {STATUS_FILTERS.map((status) => {
-          const count = status === 'All'
-            ? violations.length
-            : status === 'Awaiting Response'
-              ? violations.filter((v) => v.violation_status === 'Notice Sent').length
-              : violations.filter((v) => v.violation_status === status).length;
+          const count =
+            status === 'All'
+              ? violations.length
+              : status === 'Awaiting Response'
+                ? violations.filter(
+                    (v) => v.violation_status === SPRINT3_VIOLATION_STATUS.NOTICE_SENT,
+                  ).length
+                : status === 'Response Received'
+                  ? violations.filter(
+                      (v) => v.violation_status === SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED,
+                    ).length
+                  : violations.filter((v) => CLOSED_STATUSES.includes(v.violation_status)).length;
           return (
             <Chip
               key={status}
@@ -332,7 +345,7 @@ export default function ResponsesPage() {
                                 >
                                   Open record
                                 </Button>
-                                {v.violation_status === 'Notice Sent' && (
+                                {v.violation_status === SPRINT3_VIOLATION_STATUS.NOTICE_SENT && (
                                   <Button
                                     variant="outlined"
                                     size="small"
@@ -344,16 +357,16 @@ export default function ResponsesPage() {
                                     Quick log response
                                   </Button>
                                 )}
-                                {v.violation_status === 'Response Received' && (
+                                {v.violation_status === SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED && (
                                   <Button
                                     variant="outlined"
                                     size="small"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleClose(v.violation_id);
+                                      navigate(`/violations/${v.violation_id}`);
                                     }}
                                   >
-                                    Close
+                                    Adjudicate
                                   </Button>
                                 )}
                                 {v.recall_number && (

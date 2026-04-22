@@ -30,7 +30,14 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
 import { statusColor } from '../constants/violations';
-import { normalizeAppRole, USER_ROLES } from 'shared';
+import { normalizeAppRole, SPRINT3_VIOLATION_STATUS, USER_ROLES } from 'shared';
+
+const TERMINAL_STATUSES = [
+  SPRINT3_VIOLATION_STATUS.APPROVED,
+  SPRINT3_VIOLATION_STATUS.REJECTED,
+  SPRINT3_VIOLATION_STATUS.ESCALATED,
+];
+const isTerminal = (status) => TERMINAL_STATUSES.includes(status);
 
 const SELLER_RESPONSE_ACTIONS = [
   { value: 'listing_removed', label: 'Listing removed' },
@@ -47,7 +54,7 @@ function SellerViolationView({ violation, session, onReload }) {
   const [replyError, setReplyError] = useState(null);
   const [snackbar, setSnackbar] = useState(null);
 
-  const canReply = !['Closed'].includes(violation.violation_status);
+  const canReply = !isTerminal(violation.violation_status);
 
   async function submitReply() {
     if (!replyText.trim()) return;
@@ -262,7 +269,7 @@ function SellerViolationView({ violation, session, onReload }) {
         </Paper>
       )}
 
-      {violation.violation_status === 'Closed' && (
+      {isTerminal(violation.violation_status) && (
         <Alert severity="info" sx={{ mb: 2 }}>
           This case is closed. No further replies can be submitted.
         </Alert>
@@ -517,11 +524,12 @@ export default function ViolationDetailPage() {
   const canAdjudicate =
     violation.response_count > 0 &&
     !violation.adjudication &&
-    violation.violation_status !== 'Closed';
+    !isTerminal(violation.violation_status);
 
   const noticeComplete = Boolean(violation.notice_sent_at);
   const responseComplete = violation.response_count > 0;
-  const decisionComplete = Boolean(violation.adjudication) || violation.violation_status === 'Closed';
+  const decisionComplete =
+    Boolean(violation.adjudication) || isTerminal(violation.violation_status);
   let activeWorkflowStep = 0;
   if (!noticeComplete) activeWorkflowStep = 0;
   else if (!responseComplete) activeWorkflowStep = 1;
@@ -530,7 +538,7 @@ export default function ViolationDetailPage() {
 
   const canRecordNoSellerResponse =
     !responseComplete &&
-    violation.violation_status !== 'Closed' &&
+    !isTerminal(violation.violation_status) &&
     !violation.adjudication;
 
   return (
@@ -797,7 +805,7 @@ export default function ViolationDetailPage() {
         </Typography>
         {!canAdjudicate && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {violation.adjudication || violation.violation_status === 'Closed'
+            {violation.adjudication || isTerminal(violation.violation_status)
               ? 'This violation already has a final decision or is closed.'
               : 'Log at least one response (seller reply or “no response from seller”) before submitting a final decision.'}{' '}
             {!decisionComplete && !responseComplete && (
