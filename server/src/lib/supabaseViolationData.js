@@ -1,3 +1,5 @@
+import { SPRINT3_VIOLATION_STATUS } from 'shared';
+
 /**
  * DB helpers for the investigation workflow:
  * listing → violation → contact → response → adjudication
@@ -150,13 +152,20 @@ const VIOLATION_SELECT = `
       adjudication(adjudication_id, outcome, resolution_reason, adjudicated_at)))
 `;
 
-export async function dbFetchViolations(supabase, { investigatorId, status } = {}) {
+export async function dbFetchViolations(
+  supabase,
+  { investigatorId, includeUnassigned = false, status } = {},
+) {
   let q = supabase
     .from('violation')
     .select(VIOLATION_SELECT)
     .order('violation_noticed_at', { ascending: false });
 
-  if (investigatorId) q = q.eq('user_id', investigatorId);
+  if (investigatorId && includeUnassigned) {
+    q = q.or(`user_id.eq.${investigatorId},user_id.is.null`);
+  } else if (investigatorId) {
+    q = q.eq('user_id', investigatorId);
+  }
   if (status) q = q.eq('violation_status', status);
 
   const { data, error } = await q;
@@ -480,7 +489,7 @@ export async function dbCreateViolation(supabase, fields) {
       user_id:                 fields.investigator_id ?? null,
       investigator_commentary: fields.notes ?? null,
       violation_noticed_at:    new Date().toISOString(),
-      violation_status:        'Open',
+      violation_status:        SPRINT3_VIOLATION_STATUS.OPEN,
       violation_type:          fields.violation_type,
       date_of_violation:       fields.date_of_violation,
     })
@@ -551,7 +560,7 @@ export async function dbCreateContact(supabase, fields) {
     const { error: upErr } = await supabase
       .from('violation')
       .update({
-        violation_status: 'Notice Sent',
+        violation_status: SPRINT3_VIOLATION_STATUS.NOTICE_SENT,
         notice_sent_at: noticeAt,
       })
       .eq('violation_id', violationId);
@@ -701,7 +710,7 @@ export async function dbCreateSellerResponseAtomic(supabase, fields) {
 
   const { error: statusErr } = await supabase
     .from('violation')
-    .update({ violation_status: 'RESPONSE SUBMITTED' })
+    .update({ violation_status: SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED })
     .eq('violation_id', fields.violation_id);
 
   if (statusErr) {
@@ -807,10 +816,10 @@ export async function dbCreateAdjudicationAtomic(supabase, fields) {
 
   const mappedStatus =
     fields.status === 'Approved'
-      ? 'APPROVED'
+      ? SPRINT3_VIOLATION_STATUS.APPROVED
       : fields.status === 'Rejected'
-        ? 'REJECTED'
-        : 'ESCALATED';
+        ? SPRINT3_VIOLATION_STATUS.REJECTED
+        : SPRINT3_VIOLATION_STATUS.ESCALATED;
 
   const { error: statusErr } = await supabase
     .from('violation')
@@ -835,7 +844,7 @@ export async function dbCreateAdjudicationAtomic(supabase, fields) {
       await supabase.from('adjudication').delete().eq('adjudication_id', row.adjudication_id);
       await supabase
         .from('violation')
-        .update({ violation_status: 'RESPONSE SUBMITTED' })
+        .update({ violation_status: SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED })
         .eq('violation_id', fields.violation_id);
       throw escErr;
     }

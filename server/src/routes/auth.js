@@ -485,7 +485,7 @@ router.post('/forgot-password', async (req, res) => {
     console.error('forgot-password insert:', insErr);
     return res.status(503).json({
       error:
-        'Password reset table missing or mismatched. Run supabase/migrations SQL for password_reset_tokens (bigint user_id).',
+        'Password reset is temporarily unavailable. (Operator: apply supabase/add_password_reset_tokens.sql to the database.)',
     });
   }
 

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import {
   applyApiMockUser,
   requireRealAuth,
-  requireOperationalStaff,
+  requireInvestigatorOnly,
 } from '../middleware/requireCpscManager.js';
 import {
   dbFetchAdjudications,
@@ -12,11 +12,12 @@ import {
 } from '../lib/supabaseViolationData.js';
 import { dbResolveAppUserId } from '../lib/supabaseRecallData.js';
 import { normalizeAppRole, USER_ROLES } from '../lib/roles.js';
+import { ADJUDICATION_STATUS, SPRINT3_VIOLATION_STATUS } from 'shared';
 
 const router = Router();
 router.use(applyApiMockUser);
 
-const VALID_STATUSES = ['Approved', 'Rejected', 'Escalated'];
+const VALID_STATUSES = Object.values(ADJUDICATION_STATUS);
 
 /** GET /api/adjudications */
 router.get('/', requireRealAuth, async (req, res) => {
@@ -41,8 +42,8 @@ router.get('/', requireRealAuth, async (req, res) => {
   }
 });
 
-/** POST /api/adjudications — staff only */
-router.post('/', requireRealAuth, requireOperationalStaff, async (req, res) => {
+/** POST /api/adjudications — investigator only */
+router.post('/', requireRealAuth, requireInvestigatorOnly, async (req, res) => {
   if (!req.supabase) return res.status(503).json({ error: 'Database not available' });
 
   const { violation_id, status, notes } = req.body ?? {};
@@ -60,19 +61,10 @@ router.post('/', requireRealAuth, requireOperationalStaff, async (req, res) => {
   try {
     const vid = Number(violation_id);
     const userId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);
-    const { data: appRow } = await req.supabase
-      .from('app_users')
-      .select('user_type')
-      .eq('user_id', userId)
-      .maybeSingle();
-    const role = normalizeAppRole(appRow, req.user?.user_metadata?.role ?? req.user?.app_metadata?.role);
-    if (role !== USER_ROLES.INVESTIGATOR) {
-      return res.status(403).json({ error: 'Access denied: investigator role required' });
-    }
 
     const meta = await dbFetchViolationWorkflowMeta(req.supabase, vid);
     if (!meta) return res.status(404).json({ error: 'Violation ID not found' });
-    if (meta.violation_status !== 'RESPONSE SUBMITTED') {
+    if (meta.violation_status !== SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED) {
       return res.status(409).json({ error: 'This violation is not ready for adjudication' });
     }
     if (await dbHasAdjudicationForViolation(req.supabase, vid)) {

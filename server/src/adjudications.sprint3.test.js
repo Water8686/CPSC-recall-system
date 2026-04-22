@@ -29,6 +29,13 @@ vi.mock('./middleware/requireCpscManager.js', () => ({
     };
     next();
   },
+  requireInvestigatorOnly: (req, res, next) => {
+    const role = (mockJwtRole || '').toLowerCase();
+    if (role === 'investigator') return next();
+    return res.status(403).json({
+      error: 'Unauthorized. CPSC Investigator role required.',
+    });
+  },
 }));
 
 vi.mock('./lib/supabaseViolationData.js', () => ({

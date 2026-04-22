@@ -53,11 +53,13 @@ describe('Seller role — API access control', () => {
     expect(res.status).toBe(403);
   });
 
-  it('GET /api/responses returns 403 for seller', async () => {
+  it('GET /api/responses is allowed for seller (scoped; 503 here since no DB)', async () => {
+    // Responses endpoint doesn't 403 sellers — it scopes results to their
+    // seller_id. Without a DB in this suite the route short-circuits to 503.
     const res = await request(app)
       .get('/api/responses')
       .set('Authorization', `Bearer ${sellerToken}`);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(503);
   });
 
   it('POST /api/contacts returns 403 for seller', async () => {

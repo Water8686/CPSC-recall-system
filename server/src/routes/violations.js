@@ -17,19 +17,20 @@ import {
 import { dbResolveAppUserId } from '../lib/supabaseRecallData.js';
 import { assertViolationAccess } from '../lib/violationAccess.js';
 import { USER_ROLES, normalizeAppRole } from '../lib/roles.js';
+import { SPRINT3_VIOLATION_STATUS } from 'shared';
 
 const router = Router();
 router.use(applyApiMockUser);
 
-const VALID_STATUSES = ['Open', 'Notice Sent', 'Response Received', 'Closed'];
+const VALID_STATUSES = Object.values(SPRINT3_VIOLATION_STATUS);
 
 /** GET /api/violations?status=Open — returns violations scoped by role */
 router.get('/', requireRealAuth, async (req, res) => {
   if (req.isApiMockMode) return res.json([]);
   if (!req.supabase) return res.status(503).json({ error: 'Database not available' });
   try {
-    const role = req.user?.user_metadata?.role;
-    if (role === USER_ROLES.SELLER) {
+    const metaRole = req.user?.user_metadata?.role ?? req.user?.app_metadata?.role;
+    if (metaRole === USER_ROLES.SELLER) {
       const appUserId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);
       if (appUserId == null) return res.json([]);
       const sellerId = await resolveSellerIdForAppUser(req.supabase, appUserId);
@@ -37,8 +38,25 @@ router.get('/', requireRealAuth, async (req, res) => {
       const rows = await dbFetchViolationsForSeller(req.supabase, sellerId);
       return res.json(rows);
     }
+
     const status = req.query.status ? String(req.query.status) : undefined;
-    const rows = await dbFetchViolations(req.supabase, { status });
+
+    // Resolve the caller's DB role so investigators only see rows they can open
+    // (own + unassigned), matching assertViolationAccess. Managers/admins still see all.
+    const appUserId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);
+    const { data: appRow } = await req.supabase
+      .from('app_users')
+      .select('user_type')
+      .eq('user_id', appUserId)
+      .maybeSingle();
+    const role = normalizeAppRole(appRow, metaRole);
+
+    const opts = { status };
+    if (role === USER_ROLES.INVESTIGATOR && appUserId != null) {
+      opts.investigatorId = appUserId;
+      opts.includeUnassigned = true;
+    }
+    const rows = await dbFetchViolations(req.supabase, opts);
     return res.json(rows);
   } catch (err) {
     console.error('GET /violations:', err);
