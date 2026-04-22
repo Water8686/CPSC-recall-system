@@ -27,19 +27,15 @@ function roleBadgeClass(role) {
 }
 
 function tabItemsForRole(role) {
-  const base = [{ label: 'Dashboard', path: '/dashboard' }];
   if (role === USER_ROLES.SELLER) {
-    return [...base, { label: 'Respond', path: '/seller/responses' }];
-  }
-  if (role === USER_ROLES.INVESTIGATOR) {
+    // Sellers don't have access to /dashboard stats; surface Violations (demo
+    // seller can browse all) + Respond.
     return [
-      ...base,
-      { label: 'Recalls', path: '/recalls' },
       { label: 'Violations', path: '/violations' },
-      { label: 'Responses', path: '/responses' },
-      { label: 'Adjudications', path: '/investigator/adjudications' },
+      { label: 'Respond', path: '/seller/responses' },
     ];
   }
+  const base = [{ label: 'Dashboard', path: '/dashboard' }];
   return [
     ...base,
     { label: 'Recalls', path: '/recalls' },

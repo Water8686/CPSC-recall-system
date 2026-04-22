@@ -66,7 +66,7 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from('app_users')
     .update(patch)
-    .eq('id', userId)
+    .eq('user_id', userId)
     .select()
     .single();
 

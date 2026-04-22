@@ -16,19 +16,23 @@ import ViolationsPage from './pages/ViolationsPage';
 import ViolationDetailPage from './pages/ViolationDetailPage';
 import ResponsesPage from './pages/ResponsesPage';
 import SellerResponsesPage from './pages/SellerResponsesPage';
-import InvestigatorAdjudicationsPage from './pages/InvestigatorAdjudicationsPage';
 import SettingsPage from './pages/SettingsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import { RECALL_PAGE_ROLES, OPERATIONAL_ROLES, VIOLATION_WORKFLOW_ROLES, USER_ROLES, normalizeAppRole } from 'shared';
 
-/** Redirect unauthenticated users to /login; authenticated sellers to /violations; others to /dashboard. */
+/** Redirect unauthenticated users to /login; sellers to /violations (demo browse); others to /dashboard. */
 function DefaultRedirect() {
   const { user, profile, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
   const role = normalizeAppRole(profile, user?.user_metadata?.role);
-  return <Navigate to={role === USER_ROLES.SELLER ? '/violations' : '/dashboard'} replace />;
+  return (
+    <Navigate
+      to={role === USER_ROLES.SELLER ? '/violations' : '/dashboard'}
+      replace
+    />
+  );
 }
 
 export default function App() {
@@ -108,14 +112,6 @@ export default function App() {
                 element={
                   <ProtectedRoute allowedRoles={[USER_ROLES.SELLER]}>
                     <SellerResponsesPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/investigator/adjudications"
-                element={
-                  <ProtectedRoute allowedRoles={[USER_ROLES.INVESTIGATOR]}>
-                    <InvestigatorAdjudicationsPage />
                   </ProtectedRoute>
                 }
               />

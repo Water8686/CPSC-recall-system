@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -37,6 +37,11 @@ export default function AddListingDialog({ open, onClose, recallId, onListingAdd
     setListedAt('');
     setError(null);
   }
+
+  // Reset fields whenever the dialog closes so stale input doesn't leak into the next open.
+  useEffect(() => {
+    if (!open) resetForm();
+  }, [open]);
 
   async function handleSubmit() {
     if (!url.trim()) {

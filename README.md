@@ -92,7 +92,7 @@ The Express server runs on port 3001. During development, Vite proxies `/api/*` 
   - `POST /api/admin/recalls/import-csv-url` — JSON `{ "csvUrl" }`
   - `POST /api/admin/recalls/import-cpsc` — JSON `{ "recallNumber" }` and/or `{ "recallDateStart", "recallDateEnd", "dateBasis"?: "recall" | "lastPublish" }` (`lastPublish` uses `LastPublishDateStart`/`End` on the [CPSC Recall JSON API](https://www.saferproducts.gov/RestWebServices/Recall?format=json); omit or `recall` for `RecallDateStart`/`End`; see [CPSC API information](https://www.cpsc.gov/Recalls/CPSC-Recalls-Application-Program-Interface-API-Information))
 
-UI: **Settings → Batch import** (`/admin/import`).
+UI: open **Settings** and switch to the **Batch import** tab (admin only).
 
 ## Team
 

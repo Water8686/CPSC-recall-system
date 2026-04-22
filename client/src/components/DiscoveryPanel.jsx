@@ -249,6 +249,7 @@ export default function DiscoveryPanel({
                 disabled={searching || loading}
                 size="small"
                 color="primary"
+                aria-label="Re-run search (ignore cache)"
               >
                 <RefreshIcon />
               </IconButton>
@@ -377,6 +378,7 @@ export default function DiscoveryPanel({
                         target="_blank"
                         rel="noreferrer"
                         size="small"
+                        aria-label="Open listing in new tab"
                         sx={{ color: 'primary.main', flexShrink: 0 }}
                       >
                         <OpenInNewIcon fontSize="small" />

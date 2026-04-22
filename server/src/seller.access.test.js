@@ -54,6 +54,8 @@ describe('Seller role — API access control', () => {
   });
 
   it('GET /api/responses returns 503 for seller without DB client (no Supabase in test harness)', async () => {
+    // Endpoint doesn't 403 sellers — it scopes results to their seller_id.
+    // Without a DB in this suite the route short-circuits to 503.
     const res = await request(app)
       .get('/api/responses')
       .set('Authorization', `Bearer ${sellerToken}`);
