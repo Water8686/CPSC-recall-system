@@ -11,6 +11,7 @@ import {
 } from '../lib/supabaseViolationData.js';
 import { dbResolveAppUserId } from '../lib/supabaseRecallData.js';
 import { normalizeAppRole, USER_ROLES } from '../lib/roles.js';
+import { isDemoSellerFullAccess } from '../lib/violationAccess.js';
 
 const router = Router();
 router.use(applyApiMockUser);
@@ -29,9 +30,17 @@ router.get('/', requireRealAuth, async (req, res) => {
       .eq('user_id', userId)
       .maybeSingle();
     const role = normalizeAppRole(appRow, req.user?.user_metadata?.role ?? req.user?.app_metadata?.role);
+    let filterUserId = null;
+    if (role === USER_ROLES.SELLER) {
+      if (isDemoSellerFullAccess(req) && Number.isFinite(violationId)) {
+        filterUserId = null;
+      } else {
+        filterUserId = userId;
+      }
+    }
     const rows = await dbFetchResponses(req.supabase, {
       violationId: Number.isFinite(violationId) ? violationId : null,
-      userId: role === USER_ROLES.SELLER ? userId : null,
+      userId: filterUserId,
     });
     return res.json(rows);
   } catch (err) {
@@ -71,14 +80,16 @@ router.post('/', requireRealAuth, async (req, res) => {
     const meta = await dbFetchViolationWorkflowMeta(req.supabase, vid);
     if (!meta) return res.status(404).json({ error: 'Violation ID not found' });
 
-    const sellerEmail = meta.listing?.seller?.seller_email
-      ? String(meta.listing.seller.seller_email).trim().toLowerCase()
-      : null;
-    const loggedInEmail = req.user?.email ? String(req.user.email).trim().toLowerCase() : null;
-    if (!sellerEmail || !loggedInEmail || sellerEmail !== loggedInEmail) {
-      return res
-        .status(403)
-        .json({ error: 'You are not authorized to respond to this violation' });
+    if (!isDemoSellerFullAccess(req)) {
+      const sellerEmail = meta.listing?.seller?.seller_email
+        ? String(meta.listing.seller.seller_email).trim().toLowerCase()
+        : null;
+      const loggedInEmail = req.user?.email ? String(req.user.email).trim().toLowerCase() : null;
+      if (!sellerEmail || !loggedInEmail || sellerEmail !== loggedInEmail) {
+        return res
+          .status(403)
+          .json({ error: 'You are not authorized to respond to this violation' });
+      }
     }
 
     if (await dbHasResponseForViolation(req.supabase, vid)) {

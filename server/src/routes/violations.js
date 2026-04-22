@@ -15,7 +15,7 @@ import {
   resolveSellerIdForAppUser,
 } from '../lib/supabaseViolationData.js';
 import { dbResolveAppUserId } from '../lib/supabaseRecallData.js';
-import { assertViolationAccess } from '../lib/violationAccess.js';
+import { assertViolationAccess, isDemoSellerFullAccess } from '../lib/violationAccess.js';
 import { USER_ROLES, normalizeAppRole } from '../lib/roles.js';
 
 const router = Router();
@@ -32,6 +32,11 @@ router.get('/', requireRealAuth, async (req, res) => {
     if (role === USER_ROLES.SELLER) {
       const appUserId = await dbResolveAppUserId(req.supabase, req.user?.email, req.user?.id);
       if (appUserId == null) return res.json([]);
+      if (isDemoSellerFullAccess(req)) {
+        const status = req.query.status ? String(req.query.status) : undefined;
+        const rows = await dbFetchViolations(req.supabase, { status });
+        return res.json(rows);
+      }
       const sellerId = await resolveSellerIdForAppUser(req.supabase, appUserId);
       if (sellerId == null) return res.json([]);
       const rows = await dbFetchViolationsForSeller(req.supabase, sellerId);

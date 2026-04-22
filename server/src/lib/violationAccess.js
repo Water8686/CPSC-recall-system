@@ -3,6 +3,28 @@ import { dbResolveAppUserId } from './supabaseRecallData.js';
 import { resolveSellerIdForAppUser } from './supabaseViolationData.js';
 
 /**
+ * Email that may view every violation and use seller response flows (class demo).
+ * Set DEMO_SELLER_FULL_ACCESS_EMAIL=none to turn off (production with real sellers).
+ */
+export function getDemoSellerFullAccessEmail() {
+  const raw = process.env.DEMO_SELLER_FULL_ACCESS_EMAIL;
+  if (raw !== undefined && String(raw).trim() !== '') {
+    const t = String(raw).trim().toLowerCase();
+    if (t === 'none' || t === 'off' || t === 'false') return null;
+    return String(raw).trim();
+  }
+  return 'seller@cpsc.demo';
+}
+
+/** Training/demo seller login — same capabilities across all violations as the role allows. */
+export function isDemoSellerFullAccess(req) {
+  const demo = getDemoSellerFullAccessEmail();
+  if (!demo) return false;
+  const email = req.user?.email ? String(req.user.email).trim().toLowerCase() : '';
+  return email === demo.toLowerCase();
+}
+
+/**
  * Gate access to a violation:
  *  - Manager / Admin: full access to any violation.
  *  - Investigator: own violations (violation.user_id matches) or unassigned ones.
@@ -44,6 +66,8 @@ export async function assertViolationAccess(req, res, supabase, ownerUserId, sel
 
   // Sellers: check if listing.seller_id matches their resolved seller_id.
   if (role === USER_ROLES.SELLER) {
+    if (isDemoSellerFullAccess(req)) return true;
+
     if (sellerOwnerId == null) {
       res.status(403).json({ error: 'You do not have access to this violation' });
       return false;
