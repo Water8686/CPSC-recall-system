@@ -1,4 +1,63 @@
 /**
+ * Email used when a listing has no seller: the listing is tied to this marketplace
+ * seller row so demo seller login sees violations end-to-end.
+ *
+ * Override with DEFAULT_VIOLATION_SELLER_EMAIL (any seller_email in DB).
+ * Disable auto-assignment with DEFAULT_VIOLATION_SELLER_EMAIL=none (or off/false/0).
+ */
+export function getDefaultViolationSellerEmail() {
+  const raw = process.env.DEFAULT_VIOLATION_SELLER_EMAIL;
+  if (raw !== undefined && String(raw).trim() !== '') {
+    const t = String(raw).trim().toLowerCase();
+    if (t === 'none' || t === 'off' || t === 'false' || t === '0') return null;
+    return String(raw).trim();
+  }
+  return 'seller@cpsc.demo';
+}
+
+async function resolveSellerIdForEmail(supabase, email) {
+  if (!email) return null;
+  const { data, error } = await supabase
+    .from('seller')
+    .select('seller_id')
+    .ilike('seller_email', email)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.seller_id ?? null;
+}
+
+/**
+ * If the listing has no seller, assign the default workflow seller so seller-role
+ * users can see the violation without manual admin mapping.
+ */
+export async function ensureListingSellerForWorkflow(supabase, listingId) {
+  const { data: row, error } = await supabase
+    .from('listing')
+    .select('seller_id')
+    .eq('listing_id', listingId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row || row.seller_id != null) return;
+
+  const email = getDefaultViolationSellerEmail();
+  if (!email) return;
+
+  const sellerId = await resolveSellerIdForEmail(supabase, email);
+  if (sellerId == null) {
+    console.warn(
+      `[violations] Default seller "${email}" not found in seller table; listing ${listingId} has no seller_id.`,
+    );
+    return;
+  }
+
+  const { error: upErr } = await supabase
+    .from('listing')
+    .update({ seller_id: sellerId })
+    .eq('listing_id', listingId);
+  if (upErr) throw upErr;
+}
+
+/**
  * DB helpers for the investigation workflow:
  * listing → violation → contact → response → adjudication
  *
@@ -75,11 +134,19 @@ export async function dbCreateListing(supabase, fields) {
     if (!marketplace_id) throw new Error('No marketplace available; provide a marketplace name');
   }
 
+  let seller_id = fields.seller_id ?? null;
+  if (seller_id == null) {
+    const email = getDefaultViolationSellerEmail();
+    if (email) {
+      seller_id = await resolveSellerIdForEmail(supabase, email);
+    }
+  }
+
   const { data, error } = await supabase
     .from('listing')
     .insert({
       marketplace_id,
-      seller_id:           fields.seller_id ?? null,
+      seller_id,
       listing_url:         fields.url ?? null,
       listing_title:       fields.title ?? null,
       listing_description: fields.description ?? null,
@@ -433,6 +500,8 @@ export async function dbCreateViolation(supabase, fields) {
     .maybeSingle();
   if (listingErr) throw listingErr;
   if (!listing) throw new Error('Selected listing does not exist');
+
+  await ensureListingSellerForWorkflow(supabase, fields.listing_id);
 
   // Resolve recall_id from listing if not provided
   let recallId = fields.recall_id;

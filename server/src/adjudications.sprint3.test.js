@@ -12,6 +12,7 @@ let mockJwtRole = 'investigator';
 
 vi.mock('./middleware/requireCpscManager.js', () => ({
   applyApiMockUser: (req, _res, next) => next(),
+  requireOperationalStaff: (_req, _res, next) => next(),
   requireRealAuth: (req, _res, next) => {
     req.user = {
       id: '2',

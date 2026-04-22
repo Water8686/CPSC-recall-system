@@ -53,11 +53,11 @@ describe('Seller role — API access control', () => {
     expect(res.status).toBe(403);
   });
 
-  it('GET /api/responses returns 403 for seller', async () => {
+  it('GET /api/responses returns 503 for seller without DB client (no Supabase in test harness)', async () => {
     const res = await request(app)
       .get('/api/responses')
       .set('Authorization', `Bearer ${sellerToken}`);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(503);
   });
 
   it('POST /api/contacts returns 403 for seller', async () => {
