@@ -202,6 +202,7 @@ export default function ResponsesPage() {
         <TextField
           size="small"
           placeholder="Search..."
+          aria-label="Search responses"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           sx={{ width: 220 }}
@@ -271,7 +272,11 @@ export default function ResponsesPage() {
                       onClick={() => setExpandedId(isOpen ? null : v.violation_id)}
                     >
                       <TableCell padding="checkbox">
-                        <IconButton size="small">
+                        <IconButton
+                          size="small"
+                          aria-label={isOpen ? 'Collapse row' : 'Expand row'}
+                          aria-expanded={isOpen}
+                        >
                           {isOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
                         </IconButton>
                       </TableCell>

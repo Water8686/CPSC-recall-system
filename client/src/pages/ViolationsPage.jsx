@@ -158,6 +158,7 @@ export default function ViolationsPage() {
         <TextField
           size="small"
           placeholder="Search violations..."
+          aria-label="Search violations"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           sx={{ width: 220 }}
@@ -199,7 +200,7 @@ export default function ViolationsPage() {
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={isSeller ? 5 : 6} align="center" sx={{ py: 4 }}>
                   <Typography color="text.secondary">No violations found.</Typography>
                 </TableCell>
               </TableRow>

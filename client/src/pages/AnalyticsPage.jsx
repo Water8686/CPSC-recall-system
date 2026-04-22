@@ -56,6 +56,7 @@ export default function AnalyticsPage() {
           <TextField
             fullWidth
             size="small"
+            aria-label="Analytics dashboard embed URL"
             placeholder="https://lookerstudio.google.com/embed/reporting/..."
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}

@@ -303,6 +303,7 @@ export default function RecallsPage() {
           <TextField
             size="small"
             placeholder="Search recalls..."
+            aria-label="Search recalls"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             sx={{ width: 220 }}
