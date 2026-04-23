@@ -1,4 +1,5 @@
 import { createApp } from './app.js';
+import { startWeeklyCpscImportScheduler } from './lib/cpscWeeklyImportScheduler.js';
 
 const app = createApp();
 const PORT = Number(process.env.PORT) || 3001;
@@ -15,3 +16,5 @@ if (
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on port ${PORT}`);
 });
+
+startWeeklyCpscImportScheduler();
