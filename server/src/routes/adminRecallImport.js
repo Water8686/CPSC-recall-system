@@ -9,11 +9,19 @@ import {
   fetchCpscRecallsJson,
   cpscItemsToRecallRecords,
 } from '../lib/cpscApiImport.js';
+import { getCpscImportScheduleInfo } from '../lib/cpscWeeklyImportScheduler.js';
 
 const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+router.get('/recalls/import-cpsc-schedule', requireAdmin, (_req, res) => {
+  return res.json({
+    ok: true,
+    schedule: getCpscImportScheduleInfo(),
+  });
 });
 
 function allowFetchUrl(urlString) {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePreviousWeekWindowEt } from './cpscWeeklyImportScheduler.js';
+import { getCpscImportScheduleInfo, resolvePreviousWeekWindowEt } from './cpscWeeklyImportScheduler.js';
 
 describe('resolvePreviousWeekWindowEt', () => {
-  it('returns prior Monday-Sunday window when run on Monday morning ET', () => {
+  it('returns the previous 7-day window ending yesterday', () => {
     const now = new Date('2026-04-20T13:00:00.000Z'); // Monday 09:00 ET (EDT)
     const window = resolvePreviousWeekWindowEt(now);
     expect(window).toEqual({
@@ -18,5 +18,14 @@ describe('resolvePreviousWeekWindowEt', () => {
       recallDateStart: '2026-04-12',
       recallDateEnd: '2026-04-18',
     });
+  });
+});
+
+describe('getCpscImportScheduleInfo', () => {
+  it('returns Thursday noon ET schedule metadata', () => {
+    const info = getCpscImportScheduleInfo(new Date('2026-04-23T16:00:00.000Z'));
+    expect(info.cron).toBe('0 12 * * 4');
+    expect(info.timezone).toBe('America/New_York');
+    expect(info.humanSchedule).toContain('Thursdays');
   });
 });

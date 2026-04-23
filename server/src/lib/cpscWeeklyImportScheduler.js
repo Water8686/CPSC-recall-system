@@ -4,6 +4,8 @@ import { cpscItemsToRecallRecords, fetchCpscRecallsJson } from './cpscApiImport.
 import { upsertRecallRecords } from './csvRecallImport.js';
 
 const ET_TIME_ZONE = 'America/New_York';
+const CPSC_IMPORT_CRON = '0 12 * * 4';
+const CPSC_IMPORT_HUMAN_SCHEDULE = 'Thursdays at 12:00 PM America/New_York';
 
 function toYmd(date) {
   return date.toISOString().slice(0, 10);
@@ -27,7 +29,7 @@ function ymdInTimeZone(date, timeZone) {
 
 /**
  * Date window for "previous week" using ET calendar dates.
- * If run on Monday ET, this yields the prior Mon-Sun range.
+ * If run on Thursday ET, this yields the prior Thursday-Wednesday range.
  */
 export function resolvePreviousWeekWindowEt(now = new Date()) {
   const etTodayYmd = ymdInTimeZone(now, ET_TIME_ZONE);
@@ -62,12 +64,27 @@ export async function runScheduledWeeklyCpscImport() {
   console.log(`[cpsc] Weekly import source URL: ${url}`);
 }
 
+export function getCpscImportScheduleInfo(now = new Date()) {
+  const enabled = process.env.CPSC_WEEKLY_IMPORT_ENABLED === 'true';
+  const previewWindow = resolvePreviousWeekWindowEt(now);
+  return {
+    enabled,
+    cron: CPSC_IMPORT_CRON,
+    timezone: ET_TIME_ZONE,
+    humanSchedule: CPSC_IMPORT_HUMAN_SCHEDULE,
+    importWindow: {
+      label: 'Previous 7 days ending yesterday (ET calendar date)',
+      ...previewWindow,
+    },
+  };
+}
+
 export function startWeeklyCpscImportScheduler() {
   if (process.env.CPSC_WEEKLY_IMPORT_ENABLED !== 'true') {
     return null;
   }
   const task = cron.schedule(
-    '0 9 * * 1',
+    CPSC_IMPORT_CRON,
     async () => {
       try {
         await runScheduledWeeklyCpscImport();
@@ -78,6 +95,6 @@ export function startWeeklyCpscImportScheduler() {
     },
     { timezone: ET_TIME_ZONE },
   );
-  console.log('[cpsc] Weekly CPSC import scheduler enabled (Monday 09:00 America/New_York).');
+  console.log(`[cpsc] Weekly CPSC import scheduler enabled (${CPSC_IMPORT_HUMAN_SCHEDULE}).`);
   return task;
 }

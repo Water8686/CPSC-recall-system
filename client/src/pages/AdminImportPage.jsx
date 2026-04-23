@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box,
   Typography,
@@ -24,6 +24,7 @@ import LinkIcon from '@mui/icons-material/Link';
 import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 import { useAuth } from '../context/AuthContext';
 
 const CPSC_API_INFO =
@@ -58,6 +59,7 @@ export default function AdminImportPage() {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [techOpen, setTechOpen] = useState(false);
+  const [scheduleInfo, setScheduleInfo] = useState(null);
 
   const authHeaders = () => {
     const h = new Headers();
@@ -71,6 +73,26 @@ export default function AdminImportPage() {
     setError(null);
     setResult(null);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSchedule = async () => {
+      try {
+        const res = await fetch('/api/admin/recalls/import-cpsc-schedule', {
+          headers: authHeaders(),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.schedule) return;
+        if (!cancelled) setScheduleInfo(data.schedule);
+      } catch {
+        // Non-blocking: manual import still works even if schedule status fails to load.
+      }
+    };
+    if (session?.access_token) loadSchedule();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.access_token]);
 
   const handleFileImport = async (e) => {
     e.preventDefault();
@@ -323,6 +345,39 @@ export default function AdminImportPage() {
                 . Data is saved into your recalls list (new rows or updates if the recall number
                 already exists).
               </Typography>
+              {scheduleInfo && (
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    bgcolor: scheduleInfo.enabled ? 'success.50' : 'warning.50',
+                  }}
+                >
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                    <ScheduleIcon fontSize="small" />
+                    <Typography variant="subtitle2">Automated CPSC import schedule</Typography>
+                  </Stack>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    {scheduleInfo.humanSchedule}
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip
+                      size="small"
+                      color={scheduleInfo.enabled ? 'success' : 'warning'}
+                      label={scheduleInfo.enabled ? 'Enabled' : 'Disabled'}
+                    />
+                    <Chip size="small" variant="outlined" label={`TZ: ${scheduleInfo.timezone}`} />
+                    <Chip size="small" variant="outlined" label={`CRON: ${scheduleInfo.cron}`} />
+                  </Stack>
+                  {scheduleInfo.importWindow && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                      Window: {scheduleInfo.importWindow.recallDateStart} to{' '}
+                      {scheduleInfo.importWindow.recallDateEnd} ({scheduleInfo.importWindow.label})
+                    </Typography>
+                  )}
+                </Paper>
+              )}
 
               <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
                 How do you want to search?
