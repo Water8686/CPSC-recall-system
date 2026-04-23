@@ -17,7 +17,6 @@ import ViolationDetailPage from './pages/ViolationDetailPage';
 import ResponsesPage from './pages/ResponsesPage';
 import SellerResponsesPage from './pages/SellerResponsesPage';
 import SettingsPage from './pages/SettingsPage';
-import AnalyticsPage from './pages/AnalyticsPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import { RECALL_PAGE_ROLES, OPERATIONAL_ROLES, VIOLATION_WORKFLOW_ROLES, USER_ROLES, normalizeAppRole } from 'shared';
 
@@ -59,14 +58,6 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/unauthorized" element={<UnauthorizedPage />} />
               <Route path="/settings" element={<SettingsPage />} />
-              <Route
-                path="/analytics"
-                element={
-                  <ProtectedRoute allowedRoles={OPERATIONAL_ROLES}>
-                    <AnalyticsPage />
-                  </ProtectedRoute>
-                }
-              />
               <Route
                 path="/recalls"
                 element={

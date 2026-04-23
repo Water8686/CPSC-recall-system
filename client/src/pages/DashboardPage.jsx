@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link as RouterLink, useNavigate, Navigate } from 'react-router-dom';
+import { Link as RouterLink, Navigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -8,36 +8,62 @@ import {
   CircularProgress,
   Alert,
   Link,
-  Button,
 } from '@mui/material';
-import { Chart } from 'react-google-charts';
 import {
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  RadialBarChart,
+  RadialBar,
+  PolarAngleAxis,
+  Legend,
   Cell,
 } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
 import { canAccessManagerFeatures, normalizeAppRole, USER_ROLES } from 'shared';
 
-const KPI_CARDS = [
-  { key: 'open_violations', label: 'Open Violations', color: '#0D47A1', bg: '#e3f2fd' },
-  { key: 'active_listings', label: 'Active Listings', color: '#e65100', bg: '#fff3e0' },
-  { key: 'prioritized_recalls', label: 'Prioritized Recalls', color: '#2e7d32', bg: '#e8f5e9' },
-  { key: 'pending_responses', label: 'Pending Responses', color: '#c62828', bg: '#fce4ec' },
-];
-
-const TYPE_COLORS = ['#0D47A1', '#1565C0', '#1976D2', '#1E88E5', '#42A5F5', '#64B5F6'];
-const MKT_COLORS = ['#e65100', '#f57c00', '#ff9800', '#ffb74d', '#ffe0b2'];
+const PRIORITY_COLORS = {
+  Critical: '#7c3aed',
+  High: '#d97706',
+  Medium: '#2563eb',
+};
+const STATUS_COLORS = {
+  Open: '#d946ef',
+  Resolved: '#8b5cf6',
+  Other: '#4f46e5',
+};
+const OUTCOME_COLORS = {
+  Approved: '#4ade80',
+  Closed: '#facc15',
+  'Pending Remediation': '#60a5fa',
+};
+const PANEL_SX = {
+  p: 2.5,
+  borderRadius: 2,
+  border: '1px solid',
+  borderColor: 'rgba(148,163,184,0.18)',
+  bgcolor: '#111827',
+  color: '#e2e8f0',
+  height: 320,
+};
+const tooltipStyle = {
+  background: '#0f172a',
+  border: '1px solid #334155',
+  borderRadius: 8,
+  color: '#e2e8f0',
+};
 
 export default function DashboardPage() {
-  const navigate = useNavigate();
   const { session, profile, user } = useAuth();
-  const [prioritizations, setPrioritizations] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -58,12 +84,11 @@ export default function DashboardPage() {
     const controller = new AbortController();
     async function fetchData() {
       try {
-        const [prioRes, statsRes] = await Promise.all([
-          apiFetch('/api/prioritizations', session, { signal: controller.signal }),
-          apiFetch('/api/stats/dashboard', session, { signal: controller.signal }),
-        ]);
-        if (prioRes.ok) setPrioritizations(await prioRes.json());
+        const statsRes = await apiFetch('/api/stats/dashboard', session, { signal: controller.signal });
         if (statsRes.ok) setStats(await statsRes.json());
+        if (!statsRes.ok) {
+          setError(await getApiErrorMessage(statsRes, 'Failed to load dashboard statistics.'));
+        }
       } catch (err) {
         if (err.name !== 'AbortError') setError(err.message);
       } finally {
@@ -79,21 +104,14 @@ export default function DashboardPage() {
   // Hook order must stay stable, so this happens after the effect above.
   if (isSeller) return <Navigate to="/violations" replace />;
 
-  const counts = { High: 0, Medium: 0, Low: 0 };
-  prioritizations.forEach((p) => {
-    if (counts[p.priority] !== undefined) counts[p.priority]++;
-  });
-  const priorityRows = [
-    ['High', counts.High],
-    ['Medium', counts.Medium],
-    ['Low', counts.Low],
-  ];
-  const barChartData = [['Priority', 'Count'], ...priorityRows];
-  // Pie charts look broken with all-zero slices; filter empties so Google Charts
-  // renders an accurate chart (or falls back to the empty-state message below).
-  const nonZeroPieRows = priorityRows.filter(([, count]) => count > 0);
-  const pieChartData =
-    nonZeroPieRows.length > 0 ? [['Priority', 'Count'], ...nonZeroPieRows] : null;
+  const openViolationsSeries = stats?.open_violations_over_time ?? [];
+  const listingsByStatus = stats?.listings_by_violation_status ?? [];
+  const recallsByPriorityPercent = stats?.recalls_by_priority_percent ?? [];
+  const violationsByPriority = stats?.violations_by_priority ?? [];
+  const openViolationsTotal = stats?.open_violations_total ?? 0;
+  const adjudicationOutcomes = stats?.adjudication_outcomes ?? [];
+  const recallsByPriorityCounts = stats?.recalls_by_priority_counts ?? [];
+  const responsesByMonth = stats?.responses_by_month ?? [];
 
   if (loading) {
     return (
@@ -117,136 +135,232 @@ export default function DashboardPage() {
       <Typography variant="h4" fontWeight={700} gutterBottom>
         Welcome back, {displayName}
       </Typography>
-
-      {/* KPI Cards */}
-      {stats && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          {KPI_CARDS.map((card) => (
-            <Grid item xs={6} md={3} key={card.key}>
-              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: card.bg, borderColor: card.bg }}>
-                <Typography variant="h3" fontWeight={700} sx={{ color: card.color }}>
-                  {stats[card.key] ?? 0}
-                </Typography>
-                <Typography variant="caption" fontWeight={600} sx={{ color: card.color }}>
-                  {card.label}
-                </Typography>
-              </Paper>
-            </Grid>
-          ))}
-        </Grid>
-      )}
-
-      {/* Sprint 2 Charts */}
-      {stats && (
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>
-                Violations by Type
-              </Typography>
-              {stats.violations_by_type.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.violations_by_type} layout="vertical">
-                    <XAxis type="number" allowDecimals={false} />
-                    <YAxis
-                      type="category"
-                      dataKey="type"
-                      width={160}
-                      tick={{ fontSize: 11 }}
-                    />
-                    <Tooltip />
-                    <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                      {stats.violations_by_type.map((_, i) => (
-                        <Cell key={i} fill={TYPE_COLORS[i % TYPE_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No violations recorded yet.
-                </Typography>
-              )}
-            </Paper>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>
-                Listings by Marketplace
-              </Typography>
-              {stats.listings_by_marketplace.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.listings_by_marketplace}>
-                    <XAxis dataKey="marketplace" tick={{ fontSize: 12 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                      {stats.listings_by_marketplace.map((_, i) => (
-                        <Cell key={i} fill={MKT_COLORS[i % MKT_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No listings recorded yet.
-                </Typography>
-              )}
-            </Paper>
-          </Grid>
-        </Grid>
-      )}
-
-      {/* Existing Sprint 1 priority charts */}
-      <Typography color="text.secondary" sx={{ mb: 2 }}>
-        Recall priority overview
-      </Typography>
       {managerUi && (
         <Typography variant="body2" sx={{ mb: 2 }}>
           For the full manager workflow, open{' '}
           <Link component={RouterLink} to="/recalls">Recalls</Link>.
         </Typography>
       )}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
+
+      <Grid container spacing={2.5} sx={{ mt: 0.5 }}>
         <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Chart chartType="BarChart" width="100%" height="300px" data={barChartData}
-              options={{ title: 'Recalls by Priority', chartArea: { width: '60%' }, hAxis: { title: 'Count', minValue: 0 }, vAxis: { title: 'Priority' } }} />
+          <Paper sx={PANEL_SX}>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+              Open Violations Over Time
+            </Typography>
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={openViolationsSeries}>
+                <defs>
+                  <linearGradient id="openViolationsFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.7} />
+                    <stop offset="100%" stopColor="#2563eb" stopOpacity={0.08} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#f43f5e"
+                  strokeWidth={2}
+                  fill="url(#openViolationsFill)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </Paper>
         </Grid>
+
         <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            {pieChartData ? (
-              <Chart
-                chartType="PieChart"
-                width="100%"
-                height="300px"
-                data={pieChartData}
-                options={{
-                  title: 'Percentage by Priority',
-                  pieHole: 0.4,
-                  sliceVisibilityThreshold: 0,
-                }}
-              />
-            ) : (
-              <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  No prioritized recalls yet.
-                </Typography>
-              </Box>
-            )}
+          <Paper sx={PANEL_SX}>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+              Listings by Violation Status
+            </Typography>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={listingsByStatus} layout="vertical" margin={{ left: 10, right: 12 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis type="number" allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <YAxis dataKey="status" type="category" tick={{ fill: '#cbd5e1', fontSize: 12 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Bar dataKey="count" radius={[0, 10, 10, 0]}>
+                  {listingsByStatus.map((entry) => (
+                    <Cell key={entry.status} fill={STATUS_COLORS[entry.status] || '#7c3aed'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={PANEL_SX}>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+              Percentage of Recalls by Priority
+            </Typography>
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Tooltip contentStyle={tooltipStyle} />
+                <Legend wrapperStyle={{ color: '#cbd5e1', fontSize: 12 }} />
+                <Pie
+                  data={recallsByPriorityPercent}
+                  dataKey="percent"
+                  nameKey="priority"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={88}
+                  label={({ percent }) => `${percent}%`}
+                >
+                  {recallsByPriorityPercent.map((entry) => (
+                    <Cell key={entry.priority} fill={PRIORITY_COLORS[entry.priority] || '#7c3aed'} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={PANEL_SX}>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+              Violations by Priority
+            </Typography>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={violationsByPriority}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis dataKey="priority" tick={{ fill: '#cbd5e1', fontSize: 12 }} />
+                <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                  {violationsByPriority.map((entry) => (
+                    <Cell key={entry.priority} fill={PRIORITY_COLORS[entry.priority] || '#7c3aed'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={PANEL_SX}>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+              Open Violations
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 250 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <RadialBarChart
+                  innerRadius="72%"
+                  outerRadius="95%"
+                  startAngle={90}
+                  endAngle={-270}
+                  data={[
+                    {
+                      name: 'Open Violations',
+                      value: openViolationsTotal,
+                      fill: '#fb7185',
+                    },
+                  ]}
+                >
+                  <PolarAngleAxis
+                    type="number"
+                    domain={[0, Math.max(openViolationsTotal * 1.5, 10)]}
+                    tick={false}
+                  />
+                  <RadialBar background dataKey="value" clockWise cornerRadius={10} />
+                  <text
+                    x="50%"
+                    y="50%"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="#e2e8f0"
+                    fontSize="40"
+                    fontWeight="700"
+                  >
+                    {openViolationsTotal}
+                  </text>
+                </RadialBarChart>
+              </ResponsiveContainer>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={PANEL_SX}>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+              Adjudication Outcomes
+            </Typography>
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Tooltip contentStyle={tooltipStyle} />
+                <Legend wrapperStyle={{ color: '#cbd5e1', fontSize: 12 }} />
+                <Pie
+                  data={adjudicationOutcomes}
+                  dataKey="count"
+                  nameKey="outcome"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={88}
+                  label={({ percent }) => `${Math.round(percent * 100)}%`}
+                >
+                  {adjudicationOutcomes.map((entry) => (
+                    <Cell key={entry.outcome} fill={OUTCOME_COLORS[entry.outcome] || '#64748b'} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={PANEL_SX}>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+              Recalls by Priority
+            </Typography>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={recallsByPriorityCounts}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis dataKey="priority" tick={{ fill: '#cbd5e1', fontSize: 12 }} />
+                <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                  {recallsByPriorityCounts.map((entry) => (
+                    <Cell key={entry.priority} fill={PRIORITY_COLORS[entry.priority] || '#7c3aed'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={PANEL_SX}>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+              Responses by Month
+            </Typography>
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={responsesByMonth}>
+                <defs>
+                  <linearGradient id="responsesFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="#2563eb" stopOpacity={0.08} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#f43f5e"
+                  strokeWidth={2}
+                  fill="url(#responsesFill)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </Paper>
         </Grid>
       </Grid>
-
-      <Box sx={{ textAlign: 'center', mt: 3 }}>
-        <Button
-          variant="outlined"
-          onClick={() => navigate('/analytics')}
-        >
-          View Full Analytics
-        </Button>
-      </Box>
     </Box>
   );
 }

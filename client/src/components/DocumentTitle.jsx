@@ -21,7 +21,6 @@ export function titleForPath(pathname) {
     '/responses': 'Responses',
     '/seller/responses': 'Respond',
     '/adjudications': 'Adjudications',
-    '/analytics': 'Analytics',
   };
   if (exact[pathname]) return exact[pathname];
 
