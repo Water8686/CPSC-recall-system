@@ -28,4 +28,11 @@ describe('getCpscImportScheduleInfo', () => {
     expect(info.timezone).toBe('America/New_York');
     expect(info.humanSchedule).toContain('Thursdays');
   });
+
+  it('treats flexible truthy env values as enabled', () => {
+    process.env.CPSC_WEEKLY_IMPORT_ENABLED = ' TRUE ';
+    const info = getCpscImportScheduleInfo(new Date('2026-04-23T16:00:00.000Z'));
+    expect(info.enabled).toBe(true);
+    delete process.env.CPSC_WEEKLY_IMPORT_ENABLED;
+  });
 });

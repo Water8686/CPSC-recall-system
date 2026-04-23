@@ -6,6 +6,7 @@ import { upsertRecallRecords } from './csvRecallImport.js';
 const ET_TIME_ZONE = 'America/New_York';
 const CPSC_IMPORT_CRON = '0 12 * * 4';
 const CPSC_IMPORT_HUMAN_SCHEDULE = 'Thursdays at 12:00 PM America/New_York';
+const TRUE_ENV_VALUES = new Set(['1', 'true', 'yes', 'on']);
 
 function toYmd(date) {
   return date.toISOString().slice(0, 10);
@@ -65,7 +66,7 @@ export async function runScheduledWeeklyCpscImport() {
 }
 
 export function getCpscImportScheduleInfo(now = new Date()) {
-  const enabled = process.env.CPSC_WEEKLY_IMPORT_ENABLED === 'true';
+  const enabled = isWeeklyImportEnabled();
   const previewWindow = resolvePreviousWeekWindowEt(now);
   return {
     enabled,
@@ -79,8 +80,14 @@ export function getCpscImportScheduleInfo(now = new Date()) {
   };
 }
 
+function isWeeklyImportEnabled() {
+  const raw = process.env.CPSC_WEEKLY_IMPORT_ENABLED;
+  if (raw == null) return false;
+  return TRUE_ENV_VALUES.has(String(raw).trim().toLowerCase());
+}
+
 export function startWeeklyCpscImportScheduler() {
-  if (process.env.CPSC_WEEKLY_IMPORT_ENABLED !== 'true') {
+  if (!isWeeklyImportEnabled()) {
     return null;
   }
   const task = cron.schedule(
