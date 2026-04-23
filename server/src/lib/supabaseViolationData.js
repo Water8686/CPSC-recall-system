@@ -1,4 +1,4 @@
-import { SPRINT3_VIOLATION_STATUS } from 'shared';
+import { ADJUDICATION_STATUS, SPRINT3_VIOLATION_STATUS } from 'shared';
 
 /**
  * Email used when a listing has no seller: the listing is tied to this marketplace
@@ -883,12 +883,22 @@ export async function dbCreateAdjudication(supabase, fields) {
 export async function dbCreateAdjudicationAtomic(supabase, fields) {
   const row = await dbCreateAdjudication(supabase, fields);
 
-  const mappedStatus =
-    fields.status === 'Approved'
-      ? SPRINT3_VIOLATION_STATUS.APPROVED
-      : fields.status === 'Rejected'
-        ? SPRINT3_VIOLATION_STATUS.REJECTED
-        : SPRINT3_VIOLATION_STATUS.ESCALATED;
+  let mappedStatus = SPRINT3_VIOLATION_STATUS.ESCALATED;
+  switch (fields.status) {
+    case ADJUDICATION_STATUS.APPROVED:
+      mappedStatus = SPRINT3_VIOLATION_STATUS.APPROVED;
+      break;
+    case ADJUDICATION_STATUS.REJECTED:
+      mappedStatus = SPRINT3_VIOLATION_STATUS.REJECTED;
+      break;
+    case ADJUDICATION_STATUS.ARCHIVE:
+      mappedStatus = SPRINT3_VIOLATION_STATUS.ARCHIVED;
+      break;
+    case ADJUDICATION_STATUS.ESCALATED:
+    default:
+      mappedStatus = SPRINT3_VIOLATION_STATUS.ESCALATED;
+      break;
+  }
 
   const { error: statusErr } = await supabase
     .from('violation')
@@ -900,7 +910,7 @@ export async function dbCreateAdjudicationAtomic(supabase, fields) {
     throw statusErr;
   }
 
-  if (fields.status === 'Escalated') {
+  if (fields.status === ADJUDICATION_STATUS.ESCALATED) {
     const { error: escErr } = await supabase
       .from('escalation_notification')
       .insert({

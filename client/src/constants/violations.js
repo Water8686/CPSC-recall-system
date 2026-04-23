@@ -8,6 +8,7 @@ export const VIOLATION_STATUS_TABS = [
   'APPROVED',
   'REJECTED',
   'ESCALATED',
+  'ARCHIVED',
 ];
 
 export function statusColor(status) {
@@ -18,6 +19,7 @@ export function statusColor(status) {
     case 'APPROVED': return 'success';
     case 'REJECTED': return 'error';
     case 'ESCALATED': return 'warning';
+    case 'ARCHIVED': return 'default';
     default: return 'default';
   }
 }

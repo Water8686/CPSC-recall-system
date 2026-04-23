@@ -101,6 +101,15 @@ describe('Sprint 3 UC4 adjudications route', () => {
     expect(res.status).toBe(201);
   });
 
+  it('accepts valid archive adjudication', async () => {
+    const res = await request(makeApp()).post('/api/adjudications').send({
+      violation_id: 201,
+      status: 'Archive',
+      notes: 'Unable to resolve with available evidence.',
+    });
+    expect(res.status).toBe(201);
+  });
+
   it('rejects missing violation id', async () => {
     const res = await request(makeApp()).post('/api/adjudications').send({
       status: 'Approved',

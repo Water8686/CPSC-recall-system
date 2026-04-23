@@ -30,12 +30,18 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, getApiErrorMessage } from '../lib/api';
 import { statusColor } from '../constants/violations';
-import { normalizeAppRole, SPRINT3_VIOLATION_STATUS, USER_ROLES } from 'shared';
+import {
+  ADJUDICATION_STATUS,
+  normalizeAppRole,
+  SPRINT3_VIOLATION_STATUS,
+  USER_ROLES,
+} from 'shared';
 
 const TERMINAL_STATUSES = [
   SPRINT3_VIOLATION_STATUS.APPROVED,
   SPRINT3_VIOLATION_STATUS.REJECTED,
   SPRINT3_VIOLATION_STATUS.ESCALATED,
+  SPRINT3_VIOLATION_STATUS.ARCHIVED,
 ];
 const isTerminal = (status) => TERMINAL_STATUSES.includes(status);
 
@@ -293,17 +299,10 @@ const RESPONSE_ACTIONS = [
 ];
 
 const ADJ_STATUSES = [
-  { value: 'Resolved', label: 'Resolved' },
-  { value: 'Unresolved', label: 'Unresolved' },
-];
-
-const ADJ_REASONS = [
-  { value: 'listing_removed', label: 'Listing removed' },
-  { value: 'listing_edited', label: 'Listing edited' },
-  { value: 'confirmed_different_model', label: 'Confirmed different model' },
-  { value: 'seller_unresponsive', label: 'Seller unresponsive' },
-  { value: 'insufficient_evidence', label: 'Insufficient evidence' },
-  { value: 'other', label: 'Other' },
+  { value: ADJUDICATION_STATUS.APPROVED, label: ADJUDICATION_STATUS.APPROVED },
+  { value: ADJUDICATION_STATUS.REJECTED, label: ADJUDICATION_STATUS.REJECTED },
+  { value: ADJUDICATION_STATUS.ESCALATED, label: ADJUDICATION_STATUS.ESCALATED },
+  { value: ADJUDICATION_STATUS.ARCHIVE, label: ADJUDICATION_STATUS.ARCHIVE },
 ];
 
 function fmtDate(value) {
@@ -335,8 +334,7 @@ export default function ViolationDetailPage() {
   const [responseAction, setResponseAction] = useState('no_action');
   const [responseSaving, setResponseSaving] = useState(false);
 
-  const [adjStatus, setAdjStatus] = useState('Resolved');
-  const [adjReason, setAdjReason] = useState('listing_removed');
+  const [adjStatus, setAdjStatus] = useState(ADJUDICATION_STATUS.APPROVED);
   const [adjNotes, setAdjNotes] = useState('');
   const [adjSaving, setAdjSaving] = useState(false);
 
@@ -473,8 +471,7 @@ export default function ViolationDetailPage() {
         body: JSON.stringify({
           violation_id: violation.violation_id,
           status: adjStatus,
-          reason: adjReason,
-          notes: adjNotes.trim() || undefined,
+          notes: adjNotes.trim(),
         }),
       });
       if (!res.ok) throw new Error(await getApiErrorMessage(res));
@@ -840,34 +837,22 @@ export default function ViolationDetailPage() {
                 ))}
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 220, mb: 2 }}>
-              <InputLabel>Reason</InputLabel>
-              <Select
-                label="Reason"
-                value={adjReason}
-                onChange={(e) => setAdjReason(e.target.value)}
-              >
-                {ADJ_REASONS.map((o) => (
-                  <MenuItem key={o.value} value={o.value}>
-                    {o.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
             <TextField
               fullWidth
               multiline
               minRows={2}
-              label="Notes (optional)"
+              label="Notes"
               value={adjNotes}
               onChange={(e) => setAdjNotes(e.target.value)}
+              required
+              helperText="Required"
               sx={{ mb: 2 }}
             />
             <Button
               variant="contained"
               color="primary"
               onClick={submitAdjudication}
-              disabled={adjSaving}
+              disabled={adjSaving || !adjNotes.trim()}
             >
               {adjSaving ? 'Submitting…' : 'Submit final decision'}
             </Button>
