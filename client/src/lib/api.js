@@ -3,7 +3,6 @@
  */
 
 const TOKEN_KEY = 'cpsc-app-jwt';
-const AUDIT_SESSION_ID_KEY = 'cpsc-audit-session-id';
 
 // Guard to avoid redirect loops when we're already on a public page.
 function onPublicRoute() {
@@ -22,7 +21,6 @@ function handleUnauthenticated() {
   if (onPublicRoute()) return;
   try {
     localStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(AUDIT_SESSION_ID_KEY);
   } catch {
     /* storage access can throw in private-mode iframes — safe to ignore */
   }

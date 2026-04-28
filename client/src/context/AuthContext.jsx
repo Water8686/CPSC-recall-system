@@ -4,10 +4,6 @@ import { normalizeAppRole } from 'shared';
 const AuthContext = createContext(null);
 
 const TOKEN_KEY = 'cpsc-app-jwt';
-/** Persists audit session across reload (same tab); cleared on sign-out. */
-const AUDIT_SESSION_ID_KEY = 'cpsc-audit-session-id';
-
-const HEARTBEAT_MS = 3 * 60 * 1000;
 
 const MOCK_USER = {
   id: 'mock-user-id',
@@ -48,14 +44,11 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  /** Bumps when audit session_id is stored so heartbeat effect re-subscribes (e.g. after new tab). */
-  const [auditSessionEpoch, setAuditSessionEpoch] = useState(0);
 
   const loadProfile = useCallback(async () => {
     const res = await authFetch('/api/auth/me');
     if (!res.ok) {
       localStorage.removeItem(TOKEN_KEY);
-      sessionStorage.removeItem(AUDIT_SESSION_ID_KEY);
       setUser(null);
       setSession(null);
       setProfile(null);
@@ -75,15 +68,6 @@ export function AuthProvider({ children }) {
         access_token: localStorage.getItem(TOKEN_KEY),
         user: u,
       });
-      // Tab closed clears sessionStorage; JWT remains — start a new audit visit.
-      if (!isMockMode && !sessionStorage.getItem(AUDIT_SESSION_ID_KEY)) {
-        const startRes = await authFetch('/api/auth/audit-session-start', { method: 'POST' });
-        const startData = await startRes.json().catch(() => ({}));
-        if (startRes.ok && startData.session_id) {
-          sessionStorage.setItem(AUDIT_SESSION_ID_KEY, startData.session_id);
-          setAuditSessionEpoch((n) => n + 1);
-        }
-      }
     }
   }, []);
 
@@ -121,29 +105,6 @@ export function AuthProvider({ children }) {
       cancelled = true;
     };
   }, [loadProfile]);
-
-  useEffect(() => {
-    if (isMockMode || !user) return undefined;
-
-    const sid = sessionStorage.getItem(AUDIT_SESSION_ID_KEY);
-    if (!sid) return undefined;
-
-    const ping = () => {
-      if (document.visibilityState !== 'visible') return;
-      void authFetch('/api/auth/session-ping', {
-        method: 'POST',
-        body: JSON.stringify({ session_id: sid }),
-      });
-    };
-
-    ping();
-    const intervalId = setInterval(ping, HEARTBEAT_MS);
-    document.addEventListener('visibilitychange', ping);
-    return () => {
-      clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', ping);
-    };
-  }, [user, isMockMode, auditSessionEpoch]);
 
   const signIn = async (email, password) => {
     if (isMockMode) {
@@ -184,12 +145,6 @@ export function AuthProvider({ children }) {
     }
 
     localStorage.setItem(TOKEN_KEY, data.access_token);
-    if (data.session_id) {
-      sessionStorage.setItem(AUDIT_SESSION_ID_KEY, data.session_id);
-      setAuditSessionEpoch((n) => n + 1);
-    } else {
-      sessionStorage.removeItem(AUDIT_SESSION_ID_KEY);
-    }
     const prof = mapMeToProfile({ profile: data.profile });
     const u = {
       id: data.user.id,
@@ -214,18 +169,6 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('cpsc-mock-session');
       return { error: null };
     }
-    const auditSid = sessionStorage.getItem(AUDIT_SESSION_ID_KEY);
-    if (auditSid) {
-      try {
-        await authFetch('/api/auth/session-end', {
-          method: 'POST',
-          body: JSON.stringify({ session_id: auditSid }),
-        });
-      } catch {
-        /* ignore audit failures */
-      }
-    }
-    sessionStorage.removeItem(AUDIT_SESSION_ID_KEY);
     localStorage.removeItem(TOKEN_KEY);
     setSession(null);
     setUser(null);
