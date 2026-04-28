@@ -8,7 +8,7 @@ import { USER_ROLES } from '../lib/roles.js';
 const router = Router();
 router.use(applyApiMockUser);
 
-const PRIORITY_BUCKETS = ['Critical', 'High', 'Medium'];
+const PRIORITY_BUCKETS = ['High', 'Medium', 'Low'];
 const STATUS_BUCKETS = ['Open', 'Resolved', 'Other'];
 const ADJUDICATION_BUCKETS = ['Approved', 'Closed', 'Pending Remediation'];
 
@@ -47,18 +47,18 @@ function buildMonthlySeries(rows, dateField, valueField, limit = 6) {
 function normalizePriority(raw) {
   const numeric = Number(raw);
   if (Number.isFinite(numeric)) {
-    if (numeric === 1) return 'Critical';
-    if (numeric === 2) return 'High';
-    if (numeric === 3) return 'Medium';
+    if (numeric === 1) return 'High';
+    if (numeric === 2) return 'Medium';
+    if (numeric === 3) return 'Low';
   }
 
   const value = String(raw || '').trim().toLowerCase();
   if (!value) return null;
-  if (value === 'critical') return 'Critical';
+  // Keep backward compatibility if older data contains "critical".
+  if (value === 'critical') return 'High';
   if (value === 'high') return 'High';
   if (value === 'medium') return 'Medium';
-  // Fold low into medium so dashboard remains a 3-tier view.
-  if (value === 'low') return 'Medium';
+  if (value === 'low') return 'Low';
   return null;
 }
 
@@ -134,7 +134,7 @@ router.get('/dashboard', requireRealAuth, async (req, res) => {
       count: listingStatusSets[status].size,
     }));
 
-    const priorityCounts = { Critical: 0, High: 0, Medium: 0 };
+    const priorityCounts = { High: 0, Medium: 0, Low: 0 };
     for (const row of prioritizations) {
       const bucket = normalizePriority(row.priority_rank);
       if (bucket) priorityCounts[bucket] += 1;

@@ -32,9 +32,9 @@ import { apiFetch, getApiErrorMessage } from '../lib/api';
 import { canAccessManagerFeatures, normalizeAppRole, USER_ROLES } from 'shared';
 
 const PRIORITY_COLORS = {
-  Critical: '#7c3aed',
   High: '#d97706',
   Medium: '#2563eb',
+  Low: '#16a34a',
 };
 const STATUS_COLORS = {
   Open: '#d946ef',
