@@ -45,6 +45,13 @@ function buildMonthlySeries(rows, dateField, valueField, limit = 6) {
 }
 
 function normalizePriority(raw) {
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric)) {
+    if (numeric === 1) return 'Critical';
+    if (numeric === 2) return 'High';
+    if (numeric === 3) return 'Medium';
+  }
+
   const value = String(raw || '').trim().toLowerCase();
   if (!value) return null;
   if (value === 'critical') return 'Critical';
@@ -91,7 +98,7 @@ router.get('/dashboard', requireRealAuth, async (req, res) => {
       req.supabase
         .from('violation')
         .select('violation_id, listing_id, violation_status, violation_noticed_at'),
-      req.supabase.from('prioritization').select('priority, prioritized_at'),
+      req.supabase.from('prioritization').select('priority_rank, prioritized_at'),
       req.supabase.from('response').select('response_received_at'),
       req.supabase.from('adjudication').select('outcome, adjudicated_at'),
     ]);
@@ -129,7 +136,7 @@ router.get('/dashboard', requireRealAuth, async (req, res) => {
 
     const priorityCounts = { Critical: 0, High: 0, Medium: 0 };
     for (const row of prioritizations) {
-      const bucket = normalizePriority(row.priority);
+      const bucket = normalizePriority(row.priority_rank);
       if (bucket) priorityCounts[bucket] += 1;
     }
     const recalls_by_priority_counts = PRIORITY_BUCKETS.map((priority) => ({

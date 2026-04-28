@@ -55,12 +55,27 @@ const PANEL_SX = {
   color: '#e2e8f0',
   height: 320,
 };
+const LIGHT_PANEL_SX = {
+  ...PANEL_SX,
+  borderColor: 'rgba(148,163,184,0.32)',
+  bgcolor: '#f8fafc',
+  color: '#0f172a',
+};
 const tooltipStyle = {
   background: '#0f172a',
   border: '1px solid #334155',
   borderRadius: 8,
   color: '#e2e8f0',
 };
+const lightTooltipStyle = {
+  background: '#ffffff',
+  border: '1px solid #cbd5e1',
+  borderRadius: 8,
+  color: '#0f172a',
+};
+const lightGridStroke = '#cbd5e1';
+const lightAxisTick = '#475569';
+const lightLabelTick = '#334155';
 
 export default function DashboardPage() {
   const { session, profile, user } = useAuth();
@@ -112,6 +127,9 @@ export default function DashboardPage() {
   const adjudicationOutcomes = stats?.adjudication_outcomes ?? [];
   const recallsByPriorityCounts = stats?.recalls_by_priority_counts ?? [];
   const responsesByMonth = stats?.responses_by_month ?? [];
+  const hasPriorityPercentData = recallsByPriorityPercent.some((row) => Number(row?.percent ?? 0) > 0);
+  const hasViolationsByPriorityData = violationsByPriority.some((row) => Number(row?.count ?? 0) > 0);
+  const hasRecallPriorityCountData = recallsByPriorityCounts.some((row) => Number(row?.count ?? 0) > 0);
 
   if (loading) {
     return (
@@ -194,50 +212,62 @@ export default function DashboardPage() {
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Paper sx={PANEL_SX}>
+          <Paper sx={LIGHT_PANEL_SX}>
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
               Percentage of Recalls by Priority
             </Typography>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Tooltip contentStyle={tooltipStyle} />
-                <Legend wrapperStyle={{ color: '#cbd5e1', fontSize: 12 }} />
-                <Pie
-                  data={recallsByPriorityPercent}
-                  dataKey="percent"
-                  nameKey="priority"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={88}
-                  label={({ percent }) => `${percent}%`}
-                >
-                  {recallsByPriorityPercent.map((entry) => (
-                    <Cell key={entry.priority} fill={PRIORITY_COLORS[entry.priority] || '#7c3aed'} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
+            {hasPriorityPercentData ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Tooltip contentStyle={lightTooltipStyle} />
+                  <Legend wrapperStyle={{ color: lightLabelTick, fontSize: 12 }} />
+                  <Pie
+                    data={recallsByPriorityPercent}
+                    dataKey="percent"
+                    nameKey="priority"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={88}
+                    label={({ percent }) => `${percent}%`}
+                  >
+                    {recallsByPriorityPercent.map((entry) => (
+                      <Cell key={entry.priority} fill={PRIORITY_COLORS[entry.priority] || '#7c3aed'} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 250 }}>
+                <Typography variant="body2" color="text.secondary">No priority data yet</Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Paper sx={PANEL_SX}>
+          <Paper sx={LIGHT_PANEL_SX}>
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
               Violations by Priority
             </Typography>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={violationsByPriority}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="priority" tick={{ fill: '#cbd5e1', fontSize: 12 }} />
-                <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                  {violationsByPriority.map((entry) => (
-                    <Cell key={entry.priority} fill={PRIORITY_COLORS[entry.priority] || '#7c3aed'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {hasViolationsByPriorityData ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={violationsByPriority}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={lightGridStroke} />
+                  <XAxis dataKey="priority" tick={{ fill: lightLabelTick, fontSize: 12 }} />
+                  <YAxis allowDecimals={false} tick={{ fill: lightAxisTick, fontSize: 11 }} />
+                  <Tooltip contentStyle={lightTooltipStyle} />
+                  <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                    {violationsByPriority.map((entry) => (
+                      <Cell key={entry.priority} fill={PRIORITY_COLORS[entry.priority] || '#7c3aed'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 250 }}>
+                <Typography variant="body2" color="text.secondary">No priority data yet</Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
 
@@ -312,23 +342,29 @@ export default function DashboardPage() {
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Paper sx={PANEL_SX}>
+          <Paper sx={LIGHT_PANEL_SX}>
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
               Recalls by Priority
             </Typography>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={recallsByPriorityCounts}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="priority" tick={{ fill: '#cbd5e1', fontSize: 12 }} />
-                <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                  {recallsByPriorityCounts.map((entry) => (
-                    <Cell key={entry.priority} fill={PRIORITY_COLORS[entry.priority] || '#7c3aed'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {hasRecallPriorityCountData ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={recallsByPriorityCounts}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={lightGridStroke} />
+                  <XAxis dataKey="priority" tick={{ fill: lightLabelTick, fontSize: 12 }} />
+                  <YAxis allowDecimals={false} tick={{ fill: lightAxisTick, fontSize: 11 }} />
+                  <Tooltip contentStyle={lightTooltipStyle} />
+                  <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                    {recallsByPriorityCounts.map((entry) => (
+                      <Cell key={entry.priority} fill={PRIORITY_COLORS[entry.priority] || '#7c3aed'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 250 }}>
+                <Typography variant="body2" color="text.secondary">No priority data yet</Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
 
