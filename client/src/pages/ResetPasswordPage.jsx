@@ -18,6 +18,7 @@ export default function ResetPasswordPage() {
   const tokenFromUrl = searchParams.get('token') || '';
   const [token, setToken] = useState(tokenFromUrl);
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -26,6 +27,10 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
     setLoading(true);
 
     const res = await fetch('/api/auth/reset-password', {
@@ -83,6 +88,15 @@ export default function ResetPasswordPage() {
                 required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
+                margin="normal"
+              />
+              <TextField
+                label="Confirm new password"
+                type="password"
+                fullWidth
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 margin="normal"
               />
               <Button

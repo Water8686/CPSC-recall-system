@@ -54,7 +54,7 @@ router.post('/register', async (req, res) => {
   const email = String(req.body?.email ?? '')
     .trim()
     .toLowerCase();
-  const password = String(req.body?.password ?? '');
+  const password = String(req.body?.password ?? '').trim();
   const full_name = req.body?.full_name ? String(req.body.full_name).trim() : null;
   const requested_role = req.body?.requested_role
     ? String(req.body.requested_role).trim().toLowerCase()
@@ -167,8 +167,10 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  const stored = row.password;
-  if (stored !== password) {
+  // Be tolerant to accidental leading/trailing spaces from manual entry.
+  // This prevents users from getting locked out after reset typos.
+  const stored = String(row.password ?? '');
+  if (stored.trim() !== password.trim()) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
@@ -289,7 +291,7 @@ router.post('/change-password', requireAuth, async (req, res) => {
   }
 
   const current = String(req.body?.current_password ?? '');
-  const nextPwd = String(req.body?.new_password ?? '');
+  const nextPwd = String(req.body?.new_password ?? '').trim();
 
   if (!current || !nextPwd) {
     return res.status(400).json({ error: 'Current and new password are required' });
@@ -308,8 +310,8 @@ router.post('/change-password', requireAuth, async (req, res) => {
     return res.status(500).json({ error: 'Could not load user' });
   }
 
-  const stored = row.password;
-  if (stored !== current) {
+  const stored = String(row.password ?? '');
+  if (stored.trim() !== current.trim()) {
     return res.status(401).json({ error: 'Current password is incorrect' });
   }
 
@@ -401,7 +403,7 @@ router.post('/reset-password', async (req, res) => {
   }
 
   const token = String(req.body?.token ?? '').trim();
-  const new_password = String(req.body?.new_password ?? '');
+  const new_password = String(req.body?.new_password ?? '').trim();
 
   if (!token || !new_password) {
     return res.status(400).json({ error: 'Token and new password are required' });
