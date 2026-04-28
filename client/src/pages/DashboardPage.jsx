@@ -61,12 +61,6 @@ const LIGHT_PANEL_SX = {
   bgcolor: '#f8fafc',
   color: '#0f172a',
 };
-const tooltipStyle = {
-  background: '#0f172a',
-  border: '1px solid #334155',
-  borderRadius: 8,
-  color: '#e2e8f0',
-};
 const lightTooltipStyle = {
   background: '#ffffff',
   border: '1px solid #cbd5e1',
@@ -162,7 +156,7 @@ export default function DashboardPage() {
 
       <Grid container spacing={2.5} sx={{ mt: 0.5 }}>
         <Grid item xs={12} md={6}>
-          <Paper sx={PANEL_SX}>
+          <Paper sx={LIGHT_PANEL_SX}>
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
               Open Violations Over Time
             </Typography>
@@ -174,10 +168,10 @@ export default function DashboardPage() {
                     <stop offset="100%" stopColor="#2563eb" stopOpacity={0.08} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} />
+                <CartesianGrid strokeDasharray="3 3" stroke={lightGridStroke} />
+                <XAxis dataKey="label" tick={{ fill: lightAxisTick, fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fill: lightAxisTick, fontSize: 11 }} />
+                <Tooltip contentStyle={lightTooltipStyle} />
                 <Area
                   type="monotone"
                   dataKey="value"
@@ -191,16 +185,16 @@ export default function DashboardPage() {
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Paper sx={PANEL_SX}>
+          <Paper sx={LIGHT_PANEL_SX}>
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
               Listings by Violation Status
             </Typography>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={listingsByStatus} layout="vertical" margin={{ left: 10, right: 12 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis type="number" allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <YAxis dataKey="status" type="category" tick={{ fill: '#cbd5e1', fontSize: 12 }} />
-                <Tooltip contentStyle={tooltipStyle} />
+                <CartesianGrid strokeDasharray="3 3" stroke={lightGridStroke} />
+                <XAxis type="number" allowDecimals={false} tick={{ fill: lightAxisTick, fontSize: 11 }} />
+                <YAxis dataKey="status" type="category" tick={{ fill: lightLabelTick, fontSize: 12 }} />
+                <Tooltip contentStyle={lightTooltipStyle} />
                 <Bar dataKey="count" radius={[0, 10, 10, 0]}>
                   {listingsByStatus.map((entry) => (
                     <Cell key={entry.status} fill={STATUS_COLORS[entry.status] || '#7c3aed'} />
@@ -272,7 +266,7 @@ export default function DashboardPage() {
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Paper sx={PANEL_SX}>
+          <Paper sx={LIGHT_PANEL_SX}>
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
               Open Violations
             </Typography>
@@ -302,7 +296,7 @@ export default function DashboardPage() {
                     y="50%"
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fill="#e2e8f0"
+                    fill="#0f172a"
                     fontSize="40"
                     fontWeight="700"
                   >
@@ -315,14 +309,14 @@ export default function DashboardPage() {
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Paper sx={PANEL_SX}>
+          <Paper sx={LIGHT_PANEL_SX}>
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
               Adjudication Outcomes
             </Typography>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
-                <Tooltip contentStyle={tooltipStyle} />
-                <Legend wrapperStyle={{ color: '#cbd5e1', fontSize: 12 }} />
+                <Tooltip contentStyle={lightTooltipStyle} />
+                <Legend wrapperStyle={{ color: lightLabelTick, fontSize: 12 }} />
                 <Pie
                   data={adjudicationOutcomes}
                   dataKey="count"
@@ -369,7 +363,7 @@ export default function DashboardPage() {
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Paper sx={PANEL_SX}>
+          <Paper sx={LIGHT_PANEL_SX}>
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
               Responses by Month
             </Typography>
@@ -381,10 +375,10 @@ export default function DashboardPage() {
                     <stop offset="100%" stopColor="#2563eb" stopOpacity={0.08} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} />
+                <CartesianGrid strokeDasharray="3 3" stroke={lightGridStroke} />
+                <XAxis dataKey="label" tick={{ fill: lightAxisTick, fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fill: lightAxisTick, fontSize: 11 }} />
+                <Tooltip contentStyle={lightTooltipStyle} />
                 <Area
                   type="monotone"
                   dataKey="value"
