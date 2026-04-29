@@ -1,6 +1,6 @@
 /**
  * In-memory mock data for development without Supabase.
- * Aligned with D1 (Recall) and D2 (Prioritization) schema from SPRINT-1.md.
+ * Aligned with recall (D1) and prioritization (D2) tables used by the app.
  */
 
 const recalls = [

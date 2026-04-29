@@ -1,48 +1,55 @@
-# Supabase (BENSCPSC / fresh project)
+# Database setup (Supabase)
 
-For the **shared / main** Supabase database (bigint `app_users`, `recall_image`, no `public.user`), apply [`migrations/20260330130000_main_db_schema_alignment.sql`](migrations/20260330130000_main_db_schema_alignment.sql) once if you need `ADMIN` in `user_type` and `password_reset_tokens` with `bigint` `user_id`.
+The app talks to PostgreSQL through **Supabase** (`@supabase/supabase-js`), using your **project URL** plus **anon** (client) and **service_role** (server only) keys. A bare Postgres instance **without** Supabase-style URLs and keys is **not** supported.
 
-This repo also ships **`init_benscpsc.sql`** for a clean class-project database instead of a full migration chain.
+## Bring your own database
 
-## Apply schema + mock data
+This repo **does not** include credentials for anyone else’s Supabase project. Anyone cloning the repo must:
 
-1. Open the [Supabase Dashboard](https://supabase.com/dashboard) for project **BENSCPSC**.
-2. Go to **SQL Editor** → **New query**.
-3. Paste the full contents of [`init_benscpsc.sql`](init_benscpsc.sql) and click **Run**.
+1. **Hosted (recommended):** Create a [free Supabase project](https://supabase.com/dashboard) → **Project Settings → API** → copy **Project URL**, **anon/public key**, and **service_role** key.
+2. **Local:** Use the [Supabase CLI local stack](https://supabase.com/docs/guides/cli/local-development) (`supabase start`) so you get the same URL/key shape as production.
 
-That script **drops** `recall`, `prioritization`, `user`, `app_users`, `password_reset_tokens`, and optional legacy tables if they exist, then recreates them and loads:
+Then copy [`.env.example`](../.env.example) to `.env` at the repo root and fill it in.
 
-- **25** recall rows (same as `server/src/data/mockData.js`)
-- **10** prioritization rows (manager user)
-- **4** demo `app_users` + matching `public.user` rows (see [`../CREDENTIALS.md`](../CREDENTIALS.md))
-- **`password_reset_tokens`** for forgot-password / reset-password
+Incremental SQL in this folder **adds or alters** tables/columns and assumes **core tables already exist** (`recall`, `app_users`, `listing`, `violation`, etc.). If you start from an empty database, apply migrations **in timestamp order** once your baseline schema matches what the app expects, or import schema from course/instructor materials—then use registration (`/api/auth/register`) so the first user can become admin per [deployment notes](../docs/DEPLOYMENT.md).
 
-### OKR 1.1 — ≥100 recall records
+## `supabase/migrations/` (run in filename order)
 
-After `init_benscpsc.sql`, run [`seed_recalls_to_100.sql`](seed_recalls_to_100.sql) in the SQL editor. It adds recalls `24-026`–`24-100` (75 rows) with `ON CONFLICT DO NOTHING` so it is safe to re-run.
+Apply each file in **SQL Editor** against **your** project when bringing an older DB forward.
 
-### Already applied `init_benscpsc.sql` before password reset existed?
+| File | Purpose |
+|------|---------|
+| `20260406120000_sprint2_violation_listing.sql` | Violation/listing enums and columns (`violation_type`, listing `source`, `recall_id` on listing, etc.). |
+| `20260407120000_recall_added_at.sql` | Adds `recall.added_at`. |
+| `20260407130000_listing_recall_not_null.sql` | Makes `listing.recall_id` NOT NULL (resolve NULL `recall_id` rows first—see [`scripts/audit-listing-recalls.sql`](../scripts/audit-listing-recalls.sql)). |
+| `20260407160000_discovery_result.sql` | Creates `discovery_result` for Smart Listing Discovery. |
+| `20260409100000_discovery_improvements.sql` | Extends discovery listing source enum and uniqueness constraint. |
 
-Run [`add_password_reset_tokens.sql`](add_password_reset_tokens.sql) once (or re-run the full `init_benscpsc.sql` on a blank DB).
+## Root-level SQL patches (`supabase/*.sql`)
 
-## Re-generate recall/priority INSERTs from code
+| File | Purpose |
+|------|---------|
+| [`20260408140000_recall_model_number.sql`](20260408140000_recall_model_number.sql) | Adds `recall.model_number` for listing matching. |
+| [`20260410130000_listing_annotation.sql`](20260410130000_listing_annotation.sql) | Listing annotation columns (`is_true_match`, notes, etc.). |
+| [`20260410210000_app_users_seller_id.sql`](20260410210000_app_users_seller_id.sql) | Links `app_users` to `seller` for scoped seller logins. |
+| [`add_password_reset_tokens.sql`](add_password_reset_tokens.sql) | Creates `password_reset_tokens` for forgot/reset password APIs. |
 
-If you change `server/src/data/mockData.js`:
+Run these in SQL Editor only when your schema is missing the described objects.
+
+## Optional: `psql`
+
+From **Project Settings → Database**, copy the connection URI (often `?sslmode=require`):
 
 ```bash
-node scripts/generate-benscpsc-seed.mjs
+psql "$DATABASE_URL" -f supabase/migrations/20260406120000_sprint2_violation_listing.sql
 ```
 
-Copy the printed SQL into `init_benscpsc.sql` (or merge manually).
+## Developer helper: INSERT fragments from mock data
 
-## Optional: `psql` instead of the dashboard
-
-From **Project Settings → Database**, copy the **URI** (add `?sslmode=require` if needed):
+If you change [`server/src/data/mockData.js`](../server/src/data/mockData.js), you can print SQL fragments:
 
 ```bash
-psql "postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/init_benscpsc.sql
+node scripts/generate-demo-seed.mjs
 ```
 
-## `profiles` table
-
-The init script drops `public.profiles` if present. This app does **not** rely on `profiles` for auth anymore (`app_users` is the source of truth). If you add a `profiles` table again for another feature, avoid conflicting names or skip that `DROP` line in a forked copy of the script.
+Paste output into ad-hoc seed scripts or SQL Editor as needed.

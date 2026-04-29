@@ -1,4 +1,4 @@
-# Access Credentials
+# Access credentials
 
 **Disclaimer:** This is a student prototype project. It is not endorsed by or affiliated with the U.S. Consumer Product Safety Commission (CPSC).
 
@@ -6,7 +6,7 @@
 
 ## Production URL
 
-**Before grading submission:** Replace the placeholder below with your team’s **public Railway URL** (Railway project → your service → **Settings** → **Networking** → generate or copy the domain). Deploy steps: [DEPLOYMENT.md](DEPLOYMENT.md).
+Replace the placeholder below with your deployed app URL when you have one (for example Railway → **Settings → Networking**). Setup: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ```
 https://YOUR-APP.up.railway.app
@@ -14,7 +14,9 @@ https://YOUR-APP.up.railway.app
 
 ---
 
-## Test Accounts (after `supabase/init_benscpsc.sql`)
+## Example demo accounts
+
+These emails/passwords are **for local or class demos only**, after corresponding users exist **in your own Supabase-backed database** (create them via **Register** or insert rows into `public.app_users` per your schema—not shared team credentials).
 
 | Role | Email | Password |
 |------|-------|----------|
@@ -27,10 +29,9 @@ https://YOUR-APP.up.railway.app
 
 ## Notes
 
-- Sign-in uses **app auth** (`/api/auth/login`) with `public.app_users` — not Supabase Auth.
-- Apply the BENSCPSC seed: Supabase Dashboard → **SQL Editor** → paste and run [`supabase/init_benscpsc.sql`](supabase/init_benscpsc.sql).
-- Point `.env` at the **BENSCPSC** project URL and keys; set `SUPABASE_SERVICE_ROLE_KEY` and `APP_JWT_SECRET` for the API.
+- Sign-in uses **app auth** (`/api/auth/login`) with `public.app_users` — not Supabase Auth email/password in the dashboard.
+- Point `.env` at **your** Supabase **Project URL** and keys from **Project Settings → API**; set `SUPABASE_SERVICE_ROLE_KEY` and `APP_JWT_SECRET` on the server.
 - The Manager account can access the Recalls page and submit priority assignments.
-- The Investigator account can view recalls and prioritizations (read-only).
-- The Seller account logs in and sees the Dashboard (Recalls hidden in nav).
-- **Users & roles** requires the **admin** account (`admin@cpsc.demo`).
+- The Investigator account can view recalls and prioritizations (read-only where enforced by UI/API).
+- The Seller account sees the Dashboard (Recalls hidden in nav per role).
+- **Users & roles** typically requires an **admin** account (`admin@cpsc.demo` if you created one).

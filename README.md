@@ -1,98 +1,84 @@
-# CPSC Class Project Recall Violation Monitoring System
+# CPSC Recall Violation Monitoring System
 
-Team 6 — CPSC project for recall enforcement, violation monitoring, and adjudication.
+Team 6 — Class project for recall enforcement, violation monitoring, and adjudication workflows against CPSC-style recall data.
 
-## Tech Stack
+## Tech stack
 
-- **Frontend:** React 19 + Vite + Material UI 6
-- **Backend:** Node.js + Express (thin API layer)
-- **Database:** PostgreSQL via Supabase
-- **Auth:** App-issued JWT + `public.app_users` (service role on the server — not Supabase Auth)
+- **Frontend:** React 19 + Vite + Material UI 6 (+ Tailwind where used)
+- **Backend:** Node.js + Express (API under `/api/*`)
+- **Database:** PostgreSQL via **Supabase** (project URL + anon + service role keys)
+- **Auth:** App-issued JWT + `public.app_users` (not Supabase Auth for login UI)
 
-## Project Structure
+## Project layout
 
 ```
 cpsc-recall-system/
 ├── client/          # React frontend (Vite)
-│   └── src/
-│       ├── components/   # Reusable UI components
-│       ├── context/      # React context (auth, etc.)
-│       ├── hooks/        # Custom hooks
-│       ├── lib/          # Supabase client, utilities
-│       └── pages/        # Route pages
-├── server/          # Express backend
-│   └── src/
-│       ├── lib/          # Supabase admin client
-│       ├── middleware/    # Auth middleware
-│       └── routes/       # API route handlers
-├── shared/          # Constants shared between client/server
-└── .env.example     # Environment variable template
+├── server/          # Express API
+├── shared/          # Shared constants
+├── supabase/        # Incremental SQL migrations + patches (see supabase/README.md)
+├── docs/DEPLOYMENT.md   # Railway / production env checklist
+└── .env.example     # Environment template
 ```
 
-## Getting Started
+## Prerequisites
 
-### Prerequisites
+- **Node.js** 18+
+- **npm** 9+
+- **Your own Supabase backend** — this repo does **not** ship credentials to any team database. You must create a Supabase project (or run a [local Supabase stack](https://supabase.com/docs/guides/cli/local-development)) and configure `.env` yourself.
 
-- Node.js 18+
-- npm 9+
-- A Supabase project (free tier works)
+## Clone and install
 
-### Setup
+```bash
+git clone <repository-url>
+cd cpsc-recall-system
+npm install
+```
 
-1. **Clone the repo:**
-   ```bash
-   git clone <your-repo-url>
-   cd cpsc-recall-system
-   ```
+## Database (bring your own)
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+1. Create a **free Supabase project** at [supabase.com/dashboard](https://supabase.com/dashboard) **or** use Supabase CLI local dev (`supabase start`).
+2. Open **Project Settings → API** and copy the **Project URL**, **anon/public** key, and **service_role** key (server-only).
+3. Follow **[supabase/README.md](supabase/README.md)** for incremental SQL (`supabase/migrations/` and optional root `.sql` patches) once your schema matches what the app expects. Empty databases usually need a baseline compatible with `recall`, `app_users`, `listing`, etc.—use course/instructor guidance or apply migrations in order after tables exist.
 
-3. **Set up environment variables:**
-   ```bash
-   cp .env.example .env
-   ```
-   Fill in your Supabase URL and keys from [Supabase Dashboard](https://supabase.com/dashboard) > Settings > API.
+## Environment variables
 
-4. **Run the development servers:**
-   ```bash
-   # Both client and server
-   npm run dev
+```bash
+cp .env.example .env
+```
 
-   # Or individually
-   npm run dev:client    # React on http://localhost:5173
-   npm run dev:server    # Express on http://localhost:3001
-   ```
+Fill in **your** Supabase URL and keys plus a long random `APP_JWT_SECRET`. Comments in `.env.example` describe each variable.
 
-## Production (Railway)
+## Run locally
 
-Deploy as a **single Railway service** from the repo root: Nixpacks runs `npm ci`, `npm run build`, then `npm start`. Express serves the built SPA from `client/dist` and the API under `/api/*` on the same URL (no separate frontend URL required).
+```bash
+# Frontend (5173) + API (3001) together
+npm run dev
 
-Set `VITE_*` and `SUPABASE_*` plus `APP_JWT_SECRET` so the client bundle and the server can talk to your Supabase project. Full checklist: [DEPLOYMENT.md](DEPLOYMENT.md).
+# Or separately
+npm run dev:client    # http://localhost:5173 — proxies /api to the server
+npm run dev:server    # http://localhost:3001
+```
 
-## Sprint Roadmap
+The Vite dev server proxies `/api/*` to Express ([`client/vite.config.js`](client/vite.config.js)).
 
-| Sprint | Feature | Status |
-|--------|---------|--------|
-| 1 | Prioritize Recall (Manager login, recall list, priority assignment, investigator assignment, batch import) | Done |
-| 2 | Listings & violations (manual add, eBay search API, discovery pipeline, investigator-only create violation, listing annotation) | Done |
-| 3 | Respond + adjudicate (contacts, responses, adjudication on violation detail; dashboard & analytics) | Done |
+- Health check: `GET http://localhost:3001/api/health`
 
-**Listing sources for demos:** manual entry, optional eBay API search (`/api/listings/search/ebay`), and the discovery workflow (`/api/discovery`). See [docs/BIT4454_SUBMISSION_NOTES.md](docs/BIT4454_SUBMISSION_NOTES.md) for grading, Zapier/BI, and Canvas checklist.
+## Demo roles
 
-## API
+Example emails/passwords for **local/class demos** (after those users exist **in your database**) are listed in **[CREDENTIALS.md](CREDENTIALS.md)**.
 
-The Express server runs on port 3001. During development, Vite proxies `/api/*` requests to it automatically.
+## Production deploy (Railway)
 
-- `GET /api/health` — Health check
-- **Admin (JWT, `user_type` admin)** — batch recall import:
-  - `POST /api/admin/recalls/import-csv` — multipart field `file` (CSV)
-  - `POST /api/admin/recalls/import-csv-url` — JSON `{ "csvUrl" }`
-  - `POST /api/admin/recalls/import-cpsc` — JSON `{ "recallNumber" }` and/or `{ "recallDateStart", "recallDateEnd", "dateBasis"?: "recall" | "lastPublish" }` (`lastPublish` uses `LastPublishDateStart`/`End` on the [CPSC Recall JSON API](https://www.saferproducts.gov/RestWebServices/Recall?format=json); omit or `recall` for `RecallDateStart`/`End`; see [CPSC API information](https://www.cpsc.gov/Recalls/CPSC-Recalls-Application-Program-Interface-API-Information))
+Single Railway service: build client + run Express (see **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**). Set `VITE_*` and `SUPABASE_*` plus `APP_JWT_SECRET` so the built SPA and API use the same Supabase project.
 
-UI: open **Settings** and switch to the **Batch import** tab (admin only).
+## API overview
+
+Sample routes (server runs on port **3001** in dev):
+
+- `GET /api/health`
+- Auth: `/api/auth/login`, `/api/auth/register`, …
+- Admin recall import (JWT + admin): batch CSV/CPSC import under `/api/admin/recalls/*` — see **Settings → Batch import** in the UI.
 
 ## Team
 

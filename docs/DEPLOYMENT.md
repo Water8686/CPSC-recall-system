@@ -7,7 +7,7 @@ Single service: **Express** serves the **Vite** production build from `client/di
 This app is designed as **one** web service: Express serves `client/dist` and `/api/*` on the same port.
 
 1. New project → **Deploy from GitHub** (this repo).
-2. Use **one** service connected to the repo root. [`railway.toml`](railway.toml) sets **`buildCommand`** to **`npm run build`** (Nixpacks already runs **`npm ci`** in the install phase; repeating `npm ci` in the build step can fail with **`EBUSY` on `node_modules/.cache`**). **Start** is **`npm start`**.
+2. Use **one** service connected to the repo root. [`railway.toml`](../railway.toml) sets **`buildCommand`** to **`npm run build`** (Nixpacks already runs **`npm ci`** in the install phase; repeating `npm ci` in the build step can fail with **`EBUSY` on `node_modules/.cache`**). **Start** is **`npm start`**.
 3. If you previously added separate **client** and **server** services from the same repo, **remove or disable the client service** and keep a single service with the commands above. Clear any per-service **Custom Build Command** / **Custom Start Command** that still reference `pnpm`.
 4. Generate a **public URL** (Settings → Networking → Generate domain).
 
@@ -22,7 +22,7 @@ The container must run **`npm start`** (Express on `PORT`) so **`GET /api/health
 ## 2. Required variables (Railway → Variables)
 
 | Variable | Notes |
-|----------|--------|
+|----------|-------|
 | `SUPABASE_URL` | Same as Supabase project URL (`https://xxxxx.supabase.co`) |
 | `SUPABASE_ANON_KEY` | Project **anon** key (Settings → API) |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Required** — server uses this for DB access and auth tables. Never expose to browsers. |
@@ -34,14 +34,14 @@ The container must run **`npm start`** (Express on `PORT`) so **`GET /api/health
 Optional:
 
 | Variable | Notes |
-|----------|--------|
+|----------|-------|
 | `API_MOCK_MODE` | `false` or omit in production (requires real JWT for manager API routes) |
 | `ADMIN_BOOTSTRAP_EMAILS` | Comma-separated emails that register as approved admins |
 | `CLIENT_ORIGIN` | Comma-separated allowed origins for strict CORS (omit to allow any origin with Bearer auth) |
 
 `PORT` is set automatically by Railway.
 
-### Switching to a new Supabase project (e.g. BENSCPSC)
+### Switching to a different Supabase project
 
 Update **all** of these in Railway to the new project’s values from **Supabase → Project Settings → API**:
 
@@ -51,7 +51,7 @@ Update **all** of these in Railway to the new project’s values from **Supabase
 
 Then **redeploy** (or trigger a new deploy). Vite bakes `VITE_*` in at **build** time, so if Railway runs a fresh build after you save variables, the client bundle will point at the new project. If the build step does not see updated `VITE_*` variables, clear the build cache or redeploy with “rebuild” so the client picks them up.
 
-Run [`supabase/init_benscpsc.sql`](supabase/init_benscpsc.sql) (and optional [`seed_recalls_to_100.sql`](supabase/seed_recalls_to_100.sql)) in the **new** project’s SQL editor so tables and demo users exist.
+Ensure that project’s database has the tables and data your deployment needs—apply incremental SQL from [`supabase/README.md`](../supabase/README.md) (migrations + patches) against **that** project’s SQL Editor as appropriate.
 
 ## 3. Build-time vs runtime (important)
 
@@ -59,11 +59,11 @@ Vite inlines `VITE_*` at **build**. In Railway, mark **`VITE_SUPABASE_URL`** and
 
 ## 4. Supabase SQL (users and login)
 
-Apply migrations in the Supabase SQL editor (or CLI) so `app_users` exists and `password_plain` is available. The first person to **Register** becomes an approved **admin**; others are **sellers** pending approval until an admin checks **Approved** on **Users & roles**.
+Apply migrations/schema so `app_users` exists and login fields match what [`server/src/routes/auth.js`](../server/src/routes/auth.js) expects. The first person to **Register** can become an approved **admin** depending on `ADMIN_BOOTSTRAP_EMAILS`; others may be **sellers** pending approval until an admin marks **Approved** on **Users & roles**.
 
 You do **not** need Supabase **Authentication → Users** for this app’s login flow.
 
-**Listing annotation (match / false positive):** if `PATCH /api/listings/:id/annotate` errors on missing columns, run [`supabase/20260410130000_listing_annotation.sql`](supabase/20260410130000_listing_annotation.sql) in the SQL editor.
+**Listing annotation:** if `PATCH /api/listings/:id/annotate` fails on missing columns, run [`supabase/20260410130000_listing_annotation.sql`](../supabase/20260410130000_listing_annotation.sql) in the SQL editor.
 
 ## 5. Health check
 

@@ -1,6 +1,6 @@
 /**
  * Generates INSERT fragments for recall + prioritization from server mockData.
- * Run: node scripts/generate-benscpsc-seed.mjs
+ * Run: node scripts/generate-demo-seed.mjs
  */
 import { getAllRecalls, getAllPrioritizations } from '../server/src/data/mockData.js';
 
