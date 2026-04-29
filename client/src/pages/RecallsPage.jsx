@@ -31,6 +31,7 @@ import {
 } from 'shared';
 import {
   getPriorityBgColor,
+  PRIORITY_LEVELS,
 } from '../constants/priorities';
 
 const ASSIGNABLE_ROLES = new Set(['admin', 'manager', 'investigator']);
@@ -72,6 +73,7 @@ export default function RecallsPage() {
   const [selectedRecallNumbers, setSelectedRecallNumbers] = useState(() => new Set());
   const [assignableUsers, setAssignableUsers] = useState([]);
   const [bulkInvestigator, setBulkInvestigator] = useState('');
+  const [bulkPriority, setBulkPriority] = useState('');
   const [bulkAssigning, setBulkAssigning] = useState(false);
   const [bulkError, setBulkError] = useState(null);
   const [assignSnackbar, setAssignSnackbar] = useState(null);
@@ -209,10 +211,17 @@ export default function RecallsPage() {
     });
   };
 
+  const bulkInvId = Number.parseInt(bulkInvestigator, 10);
+  const hasBulkInvestigator = Number.isFinite(bulkInvId) && bulkInvId >= 1;
+  const hasBulkPriority = PRIORITY_LEVELS.includes(bulkPriority);
+  const canBulkApply = hasBulkInvestigator || hasBulkPriority;
+
   async function handleBulkAssign() {
     const invId = Number.parseInt(bulkInvestigator, 10);
-    if (!Number.isFinite(invId) || invId < 1) {
-      setBulkError('Choose an investigator.');
+    const hasInv = Number.isFinite(invId) && invId >= 1;
+    const hasPrio = PRIORITY_LEVELS.includes(bulkPriority);
+    if (!hasInv && !hasPrio) {
+      setBulkError('Choose an investigator, a priority, or both.');
       return;
     }
     const ids = [...selectedRecallNumbers];
@@ -225,32 +234,70 @@ export default function RecallsPage() {
     const failures = [];
     try {
       for (const recall_id of ids) {
-        const res = await apiFetch('/api/assignments', session, {
-          method: 'POST',
-          body: JSON.stringify({
-            recall_id,
-            investigator_user_id: invId,
-          }),
-        });
-        if (!res.ok) {
-          failures.push({
-            recall_id,
-            message: await getApiErrorMessage(res),
+        if (hasPrio) {
+          const pRes = await apiFetch('/api/prioritizations', session, {
+            method: 'POST',
+            body: JSON.stringify({ recall_id, priority: bulkPriority }),
           });
+          if (!pRes.ok) {
+            failures.push({
+              recall_id,
+              message: await getApiErrorMessage(pRes),
+            });
+            continue;
+          }
+        }
+        if (hasInv) {
+          const aRes = await apiFetch('/api/assignments', session, {
+            method: 'POST',
+            body: JSON.stringify({
+              recall_id,
+              investigator_user_id: invId,
+            }),
+          });
+          if (!aRes.ok) {
+            failures.push({
+              recall_id,
+              message: await getApiErrorMessage(aRes),
+            });
+          }
+        }
+      }
+      if (hasPrio && failures.length < ids.length) {
+        const priorRes = await apiFetch('/api/prioritizations', session);
+        if (priorRes.ok) {
+          const priorData = await priorRes.json();
+          const priorMap = {};
+          priorData.forEach((p) => {
+            priorMap[p.recall_id] = p;
+          });
+          setPrioritizations(priorMap);
         }
       }
       if (failures.length === 0) {
-        const name = formatInvestigatorLabel(assignableUsers, invId);
         const n = ids.length;
         setSelectedRecallNumbers(new Set());
         setBulkInvestigator('');
-        setAssignSnackbar({
-          severity: 'success',
-          message:
+        setBulkPriority('');
+        const name = hasInv ? formatInvestigatorLabel(assignableUsers, invId) : null;
+        let message;
+        if (hasInv && hasPrio) {
+          message =
+            n === 1
+              ? `Updated 1 recall: priority ${bulkPriority}, assigned to ${name}.`
+              : `Updated ${n} recalls: priority ${bulkPriority}, assigned to ${name}.`;
+        } else if (hasInv) {
+          message =
             n === 1
               ? `Assigned 1 recall to ${name}.`
-              : `Assigned ${n} recalls to ${name}.`,
-        });
+              : `Assigned ${n} recalls to ${name}.`;
+        } else {
+          message =
+            n === 1
+              ? `Set priority to ${bulkPriority} for 1 recall.`
+              : `Set priority to ${bulkPriority} for ${n} recalls.`;
+        }
+        setAssignSnackbar({ severity: 'success', message });
       } else if (failures.length === ids.length) {
         setBulkError(failures[0].message);
       } else {
@@ -258,11 +305,11 @@ export default function RecallsPage() {
         setSelectedRecallNumbers(new Set(failures.map((f) => f.recall_id)));
         setAssignSnackbar({
           severity: 'warning',
-          message: `Assigned ${ok} of ${ids.length} recalls. ${failures[0].message} Failed recalls stay selected.`,
+          message: `Updated ${ok} of ${ids.length} recalls. ${failures[0].message} Failed recalls stay selected.`,
         });
       }
     } catch (err) {
-      setBulkError(err.message || 'Assignment failed');
+      setBulkError(err.message || 'Update failed');
     } finally {
       setBulkAssigning(false);
     }
@@ -378,14 +425,45 @@ export default function RecallsPage() {
               ))}
             </Select>
           </FormControl>
+          <FormControl size="small" sx={{ minWidth: 160 }}>
+            <InputLabel id="bulk-priority-label" shrink>
+              Priority
+            </InputLabel>
+            <Select
+              labelId="bulk-priority-label"
+              label="Priority"
+              value={bulkPriority}
+              onChange={(e) => setBulkPriority(e.target.value)}
+              displayEmpty
+              renderValue={(selected) => {
+                if (selected === '' || selected == null) {
+                  return (
+                    <Typography variant="body2" color="text.secondary" component="span">
+                      Select priority
+                    </Typography>
+                  );
+                }
+                return selected;
+              }}
+            >
+              <MenuItem value="">
+                <em>Select priority</em>
+              </MenuItem>
+              {PRIORITY_LEVELS.map((p) => (
+                <MenuItem key={p} value={p}>
+                  {p}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <Button
             size="small"
             variant="contained"
-            disabled={bulkAssigning || !bulkInvestigator}
+            disabled={bulkAssigning || !canBulkApply}
             onClick={handleBulkAssign}
             sx={{ mb: 0.25 }}
           >
-            {bulkAssigning ? 'Assigning…' : 'Assign'}
+            {bulkAssigning ? 'Applying…' : 'Assign'}
           </Button>
         </Box>
       )}
