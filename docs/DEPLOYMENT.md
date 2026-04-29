@@ -51,7 +51,7 @@ Update **all** of these in Railway to the new project’s values from **Supabase
 
 Then **redeploy** (or trigger a new deploy). Vite bakes `VITE_*` in at **build** time, so if Railway runs a fresh build after you save variables, the client bundle will point at the new project. If the build step does not see updated `VITE_*` variables, clear the build cache or redeploy with “rebuild” so the client picks them up.
 
-Ensure that project’s database has the tables and data your deployment needs—apply incremental SQL from [`supabase/README.md`](../supabase/README.md) (migrations + patches) against **that** project’s SQL Editor as appropriate.
+Ensure that project’s database already has the tables and data your deployment needs (schema is maintained in Supabase, not as a full SQL dump in this repo). Optional patch scripts are described in [`supabase/README.md`](../supabase/README.md).
 
 ## 3. Build-time vs runtime (important)
 
@@ -59,7 +59,7 @@ Vite inlines `VITE_*` at **build**. In Railway, mark **`VITE_SUPABASE_URL`** and
 
 ## 4. Supabase SQL (users and login)
 
-Apply migrations/schema so `app_users` exists and login fields match what [`server/src/routes/auth.js`](../server/src/routes/auth.js) expects. The first person to **Register** can become an approved **admin** depending on `ADMIN_BOOTSTRAP_EMAILS`; others may be **sellers** pending approval until an admin marks **Approved** on **Users & roles**.
+Ensure your Supabase database’s schema matches what the app expects (`app_users` and related tables; login fields per [`server/src/routes/auth.js`](../server/src/routes/auth.js)). The first person to **Register** can become an approved **admin** depending on `ADMIN_BOOTSTRAP_EMAILS`; others may be **sellers** pending approval until an admin marks **Approved** on **Users & roles**.
 
 You do **not** need Supabase **Authentication → Users** for this app’s login flow.
 

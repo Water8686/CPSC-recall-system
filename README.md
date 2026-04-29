@@ -16,7 +16,7 @@ cpsc-recall-system/
 ├── client/          # React frontend (Vite)
 ├── server/          # Express API
 ├── shared/          # Shared constants
-├── supabase/        # Incremental SQL migrations + patches (see supabase/README.md)
+├── supabase/        # Optional SQL patches + DB notes (see supabase/README.md)
 ├── docs/DEPLOYMENT.md   # Railway / production env checklist
 └── .env.example     # Environment template
 ```
@@ -39,7 +39,7 @@ npm install
 
 1. Create a **free Supabase project** at [supabase.com/dashboard](https://supabase.com/dashboard) **or** use Supabase CLI local dev (`supabase start`).
 2. Open **Project Settings → API** and copy the **Project URL**, **anon/public** key, and **service_role** key (server-only).
-3. Follow **[supabase/README.md](supabase/README.md)** for incremental SQL (`supabase/migrations/` and optional root `.sql` patches) once your schema matches what the app expects. Empty databases usually need a baseline compatible with `recall`, `app_users`, `listing`, etc.—use course/instructor guidance or apply migrations in order after tables exist.
+3. Point `.env` at a database that **already has the app schema** (for example your team’s Supabase project for grading, or setup from your instructor). This repo does **not** ship full DDL—see **[supabase/README.md](supabase/README.md)** for connection details and optional small SQL patches only.
 
 ## Environment variables
 
