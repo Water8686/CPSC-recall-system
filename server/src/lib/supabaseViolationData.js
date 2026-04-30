@@ -479,6 +479,27 @@ export async function dbHasAdjudicationForViolation(supabase, violationId) {
   return Boolean(data?.adjudication_id);
 }
 
+/** True if any response row for this violation has responder_type seller (seller reply or staff-recorded seller message). */
+export async function dbSellerResponderExistsForViolation(supabase, violationId) {
+  const { data, error } = await supabase
+    .from('response')
+    .select('response_id, contact!inner(violation_id)')
+    .eq('contact.violation_id', violationId)
+    .eq('responder_type', 'seller')
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data?.response_id);
+}
+
+export async function dbMarkViolationReadyForAdjudication(supabase, violationId) {
+  const { error } = await supabase
+    .from('violation')
+    .update({ violation_status: SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED })
+    .eq('violation_id', violationId);
+  if (error) throw error;
+}
+
 export async function dbCreateViolation(supabase, fields) {
   const VALID_TYPES = [
     'Recalled Product Listed for Sale',

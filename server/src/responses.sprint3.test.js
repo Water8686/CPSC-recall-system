@@ -4,9 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockDbFetchResponses = vi.fn();
 const mockDbCreateSellerResponseAtomic = vi.fn();
+const mockDbCreateResponse = vi.fn();
 const mockDbFetchViolationWorkflowMeta = vi.fn();
-const mockDbHasResponseForViolation = vi.fn();
+const mockDbFetchViolationAuthMeta = vi.fn();
+const mockDbHasAdjudicationForViolation = vi.fn();
+const mockDbSellerResponderExistsForViolation = vi.fn();
+const mockDbMarkViolationReadyForAdjudication = vi.fn();
 const mockDbResolveAppUserId = vi.fn();
+const mockAssertViolationAccess = vi.fn();
 let mockUserType = 'SELLER';
 let mockJwtRole = 'seller';
 
@@ -27,11 +32,23 @@ vi.mock('./middleware/requireCpscManager.js', () => ({
   },
 }));
 
+vi.mock('./lib/violationAccess.js', async () => {
+  const actual = await vi.importActual('./lib/violationAccess.js');
+  return {
+    ...actual,
+    assertViolationAccess: (...args) => mockAssertViolationAccess(...args),
+  };
+});
+
 vi.mock('./lib/supabaseViolationData.js', () => ({
   dbFetchResponses: (...args) => mockDbFetchResponses(...args),
   dbCreateSellerResponseAtomic: (...args) => mockDbCreateSellerResponseAtomic(...args),
+  dbCreateResponse: (...args) => mockDbCreateResponse(...args),
   dbFetchViolationWorkflowMeta: (...args) => mockDbFetchViolationWorkflowMeta(...args),
-  dbHasResponseForViolation: (...args) => mockDbHasResponseForViolation(...args),
+  dbFetchViolationAuthMeta: (...args) => mockDbFetchViolationAuthMeta(...args),
+  dbHasAdjudicationForViolation: (...args) => mockDbHasAdjudicationForViolation(...args),
+  dbSellerResponderExistsForViolation: (...args) => mockDbSellerResponderExistsForViolation(...args),
+  dbMarkViolationReadyForAdjudication: (...args) => mockDbMarkViolationReadyForAdjudication(...args),
 }));
 
 vi.mock('./lib/supabaseRecallData.js', () => ({
@@ -55,11 +72,20 @@ describe('Sprint 3 UC3 responses route', () => {
     mockJwtRole = 'seller';
     mockDbFetchViolationWorkflowMeta.mockResolvedValue({
       violation_id: 101,
+      violation_status: 'Notice Sent',
       listing: { seller_id: 55, seller: { seller_email: 'seller@example.com' } },
     });
-    mockDbHasResponseForViolation.mockResolvedValue(false);
+    mockDbFetchViolationAuthMeta.mockResolvedValue({
+      violation_id: 101,
+      user_id: 1,
+      seller_id: 55,
+    });
+    mockDbHasAdjudicationForViolation.mockResolvedValue(false);
+    mockDbSellerResponderExistsForViolation.mockResolvedValue(false);
     mockDbCreateSellerResponseAtomic.mockResolvedValue({ response_id: 1, violation_id: 101 });
+    mockDbCreateResponse.mockResolvedValue({ response_id: 2, violation_id: 101 });
     mockDbFetchResponses.mockResolvedValue([]);
+    mockAssertViolationAccess.mockImplementation(async () => true);
   });
 
   it('accepts valid response submission', async () => {
@@ -69,6 +95,36 @@ describe('Sprint 3 UC3 responses route', () => {
     });
     expect(res.status).toBe(201);
     expect(mockDbCreateSellerResponseAtomic).toHaveBeenCalled();
+    expect(mockDbCreateResponse).not.toHaveBeenCalled();
+  });
+
+  it('allows second seller response via append path', async () => {
+    mockDbSellerResponderExistsForViolation.mockResolvedValue(true);
+    const res = await request(makeApp()).post('/api/responses').send({
+      violation_id: 101,
+      response_text: 'follow-up message',
+    });
+    expect(res.status).toBe(201);
+    expect(mockDbCreateSellerResponseAtomic).not.toHaveBeenCalled();
+    expect(mockDbCreateResponse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        violation_id: 101,
+        responder_type: 'seller',
+        response_text: 'follow-up message',
+      }),
+    );
+  });
+
+  it('rejects seller response when adjudication exists', async () => {
+    mockDbHasAdjudicationForViolation.mockResolvedValue(true);
+    const res = await request(makeApp()).post('/api/responses').send({
+      violation_id: 101,
+      response_text: 'x',
+    });
+    expect(res.status).toBe(409);
+    expect(mockDbCreateSellerResponseAtomic).not.toHaveBeenCalled();
+    expect(mockDbCreateResponse).not.toHaveBeenCalled();
   });
 
   it('rejects missing violation id', async () => {
@@ -105,6 +161,7 @@ describe('Sprint 3 UC3 responses route', () => {
   it('rejects unauthorized seller assignment', async () => {
     mockDbFetchViolationWorkflowMeta.mockResolvedValueOnce({
       violation_id: 101,
+      violation_status: 'Notice Sent',
       listing: { seller_id: 10, seller: { seller_email: 'someoneelse@example.com' } },
     });
     const res = await request(makeApp()).post('/api/responses').send({
@@ -112,15 +169,6 @@ describe('Sprint 3 UC3 responses route', () => {
       response_text: 'x',
     });
     expect(res.status).toBe(403);
-  });
-
-  it('rejects duplicate response', async () => {
-    mockDbHasResponseForViolation.mockResolvedValueOnce(true);
-    const res = await request(makeApp()).post('/api/responses').send({
-      violation_id: 101,
-      response_text: 'x',
-    });
-    expect(res.status).toBe(409);
   });
 
   it('returns error when persistence fails', async () => {
@@ -156,14 +204,94 @@ describe('Sprint 3 UC3 responses route', () => {
     );
   });
 
-  it('rejects unauthorized non-seller role', async () => {
+  it('allows investigator staff to append seller-typed response', async () => {
     mockUserType = 'INVESTIGATOR';
     mockJwtRole = 'investigator';
+    const res = await request(makeApp()).post('/api/responses').send({
+      violation_id: 101,
+      response_text: 'Seller confirmed removal',
+      responder_type: 'seller',
+    });
+    expect(res.status).toBe(201);
+    expect(mockDbCreateResponse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        violation_id: 101,
+        responder_type: 'seller',
+        seller_id: 55,
+      }),
+    );
+    expect(mockDbMarkViolationReadyForAdjudication).not.toHaveBeenCalled();
+  });
+
+  it('allows investigator investigator-typed response', async () => {
+    mockUserType = 'INVESTIGATOR';
+    mockJwtRole = 'investigator';
+    const res = await request(makeApp()).post('/api/responses').send({
+      violation_id: 101,
+      response_text: 'Please clarify listing SKU',
+      responder_type: 'investigator',
+    });
+    expect(res.status).toBe(201);
+    expect(mockDbCreateResponse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        responder_type: 'investigator',
+        seller_id: null,
+      }),
+    );
+  });
+
+  it('calls dbMarkViolationReadyForAdjudication when record_no_seller_reply', async () => {
+    mockUserType = 'INVESTIGATOR';
+    mockJwtRole = 'investigator';
+    const res = await request(makeApp()).post('/api/responses').send({
+      violation_id: 101,
+      response_text: 'No response received',
+      responder_type: 'investigator',
+      record_no_seller_reply: true,
+    });
+    expect(res.status).toBe(201);
+    expect(mockDbMarkViolationReadyForAdjudication).toHaveBeenCalledWith(expect.anything(), 101);
+  });
+
+  it('rejects record_no_seller_reply without investigator responder_type', async () => {
+    mockUserType = 'MANAGER';
+    mockJwtRole = 'manager';
+    const res = await request(makeApp()).post('/api/responses').send({
+      violation_id: 101,
+      response_text: 'x',
+      responder_type: 'seller',
+      record_no_seller_reply: true,
+    });
+    expect(res.status).toBe(400);
+    expect(mockDbMarkViolationReadyForAdjudication).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid responder_type for staff', async () => {
+    mockUserType = 'MANAGER';
+    mockJwtRole = 'manager';
+    const res = await request(makeApp()).post('/api/responses').send({
+      violation_id: 101,
+      response_text: 'x',
+      responder_type: 'bot',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 403 when staff lacks violation access', async () => {
+    mockUserType = 'INVESTIGATOR';
+    mockJwtRole = 'investigator';
+    mockAssertViolationAccess.mockImplementationOnce(async (_req, res) => {
+      res.status(403).json({ error: 'Forbidden' });
+      return false;
+    });
     const res = await request(makeApp()).post('/api/responses').send({
       violation_id: 101,
       response_text: 'x',
     });
     expect(res.status).toBe(403);
+    expect(mockDbCreateResponse).not.toHaveBeenCalled();
   });
 
   it('filters seller response list by violation id', async () => {

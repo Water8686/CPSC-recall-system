@@ -60,7 +60,8 @@ function SellerViolationView({ violation, session, onReload }) {
   const [replyError, setReplyError] = useState(null);
   const [snackbar, setSnackbar] = useState(null);
 
-  const canReply = !isTerminal(violation.violation_status);
+  const canReply =
+    !isTerminal(violation.violation_status) && !violation.adjudication;
 
   async function submitReply() {
     if (!replyText.trim()) return;
@@ -73,7 +74,6 @@ function SellerViolationView({ violation, session, onReload }) {
           violation_id: violation.violation_id,
           response_text: replyText.trim(),
           action_taken: replyAction,
-          responder_type: 'seller',
         }),
       });
       if (!res.ok) throw new Error(await getApiErrorMessage(res));
@@ -334,6 +334,9 @@ export default function ViolationDetailPage() {
   const [responseAction, setResponseAction] = useState('no_action');
   const [responseSaving, setResponseSaving] = useState(false);
 
+  const [cpscMessageText, setCpscMessageText] = useState('');
+  const [cpscMessageSaving, setCpscMessageSaving] = useState(false);
+
   const [adjStatus, setAdjStatus] = useState(ADJUDICATION_STATUS.APPROVED);
   const [adjNotes, setAdjNotes] = useState('');
   const [adjSaving, setAdjSaving] = useState(false);
@@ -418,6 +421,7 @@ export default function ViolationDetailPage() {
           violation_id: violation.violation_id,
           response_text: responseText.trim(),
           action_taken: responseAction,
+          responder_type: 'seller',
         }),
       });
       if (!res.ok) throw new Error(await getApiErrorMessage(res));
@@ -429,6 +433,30 @@ export default function ViolationDetailPage() {
       setError(err.message);
     } finally {
       setResponseSaving(false);
+    }
+  }
+
+  async function submitCpscMessage() {
+    if (!violation || !cpscMessageText.trim()) return;
+    setCpscMessageSaving(true);
+    try {
+      const res = await apiFetch('/api/responses', session, {
+        method: 'POST',
+        body: JSON.stringify({
+          violation_id: violation.violation_id,
+          response_text: cpscMessageText.trim(),
+          action_taken: 'no_action',
+          responder_type: 'investigator',
+        }),
+      });
+      if (!res.ok) throw new Error(await getApiErrorMessage(res));
+      setCpscMessageText('');
+      setSnackbar('Message added to timeline');
+      await loadViolation();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCpscMessageSaving(false);
     }
   }
 
@@ -449,6 +477,7 @@ export default function ViolationDetailPage() {
           response_text: text,
           action_taken: 'no_action',
           responder_type: 'investigator',
+          record_no_seller_reply: true,
         }),
       });
       if (!res.ok) throw new Error(await getApiErrorMessage(res));
@@ -519,22 +548,23 @@ export default function ViolationDetailPage() {
       : null;
 
   const canAdjudicate =
-    violation.response_count > 0 &&
+    violation.violation_status === SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED &&
     !violation.adjudication &&
     !isTerminal(violation.violation_status);
 
   const noticeComplete = Boolean(violation.notice_sent_at);
-  const responseComplete = violation.response_count > 0;
+  const responseReady =
+    violation.violation_status === SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED;
   const decisionComplete =
     Boolean(violation.adjudication) || isTerminal(violation.violation_status);
   let activeWorkflowStep = 0;
   if (!noticeComplete) activeWorkflowStep = 0;
-  else if (!responseComplete) activeWorkflowStep = 1;
+  else if (!responseReady) activeWorkflowStep = 1;
   else if (!decisionComplete) activeWorkflowStep = 2;
   else activeWorkflowStep = 3;
 
   const canRecordNoSellerResponse =
-    !responseComplete &&
+    !responseReady &&
     !isTerminal(violation.violation_status) &&
     !violation.adjudication;
 
@@ -602,16 +632,17 @@ export default function ViolationDetailPage() {
           <Step completed={noticeComplete}>
             <StepLabel>Notice sent</StepLabel>
           </Step>
-          <Step completed={responseComplete}>
-            <StepLabel>Seller response</StepLabel>
+          <Step completed={responseReady}>
+            <StepLabel>Responses</StepLabel>
           </Step>
           <Step completed={decisionComplete}>
             <StepLabel>Final decision</StepLabel>
           </Step>
         </Stepper>
-        {!responseComplete && !decisionComplete && (
+        {!responseReady && !decisionComplete && (
           <Typography variant="body2" color="text.secondary">
-            Waiting on a response record before you can submit a final decision.{' '}
+            Waiting until this violation reaches RESPONSE SUBMITTED (seller reply via portal, your
+            recorded summary, or “no response”) before you can submit a final decision.{' '}
             <Link
               component="button"
               type="button"
@@ -748,10 +779,11 @@ export default function ViolationDetailPage() {
 
       <Paper ref={sellerResponseSectionRef} variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-          Log seller response
+          Record seller reply
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Creates a response record (required before final adjudication).
+          Document what the seller said or did (you can add multiple entries). Sellers can also send
+          their own replies from the portal.
         </Typography>
         <TextField
           fullWidth
@@ -781,7 +813,12 @@ export default function ViolationDetailPage() {
             variant="contained"
             size="small"
             onClick={submitResponse}
-            disabled={responseSaving || !responseText.trim()}
+            disabled={
+              responseSaving ||
+              !responseText.trim() ||
+              Boolean(violation.adjudication) ||
+              isTerminal(violation.violation_status)
+            }
           >
             {responseSaving ? 'Saving…' : 'Save response'}
           </Button>
@@ -794,6 +831,36 @@ export default function ViolationDetailPage() {
             Record no response from seller
           </Button>
         </Box>
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+          CPSC message (timeline)
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Official investigator messages visible in the correspondence thread (questions,
+          clarifications).
+        </Typography>
+        <TextField
+          fullWidth
+          multiline
+          minRows={2}
+          value={cpscMessageText}
+          onChange={(e) => setCpscMessageText(e.target.value)}
+          placeholder="e.g. Please confirm the listing has been removed…"
+          sx={{ mb: 1 }}
+        />
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={submitCpscMessage}
+          disabled={
+            cpscMessageSaving ||
+            !cpscMessageText.trim() ||
+            Boolean(violation.adjudication) ||
+            isTerminal(violation.violation_status)
+          }
+        >
+          {cpscMessageSaving ? 'Saving…' : 'Send CPSC message'}
+        </Button>
       </Paper>
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
@@ -804,8 +871,8 @@ export default function ViolationDetailPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {violation.adjudication || isTerminal(violation.violation_status)
               ? 'This violation already has a final decision or is closed.'
-              : 'Log at least one response (seller reply or “no response from seller”) before submitting a final decision.'}{' '}
-            {!decisionComplete && !responseComplete && (
+              : 'The violation must be RESPONSE SUBMITTED (seller portal reply, your recorded seller reply, or “no response”) before submitting a final decision.'}{' '}
+            {!decisionComplete && !responseReady && (
               <>
                 <Link
                   component="button"
