@@ -26,6 +26,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Tooltip,
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
@@ -60,6 +61,14 @@ function daysElapsed(dateStr) {
   const diff = Math.floor((now - sent) / (1000 * 60 * 60 * 24));
   return diff;
 }
+
+/** Days shown in Responses table: adjudication SLA (since seller reply) or days since notice. */
+function responsesQueueDaysElapsed(v) {
+  if (typeof v.responses_sla_elapsed_days === 'number') return v.responses_sla_elapsed_days;
+  return daysElapsed(v.notice_sent_at);
+}
+
+const SLA_INVESTIGATOR_DAYS = 7;
 
 const STATUS_FILTERS = ['All', 'Awaiting Response', 'Response Received', 'Closed'];
 
@@ -248,7 +257,20 @@ export default function ResponsesPage() {
               <TableCell sx={{ fontWeight: 600 }}>Notice Sent</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Response Date</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Days Elapsed</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>
+                <Tooltip
+                  placement="top"
+                  title={
+                    <>
+                      If a seller reply is awaiting a decision, counts days since that reply — highlighted
+                      after {SLA_INVESTIGATOR_DAYS} calendar days without investigator adjudication. Otherwise counts
+                      days since the notice was sent (awaiting seller).
+                    </>
+                  }
+                >
+                  <span>Days elapsed</span>
+                </Tooltip>
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -263,7 +285,10 @@ export default function ResponsesPage() {
             ) : (
               filtered.map((v) => {
                 const isOpen = expandedId === v.violation_id;
-                const days = daysElapsed(v.notice_sent_at);
+                const days = responsesQueueDaysElapsed(v);
+                const investigatorOverSla =
+                  typeof v.responses_sla_elapsed_days === 'number' &&
+                  v.responses_sla_elapsed_days > SLA_INVESTIGATOR_DAYS;
                 return (
                   <React.Fragment key={v.violation_id}>
                     <TableRow
@@ -317,7 +342,7 @@ export default function ResponsesPage() {
                         <Typography
                           variant="body2"
                           fontWeight={600}
-                          color={typeof days === 'number' && days > 14 ? 'error.main' : 'text.primary'}
+                          color={investigatorOverSla ? 'error.main' : 'text.primary'}
                         >
                           {typeof days === 'number' ? `${days}d` : days}
                         </Typography>

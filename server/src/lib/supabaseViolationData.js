@@ -215,7 +215,7 @@ const VIOLATION_SELECT = `
     marketplace(marketplace_name),
     seller(seller_name, seller_email)),
   contact(contact_id, contact_sent_at, message_summary,
-    response(response_id, response_received_at, response_action, response_text,
+    response(response_id, responder_type, response_received_at, response_action, response_text,
       adjudication(adjudication_id, outcome, resolution_reason, adjudicated_at)))
 `;
 
@@ -360,6 +360,7 @@ export async function dbFetchViolationDetail(supabase, violationId) {
           responded_at: latestResponse.responded_at,
           action_taken: latestResponse.action_taken,
           response_text: latestResponse.response_text,
+          responder_type: latestResponse.responder_type ?? null,
         }
       : null,
     adjudication: latestAdj
@@ -666,13 +667,57 @@ export async function dbCreateContact(supabase, fields) {
 function mapViolationRow(row) {
   if (!row) return null;
   const contacts = Array.isArray(row.contact) ? row.contact : [];
-  const responses = contacts.flatMap((c) => (Array.isArray(c.response) ? c.response : []));
-  const adjudications = responses.flatMap((r) =>
-    Array.isArray(r.adjudication) ? r.adjudication : [],
+  const responseRows = contacts.flatMap((c) => {
+    const resp = c.response;
+    return Array.isArray(resp) ? resp : resp ? [resp] : [];
+  });
+  const byReceivedDesc = [...responseRows].sort((a, b) => {
+    const tb = b?.response_received_at ? new Date(b.response_received_at).getTime() : 0;
+    const ta = a?.response_received_at ? new Date(a.response_received_at).getTime() : 0;
+    return tb - ta;
+  });
+  const latestResponse = byReceivedDesc[0] ?? null;
+  const sellerRows = responseRows.filter(
+    (r) => String(r?.responder_type ?? '').trim().toLowerCase() === 'seller',
   );
-  const latestContact = contacts[0] ?? null;
-  const latestResponse = responses[0] ?? null;
-  const latestAdj = adjudications[0] ?? null;
+  const latestSellerRow = [...sellerRows].sort((a, b) => {
+    const tb = b?.response_received_at ? new Date(b.response_received_at).getTime() : 0;
+    const ta = a?.response_received_at ? new Date(a.response_received_at).getTime() : 0;
+    return tb - ta;
+  })[0] ?? null;
+  const adjudications = [];
+  for (const r of responseRows) {
+    const a = r?.adjudication;
+    if (a == null) continue;
+    adjudications.push(...(Array.isArray(a) ? a : [a]));
+  }
+  const latestAdj =
+    adjudications.length === 0
+      ? null
+      : adjudications.reduce((best, cur) => {
+          const tb = cur?.adjudicated_at ? new Date(cur.adjudicated_at).getTime() : 0;
+          const bb = best?.adjudicated_at ? new Date(best.adjudicated_at).getTime() : 0;
+          return tb >= bb ? cur : best;
+        }, adjudications[0]);
+
+  /** Days since seller reply while status is RESPONSE_SUBMITTED (investigator must adjudicate). */
+  let responses_sla_elapsed_days = null;
+  if (
+    row.violation_status === SPRINT3_VIOLATION_STATUS.RESPONSE_SUBMITTED &&
+    (latestSellerRow?.response_received_at || latestResponse?.response_received_at)
+  ) {
+    const anchor = latestSellerRow?.response_received_at ?? latestResponse?.response_received_at;
+    responses_sla_elapsed_days = Math.floor(
+      (Date.now() - new Date(anchor).getTime()) / (1000 * 60 * 60 * 24),
+    );
+  }
+
+  const latestContact =
+    [...contacts].sort((a, b) => {
+      const tb = b?.contact_sent_at ? new Date(b.contact_sent_at).getTime() : 0;
+      const ta = a?.contact_sent_at ? new Date(a.contact_sent_at).getTime() : 0;
+      return tb - ta;
+    })[0] ?? null;
 
   return {
     violation_id:         row.violation_id,
@@ -695,13 +740,15 @@ function mapViolationRow(row) {
     listing_title:        row.listing?.listing_title ?? null,
     seller_name:          row.listing?.seller?.seller_name ?? null,
     seller_email:         row.listing?.seller?.seller_email ?? null,
-    response_count:       responses.length,
+    response_count:       responseRows.length,
+    responses_sla_elapsed_days,
     latest_response:      latestResponse
       ? {
           response_id:   latestResponse.response_id,
           responded_at:  latestResponse.response_received_at,
           action_taken:  latestResponse.response_action,
           response_text: latestResponse.response_text,
+          responder_type: latestResponse.responder_type ?? null,
         }
       : null,
     adjudication: latestAdj
