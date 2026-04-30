@@ -10,7 +10,8 @@ router.use(applyApiMockUser);
 
 const PRIORITY_BUCKETS = ['High', 'Medium', 'Low'];
 const STATUS_BUCKETS = ['Open', 'Resolved', 'Other'];
-const ADJUDICATION_BUCKETS = ['Approved', 'Closed', 'Pending Remediation'];
+/** Matches adjudication.outcome / ADJUDICATION_STATUS in shared — do not collapse into vague groups */
+const ADJUDICATION_BUCKETS = ['Approved', 'Rejected', 'Escalated', 'Archive', 'Other'];
 
 function monthKey(dateLike) {
   if (!dateLike) return null;
@@ -78,12 +79,13 @@ function statusBucket(statusRaw) {
   return 'Other';
 }
 
-function adjudicationBucket(outcomeRaw) {
+function normalizeAdjudicationOutcome(outcomeRaw) {
   const value = String(outcomeRaw || '').trim().toLowerCase();
   if (value === 'approved') return 'Approved';
-  if (value === 'rejected' || value === 'archive') return 'Closed';
-  if (value === 'escalated') return 'Pending Remediation';
-  return null;
+  if (value === 'rejected') return 'Rejected';
+  if (value === 'escalated') return 'Escalated';
+  if (value === 'archive') return 'Archive';
+  return 'Other';
 }
 
 /** GET /api/stats/dashboard */
@@ -150,15 +152,27 @@ router.get('/dashboard', requireRealAuth, async (req, res) => {
     }));
     const violations_by_priority = recalls_by_priority_counts;
 
-    const adjudicationCounts = { Approved: 0, Closed: 0, 'Pending Remediation': 0 };
+    const adjudicationCounts = {
+      Approved: 0,
+      Rejected: 0,
+      Escalated: 0,
+      Archive: 0,
+      Other: 0,
+    };
     for (const row of adjudications) {
-      const bucket = adjudicationBucket(row.outcome);
-      if (bucket) adjudicationCounts[bucket] += 1;
+      const bucket = normalizeAdjudicationOutcome(row.outcome);
+      adjudicationCounts[bucket] += 1;
     }
-    const adjudication_outcomes = ADJUDICATION_BUCKETS.map((outcome) => ({
-      outcome,
-      count: adjudicationCounts[outcome],
-    }));
+    const totalAdjudications = adjudications.length;
+    const adjudication_outcomes = ADJUDICATION_BUCKETS.map((outcome) => {
+      const count = adjudicationCounts[outcome];
+      return {
+        outcome,
+        count,
+        percent:
+          totalAdjudications > 0 ? Math.round((count / totalAdjudications) * 100) : 0,
+      };
+    });
 
     const responses_by_month = buildMonthlySeries(responses, 'response_received_at', null, 8);
 

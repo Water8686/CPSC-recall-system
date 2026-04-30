@@ -42,9 +42,11 @@ const STATUS_COLORS = {
   Other: '#4f46e5',
 };
 const OUTCOME_COLORS = {
-  Approved: '#4ade80',
-  Closed: '#facc15',
-  'Pending Remediation': '#60a5fa',
+  Approved: '#22c55e',
+  Rejected: '#ef4444',
+  Escalated: '#ea580c',
+  Archive: '#64748b',
+  Other: '#a855f7',
 };
 const PANEL_SX = {
   p: 2.5,
@@ -124,6 +126,8 @@ export default function DashboardPage() {
   const hasPriorityPercentData = recallsByPriorityPercent.some((row) => Number(row?.percent ?? 0) > 0);
   const hasViolationsByPriorityData = violationsByPriority.some((row) => Number(row?.count ?? 0) > 0);
   const hasRecallPriorityCountData = recallsByPriorityCounts.some((row) => Number(row?.count ?? 0) > 0);
+  const adjudicationPieData = adjudicationOutcomes.filter((row) => Number(row?.count ?? 0) > 0);
+  const hasAdjudicationOutcomes = adjudicationPieData.length > 0;
 
   if (loading) {
     return (
@@ -310,28 +314,55 @@ export default function DashboardPage() {
 
         <Grid item xs={12} md={6}>
           <Paper sx={LIGHT_PANEL_SX}>
-            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-              Adjudication Outcomes
+            <Typography variant="subtitle2" fontWeight={700}>
+              Adjudication outcomes
             </Typography>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Tooltip contentStyle={lightTooltipStyle} />
-                <Legend wrapperStyle={{ color: lightLabelTick, fontSize: 12 }} />
-                <Pie
-                  data={adjudicationOutcomes}
-                  dataKey="count"
-                  nameKey="outcome"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={88}
-                  label={({ percent }) => `${Math.round(percent * 100)}%`}
-                >
-                  {adjudicationOutcomes.map((entry) => (
-                    <Cell key={entry.outcome} fill={OUTCOME_COLORS[entry.outcome] || '#64748b'} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
+            <Typography variant="caption" sx={{ color: lightLabelTick, display: 'block', mb: 1.25 }}>
+              Investigator decisions (one slice per adjudication record)
+            </Typography>
+            {hasAdjudicationOutcomes ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Tooltip
+                    contentStyle={lightTooltipStyle}
+                    formatter={(value, _name, item) => {
+                      const pct = item?.payload?.percent;
+                      return [
+                        typeof pct === 'number' ? `${value} (${pct}% of decisions)` : String(value),
+                        item?.payload?.outcome ?? '',
+                      ];
+                    }}
+                  />
+                  <Legend wrapperStyle={{ color: lightLabelTick, fontSize: 12 }} />
+                  <Pie
+                    data={adjudicationPieData}
+                    dataKey="count"
+                    nameKey="outcome"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={88}
+                    label={(props) => {
+                      const row = props.payload;
+                      const n = Number(row?.count ?? 0);
+                      const pct = row?.percent;
+                      if (!n || typeof pct !== 'number') return null;
+                      if (pct < 7) return null;
+                      return `${n} (${pct}%)`;
+                    }}
+                  >
+                    {adjudicationPieData.map((entry) => (
+                      <Cell key={entry.outcome} fill={OUTCOME_COLORS[entry.outcome] || '#94a3b8'} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 250 }}>
+                <Typography variant="body2" color="text.secondary">
+                  No adjudications yet — decisions appear here after investigators record them.
+                </Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
 
