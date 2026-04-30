@@ -84,10 +84,10 @@ Sample routes (server runs on port **3001** in dev):
 
 | Name | Role |
 |------|------|
-| Edward Severichs-Cespedes | Project Manager |
-| Gabriella Ashiblie | Requirements Analyst |
-| Reed Greenfield | Data Manager |
-| Michelle Bae | Process Designer |
+| Michelle Bae | Project Manager |
+| Edward Severichs-Cespedes | Requirements Analyst |
+| Gabriella Ashiblie| Data Manager |
+| Reed Greenfield | Process Designer |
 | Parker Smith | Business Intelligence Analyst |
 | Ben Mickool | Web Developer |
 | Soumya Bandaru | UX Lead |
